@@ -45,30 +45,41 @@
 
 ## Arborescence du projet
 
-hanuman/
-├── app/
-│ ├── main.py # Point d’entrée FastAPI
-│ ├── core/ # Moteur principal, sécurité, routeur global
-│ │ ├── config.py # Paramètres de configuration (chargés dynamiquement)
-│ │ ├── logging.py # Initialisation des logs
-│ │ ├── auth.py # Authentification, validation de token
-│ │ └── loader.py # Chargement dynamique des modules
-│ ├── modules/ # Automatisations individuelles (1 fichier = 1 fonctionnalité)
-│ │ ├── notion_to_gcal.py
-│ │ └── github_to_notion.py
-│ └── models/ # Pydantic schemas pour validation des entrées
-├── tests/
-│ ├── test_status.py
-│ └── test_auth.py
-├── secrets/ # Fichiers chiffrés ou .env (non commités)
-│ └── .env
-├── config/
-│ ├── logging.yaml # Config avancée du logger Python
-│ └── hanuman_config.json # Paramètres externes (paths, profils, etc.)
-├── logs/
-│ └── hanuman.log # Fichier de log général
-├── .gitignore
-├── pyproject.toml # Géré avec Poetry
-├── requirements.txt # Généré automatiquement
-└── README.md
+# Arborescence professionnelle du projet Hanuman (FastAPI, 2025)
 
+hanuman/
+├── src/
+│   └── hanuman/                       # Package principal Python
+│       ├── main.py                   # Point d’entrée FastAPI
+│       ├── api/                      # 🌐 Routes FastAPI (regroupées par domaine)
+│       │   ├── __init__.py
+│       │   └── status.py
+│       ├── core/                     # 🔧 Infrastructure : config, logger, sécurité
+│       │   ├── __init__.py
+│       │   ├── config.py
+│       │   ├── logging.py
+│       │   └── security.py
+│       ├── services/                 # ⚙️ Logique applicative (appel API Notion, GitHub…)
+│       │   ├── __init__.py
+│       │   └── notion_service.py
+│       ├── models/                   # 📦 Schémas Pydantic (entrées / sorties / DTO)
+│       │   ├── __init__.py
+│       │   └── status.py
+│       └── utils/                    # 🧩 Fonctions utilitaires
+│           └── helpers.py
+├── tests/                            # 🧪 Tests unitaires & d’intégration
+│   ├── __init__.py
+│   └── test_status.py
+├── config/                           # ⚙️ Fichiers de configuration YAML ou JSON
+│   ├── logging.yaml
+│   └── hanuman_config.json
+├── secrets/                          # 🔒 Clés, tokens, .env (non versionnés)
+│   └── .gitkeep
+├── logs/                             # 📝 Logs runtime
+│   └── hanuman.log
+├── data/                             # 🗂️ Fichiers de données temporaires ou traités
+│   └── .gitkeep
+├── .gitignore
+├── README.md
+├── pyproject.toml
+└── poetry.lock
