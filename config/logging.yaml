@@ -6,19 +6,20 @@ formatters:
     format: "[%(asctime)s] [%(levelname)s] [%(name)s] %(message)s"
     datefmt: "%Y-%m-%d %H:%M:%S"
 
+  rich:
+    format: "%(message)s"
+
   json:
     format: '{"timestamp": "%(asctime)s", "level": "%(levelname)s", "logger": "%(name)s", "message": "%(message)s"}'
     datefmt: "%Y-%m-%dT%H:%M:%S"
 
-  rich:
-    format: "%(message)s"
-
 handlers:
   console:
-    class: rich.logging.RichHandler
+    class: logging.StreamHandler
     level: DEBUG
-    formatter: rich
+    formatter: standard
     stream: ext://sys.stdout
+
 
   file:
     class: logging.handlers.TimedRotatingFileHandler
@@ -36,29 +37,10 @@ handlers:
     filename: logs/hanuman_error.log
     encoding: utf8
 
-  # Préparation pour future intégration webhook (non activé)
-  # webhook:
-  #   class: logging.handlers.HTTPHandler
-  #   level: ERROR
-  #   formatter: json
-  #   host: "localhost:8000"  # à adapter
-  #   url: "/log-alert"
-  #   method: "POST"
-
 loggers:
   hanuman:
     level: DEBUG
     handlers: [console, file]
-    propagate: no
-
-  hanuman.services.notion:
-    level: INFO
-    handlers: [file]
-    propagate: no
-
-  hanuman.core:
-    level: DEBUG
-    handlers: [console]
     propagate: no
 
 root:

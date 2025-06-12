@@ -4,32 +4,32 @@ import logging
 import logging.config
 from logging import Logger
 from pathlib import Path
-from typing import Optional
 
 import yaml
 
 
-def setup_logging(
-    config_path: Optional[Path] = None,
-    default_level: int = logging.INFO,
-    env: str = "default",
-) -> Logger:
+def setup_logging(level: int = logging.INFO) -> Logger:
     """
-    Initialise le système de log à partir du fichier YAML.
+    Initialise le système de logs à partir du fichier config/logging.yaml.
+    Utilise dictConfig pour charger : handlers, formatters, loggers.
+
+    :param level: Niveau par défaut utilisé en cas d'échec
+    :return: Logger nommé "hanuman"
     """
-    if config_path is None:
-        config_path = Path(__file__).resolve().parents[2] / "config" / "logging.yaml"
+
+    config_path = Path(__file__).resolve().parents[3] / "config" / "logging.yaml"
+    print(f"[DEBUG] Chargement config log depuis : {config_path}")  # temporaire
 
     if config_path.exists():
         try:
-            with config_path.open("r") as f:
+            with config_path.open("r", encoding="utf-8") as f:
                 config = yaml.safe_load(f)
                 logging.config.dictConfig(config)
         except Exception as e:
-            print(f"⚠️ Failed to load logging config: {e}")
-            logging.basicConfig(level=default_level)
+            print(f"⚠️ Échec du chargement logging.yaml : {e}")
+            logging.basicConfig(level=level)
     else:
-        print("⚠️ Logging config not found, using basicConfig.")
-        logging.basicConfig(level=default_level)
+        print("⚠️ logging.yaml introuvable, fallback basicConfig.")
+        logging.basicConfig(level=level)
 
     return logging.getLogger("hanuman")
