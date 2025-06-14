@@ -19,5 +19,11 @@ app = FastAPI(
 # Inclusion des routes
 app.include_router(status.router)
 
-# Message de démarrage
-logger.info("✅ API initialisée avec succès")
+# 🔍 Log intelligent de fin d'initialisation
+from fastapi.routing import APIRoute
+
+# On extrait les routes FastAPI activées (hors openapi et docs auto)
+active_routes = [r.path for r in app.routes if isinstance(r, APIRoute)]
+
+logger.info("✅ Hanuman initialisé – main.py exécuté jusqu’au bout")
+logger.info(f"📦 Routes actives : {active_routes}")
