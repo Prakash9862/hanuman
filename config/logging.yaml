@@ -41,7 +41,7 @@ loggers:
   hanuman:
     level: DEBUG
     handlers: [console, file]
-    propagate: no
+    propagate: true
 
 root:
   level: INFO
