@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.routing import APIRoute
 
-from hanuman.api import notion, status
+from hanuman.api import github, notion, status
 from hanuman.core.logging import setup_logging
 
 # Initialisation du logger
@@ -18,6 +18,7 @@ app = FastAPI(
 # Inclusion des routes
 app.include_router(status.router)
 app.include_router(notion.router)
+app.include_router(github.router)
 
 # 🔍 Log intelligent de fin d'initialisation
 active_routes = [r.path for r in app.routes if isinstance(r, APIRoute)]
