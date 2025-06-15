@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.routing import APIRoute
 
-from hanuman.api import chess_com, github, notion, obsidian, openai, status
+from hanuman.api import chess_com, github, notion, obsidian, openai, status, wikipedia
 from hanuman.core.logging import setup_logging
 
 # Initialisation du logger
@@ -22,6 +22,7 @@ app.include_router(github.router)
 app.include_router(chess_com.router)
 app.include_router(obsidian.router)
 app.include_router(openai.router)
+app.include_router(wikipedia.router)
 
 # 🔍 Log intelligent de fin d'initialisation
 active_routes = [r.path for r in app.routes if isinstance(r, APIRoute)]
