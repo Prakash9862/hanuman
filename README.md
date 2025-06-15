@@ -83,3 +83,135 @@ hanuman/
 ├── README.md
 ├── pyproject.toml
 └── poetry.lock
+
+---
+
+# 📘 Hanuman - README Général
+
+## 🧭 Présentation
+
+**Hanuman** est une API personnelle d'orchestration modulaire, développée en **Python 3.12** avec **FastAPI**, conçue pour centraliser et automatiser les intégrations entre services externes (GitHub, Notion, etc.) et composants locaux (scripts, fichiers, vault Obsidian…).
+
+Ce projet est à la fois un **laboratoire d’apprentissage**, un **noyau personnel d’automatisation** et une **base de supervision logicielle**. Il repose sur des standards professionnels, tout en restant compact, testable et extensible.
+
+---
+
+## 🧱 Structure technique
+
+```
+hanuman/
+├── .env                        # Clés privées, tokens d’API
+├── config/
+│   ├── logging.yaml           # Configuration des logs
+│   └── hanuman_config.json    # (facultatif)
+├── logs/
+│   ├── hanuman.log            # Logs globaux DEBUG+
+│   └── hanuman_error.log      # Logs d’erreur JSON
+├── src/hanuman/
+│   ├── main.py                # Entrée FastAPI
+│   ├── api/                   # Routes (status, notion, github…)
+│   ├── core/                  # Logging, config, sécurité
+│   ├── services/              # Logique applicative
+│   ├── models/                # Schémas Pydantic (optionnel)
+│   └── utils/                 # Fonctions utilitaires
+├── tests/                     # Tests Pytest par module
+├── Makefile                   # Commandes raccourcies
+├── pyproject.toml             # Dépendances (poetry, black…)
+└── README.md                  # (ce fichier)
+```
+
+---
+
+## 🎯 Objectifs principaux
+
+* ⚙️ **Centraliser les intégrations** locales et API tierces
+* 🧩 **Modularité** : chaque service = module indépendant
+* 🔐 **Sécurité** : aucune exposition publique, tokens cloisonnés
+* 🧪 **Testabilité** intégrée (pytest + convention "ok/error")
+* 📓 **Logs** professionnels centralisés (DEBUG + ERROR JSON)
+* 📡 **Évolutivité** : gestion propre pour ajout de services futurs
+
+---
+
+## ✅ Services actuellement intégrés
+
+| Service   | Route            | Token `.env` | Testé | Dossier            | Service Python                 |
+| --------- | ---------------- | ------------ | ----- | ------------------ | ------------------------------ |
+| Status    | `/status`        | ❌            | ✅     | `api/status.py`    | — intégré                      |
+| Notion    | `/notion/ping`   | ✅            | ✅     | `api/notion.py`    | `services/notion_service.py`   |
+| GitHub    | `/github/ping`   | ✅            | ✅     | `api/github.py`    | `services/github_service.py`   |
+| Chess.com | `/chess/ping`    | ❌            | ✅     | `api/chess_com.py` | `services/chess_service.py`    |
+| Obsidian  | `/obsidian/ping` | ❌            | ✅     | `api/obsidian.py`  | `services/obsidian_service.py` |
+
+---
+
+## 🔧 Développement & Tests
+
+### 🛠️ Makefile
+
+```make
+make run      # Lance uvicorn avec reload
+make test     # Lance pytest
+make format   # Formate avec black
+make lint     # Lint avec flake8
+make clean    # Supprime les caches Python
+```
+
+### 🧪 Convention de test
+
+* Tous les pings retournent un `"ok": true/false`
+* Si erreur : champ `"error"` obligatoire
+* Tous les tests sont dans `tests/` avec un `test_*_ping.py` par service
+
+---
+
+## 🔒 Variables d’environnement (`.env`)
+
+| Variable       | Utilisé par         | Usage                   |
+| -------------- | ------------------- | ----------------------- |
+| `NOTION_TOKEN` | `notion_service.py` | Appel API Notion        |
+| `GITHUB_TOKEN` | `github_service.py` | Authentification GitHub |
+
+---
+
+## 🪵 Logging
+
+Configuration : `config/logging.yaml`
+
+* 📘 `logs/hanuman.log` : tous les logs DEBUG+, INFO, etc.
+* ❗ `logs/hanuman_error.log` : logs d’erreurs au format JSON
+* Préfixes systématiques : `[hanuman.api.nom]`, `[hanuman.services.nom]`
+
+---
+
+## 📓 Notes internes
+
+* Obsidian Vault utilisé : `/home/prakash/Prakash/obsidian/Privé`
+* Chaque route est testable isolément (API REST pure)
+* Aucun service n'est couplé aux autres (architecture propre)
+* Tous les modules sont prévus pour être débrayables individuellement
+* Projet en constante évolution, structuré pour rester robuste dans la durée
+
+---
+
+## 📌 État du système
+
+* Pings fonctionnels : ✅ 5/5
+* Tests validés : ✅ 5/5
+* Logging opérationnel : ✅ 100 %
+* `.env` actif : ✅ 2 clés principales (Notion, GitHub)
+* Uvicorn + FastAPI tournent localement : ✅ stable
+* Prochaine étape : intégrer des **automations réelles** par service
+
+---
+
+## 🔜 À faire
+
+* 🔄 Ajout de fonctions avancées (push/pull Notion, GitHub issues…)
+* 🔐 Intégration auth (JWT statique ou time-based)
+* 🧠 Ajout de mémoire interne (SQLite / JSON local ?)
+* 🧪 Déploiement Dockerisé (local uniquement)
+
+📘 *Version actuelle : Hanuman v1 — Phase d’intégration terminée*
+
+> “The monkey-god who saute par-dessus les architectures – voilà Hanuman.”
