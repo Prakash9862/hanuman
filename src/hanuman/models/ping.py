@@ -7,12 +7,8 @@ from pydantic import BaseModel, Field
 class PingResult(BaseModel):
     ok: bool = Field(..., description="True si le service est accessible")
     error: Optional[str] = Field(None, description="Message d'erreur en cas d'échec")
-    detail: Optional[Dict[str, Any]] = Field(
-        None, description="Données retournées par le service"
-    )
-    source: Optional[str] = Field(
-        None, description="Nom du service pingé (github, notion...)"
-    )
+    detail: Optional[Dict[str, Any]] = Field(None, description="Données retournées par le service")
+    source: Optional[str] = Field(None, description="Nom du service pingé (github, notion...)")
     timestamp: datetime = Field(
         default_factory=datetime.utcnow, description="Date et heure de l'appel"
     )
