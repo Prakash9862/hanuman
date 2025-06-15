@@ -1,7 +1,6 @@
 # src/hanuman/api/calendar.py
 
 import logging
-import os
 
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse, RedirectResponse
