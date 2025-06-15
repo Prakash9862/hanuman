@@ -1,5 +1,3 @@
-# tests/test_notion_ping.py
-
 from fastapi.testclient import TestClient
 
 from hanuman.main import app
@@ -12,11 +10,13 @@ def test_notion_ping():
     data = response.json()
 
     assert "ok" in data
+    assert "timestamp" in data
+    assert "source" in data
+    assert data["source"] == "notion"
 
     if data["ok"]:
-        assert "user" in data
-        assert isinstance(data["user"], dict)
-        assert "name" in data["user"]
-        assert "type" in data["user"]
+        assert "detail" in data
+        assert "user" in data["detail"]
+        assert isinstance(data["detail"]["user"], dict)
     else:
         assert "error" in data

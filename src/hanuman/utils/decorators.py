@@ -1,7 +1,7 @@
 # src/hanuman/utils/decorators.py
 
 import logging
-from datetime import datetime
+from datetime import UTC, datetime
 from functools import wraps
 from time import time
 
@@ -28,7 +28,7 @@ def safe_ping(source: str):
                 return PingResult(
                     ok=True,
                     source=source,
-                    timestamp=datetime.utcnow(),
+                    timestamp=datetime.now(UTC),
                     duration_ms=duration,
                     detail=result,
                 )
@@ -39,7 +39,7 @@ def safe_ping(source: str):
                 return PingResult(
                     ok=False,
                     source=source,
-                    timestamp=datetime.utcnow(),
+                    timestamp=datetime.now(UTC),
                     duration_ms=duration,
                     error=str(e),
                 )

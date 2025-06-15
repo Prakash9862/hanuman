@@ -1,5 +1,3 @@
-# tests/test_chess_ping.py
-
 from fastapi.testclient import TestClient
 
 from hanuman.main import app
@@ -12,9 +10,12 @@ def test_chess_ping():
     data = response.json()
 
     assert "ok" in data
+    assert "timestamp" in data
+    assert "source" in data
+    assert data["source"] == "chess"
 
     if data["ok"]:
-        assert "username" in data
-        assert isinstance(data["username"], str)
+        assert "detail" in data
+        assert "username" in data["detail"]
     else:
         assert "error" in data

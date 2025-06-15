@@ -1,5 +1,3 @@
-# tests/test_github_ping.py
-
 from fastapi.testclient import TestClient
 
 from hanuman.main import app
@@ -12,9 +10,12 @@ def test_github_ping():
     data = response.json()
 
     assert "ok" in data
+    assert "timestamp" in data
+    assert "source" in data
+    assert data["source"] == "github"
 
     if data["ok"]:
-        assert "login" in data
-        assert isinstance(data["login"], str)
+        assert "detail" in data
+        assert "login" in data["detail"]
     else:
         assert "error" in data

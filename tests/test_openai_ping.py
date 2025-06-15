@@ -1,5 +1,3 @@
-# tests/test_openai_ping.py
-
 from fastapi.testclient import TestClient
 
 from hanuman.main import app
@@ -12,9 +10,13 @@ def test_openai_ping():
     data = response.json()
 
     assert "ok" in data
+    assert "timestamp" in data
+    assert "source" in data
+    assert data["source"] == "openai"
 
     if data["ok"]:
-        assert "model_count" in data
-        assert isinstance(data["model_count"], int)
+        assert "detail" in data
+        assert "model_count" in data["detail"]
+        assert isinstance(data["detail"]["model_count"], int)
     else:
         assert "error" in data

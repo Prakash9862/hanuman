@@ -1,5 +1,3 @@
-# tests/test_wikipedia_ping.py
-
 from fastapi.testclient import TestClient
 
 from hanuman.main import app
@@ -12,9 +10,13 @@ def test_wikipedia_ping():
     data = response.json()
 
     assert "ok" in data
+    assert "timestamp" in data
+    assert "source" in data
+    assert data["source"] == "wikipedia"
 
     if data["ok"]:
-        assert "title" in data
-        assert data["title"].lower() == "openai"
+        assert "detail" in data
+        assert "title" in data["detail"]
+        assert data["detail"]["title"].lower() == "openai"
     else:
         assert "error" in data
