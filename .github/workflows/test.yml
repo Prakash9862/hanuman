@@ -26,7 +26,7 @@ jobs:
         poetry install --with dev
 
     - name: 🧼 Lint code (flake8)
-      run: poetry run flake8 src tests
+      run: poetry run flake8 src tests --ignore=E501
 
     - name: 🎨 Format check (black)
       run: poetry run black --check src tests

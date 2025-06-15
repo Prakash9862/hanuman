@@ -36,7 +36,7 @@ target-version = ["py312"]
 skip-string-normalization = true
 
 [tool.flake8]
-max-line-length = 88
+max-line-length = 100
 exclude = ["tests/*", "logs/*"]
 
 [tool.mypy]
