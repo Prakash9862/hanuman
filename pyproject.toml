@@ -31,8 +31,9 @@ requires = ["poetry-core>=2.0.0,<3.0.0"]
 build-backend = "poetry.core.masonry.api"
 
 [tool.black]
-line-length = 88
-target-version = ['py311']
+line-length = 100
+target-version = ["py312"]
+skip-string-normalization = true
 
 [tool.flake8]
 max-line-length = 88

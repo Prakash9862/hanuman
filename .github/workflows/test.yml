@@ -1,4 +1,4 @@
-name: 🧪 Tests Hanuman API
+name: 🧪 Hanuman CI – Lint + Test + Type + Security
 
 on:
   push:
@@ -7,7 +7,7 @@ on:
     branches: [ main ]
 
 jobs:
-  test:
+  quality-check:
     runs-on: ubuntu-latest
 
     steps:
@@ -23,12 +23,19 @@ jobs:
       run: |
         python -m pip install --upgrade pip
         pip install poetry
-        poetry install
+        poetry install --with dev
 
-    - name: 🧼 Run flake8 linter
-      run: |
-        poetry run flake8 src tests
+    - name: 🧼 Lint code (flake8)
+      run: poetry run flake8 src tests
 
-    - name: 🧪 Run pytest
-      run: |
-        poetry run pytest tests
+    - name: 🎨 Format check (black)
+      run: poetry run black --check src tests
+
+    - name: 🔠 Type check (mypy)
+      run: poetry run mypy src
+
+    - name: 🔐 Security audit (bandit)
+      run: poetry run bandit -r src
+
+    - name: 🧪 Run unit tests (pytest)
+      run: poetry run pytest tests
