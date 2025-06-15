@@ -5,7 +5,7 @@ from hanuman.main import app
 client = TestClient(app)
 
 
-def test_chess_ping():
+def test_chess_ping() -> None:
     response = client.get("/chess/ping")
     data = response.json()
 

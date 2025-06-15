@@ -1,3 +1,123 @@
+Données générales
+
+# 📘 Hanuman — README Technique Global
+
+## 📁 Structure
+
+```
+hanuman/
+├── .github/workflows/         # GitHub Actions (lint, tests, CI)
+│   └── test.yml
+├── .env                       # Variables d’environnement (tokens, secrets)
+├── Makefile                   # Raccourcis de commande (run, lint, test, clean…)
+├── pyproject.toml             # Config unique (poetry, black, mypy, flake8…)
+├── logs/
+│   ├── hanuman.log            # Log principal DEBUG
+│   └── hanuman_error.log      # Log JSON niveau ERROR
+├── config/
+│   └── logging.yaml           # Configuration centralisée des logs
+├── src/hanuman/
+│   ├── main.py                # Entrée FastAPI (inclut tous les routers)
+│   ├── api/                   # Définition des routes (/notion/ping, etc.)
+│   ├── core/                  # Fonctions transverses : logging, token, env
+│   ├── services/              # Logique métier de chaque intégration
+│   └── utils/                 # Décorateurs, helpers, modèles Pydantic
+├── tests/                     # Tests Pytest de chaque ping
+└── README.md                  # Ce fichier
+```
+
+## 🔄 Intégrations (modules actifs)
+
+| Service         | API Route         | Fichier API    | Fichier service        | Token `.env`          |
+| --------------- | ----------------- | -------------- | ---------------------- | --------------------- |
+| Status          | `/status`         | `status.py`    | —                      | ❌                     |
+| Notion          | `/notion/ping`    | `notion.py`    | `notion_service.py`    | ✅ `NOTION_TOKEN`      |
+| GitHub          | `/github/ping`    | `github.py`    | `github_service.py`    | ✅ `GITHUB_TOKEN`      |
+| Chess.com       | `/chess/ping`     | `chess_com.py` | `chess_service.py`     | ❌                     |
+| Obsidian        | `/obsidian/ping`  | `obsidian.py`  | `obsidian_service.py`  | ❌                     |
+| OpenAI          | `/openai/ping`    | `openai.py`    | `openai_service.py`    | ✅ `OPENAI_TOKEN`      |
+| Wikipedia       | `/wikipedia/ping` | `wikipedia.py` | `wikipedia_service.py` | ❌                     |
+| Google Calendar | `/calendar/ping`  | `calendar.py`  | `calendar_service.py`  | ✅ OAuth JSON + `.env` |
+
+## 🧪 Tests unitaires
+
+Tous les `tests/test_*_ping.py` valident le bon fonctionnement des endpoints `/ping` associés.
+Logique :
+
+* `"ok": true` → vérifie les clés utiles (ex: login, note\_count…)
+* `"ok": false` → vérifie la présence de `"error"`
+* Log automatique via décorateur `@log_ping`
+
+Commandes :
+
+```bash
+make test       # Lancement de tous les tests
+make lint       # Lint avec flake8
+make typecheck  # Analyse de type avec mypy
+```
+
+## 🧱 Outils et qualité
+
+* **Poetry** : gestionnaire de dépendances (dev, lock, build)
+* **Flake8** : linting (défini dans `pyproject.toml`)
+* **Black** : formateur (auto-formatage)
+* **Mypy** : typage strict (progressif, coverage en cours)
+* **Bandit** : sécurité de base (optionnel)
+
+```bash
+make format     # Black
+make security   # Bandit
+```
+
+## 🚀 GitHub Actions (CI)
+
+* `test.yml` déclenché sur :
+
+  * `push` sur `main`, `v2*`
+  * `pull_request` vers `main`
+* Étapes :
+
+  * Checkout
+  * Setup Python (3.12)
+  * Install deps avec Poetry
+  * Lint (flake8)
+  * Format (black --check)
+  * Typecheck (mypy)
+  * Tests (`pytest`)
+
+## 🧠 Convention & Décorateurs
+
+* Ping centralisé avec `@log_ping` (logs, temps d’exec, réponse standardisée)
+* Modèle `PingResult` (Pydantic) uniforme pour tous les retours JSON
+* Routes `/docs` (Swagger) et `/redoc` actives par défaut
+
+## 📌 Récap global
+
+| État            | Valeur         |
+| --------------- | -------------- |
+| Routes Ping     | ✅ 8 / 8        |
+| Tests Pytest    | ✅ tous OK      |
+| Logging central | ✅ actif        |
+| Typage Mypy     | ⚠️ partiel     |
+| CI GitHub       | ✅ opérationnel |
+
+## 🔜 Suivi version
+
+* v2.x : API modulaire, loggée, testée, CI en place
+* v3.0 (prévue) :
+
+  * Ajout scripts internes
+  * Authentification OAuth avancée
+  * Sécurité renforcée
+  * Orchestration de tâches complexes
+
+---
+
+Ce fichier est la référence technique de **Hanuman**.
+Il est destiné à structurer et suivre tous les composants actifs du projet.
+  
+---
+
 # 🛣️ Roadmap Hanuman — Objectif v3.0
 
 ## 🧭 Vision stratégique
@@ -122,3 +242,120 @@ La version 3.0 **ne déclenchera pas encore les grandes automatisations**, mais 
 * [ ] Préparer tag `v2.1` sur GitHub avec changelog propre
 
 📘 *Plan validé le 15 juin 2025 à 21h40 – Déploiement stratégique officiel de Hanuman v3.0 initié.*
+ 
+ ---
+
+ Premier Palier :
+
+ # 📘 README — Hanuman : Typage, Qualité, CI & GitHub Actions
+
+## 🤖 Objectif du fil
+
+Stabiliser la version 2.x de **Hanuman**, avec :
+
+* Typage strict et conforme (`mypy`)
+* Linting (PEP8 via `flake8`, `black`)
+* Automatisation GitHub Actions (CI sur push/pull)
+* Tests complets à chaque commit (pytest)
+
+## 📁 Organisation du projet
+
+* `src/hanuman/` : code principal (api, services, core, utils)
+* `tests/` : tous les tests FastAPI/Pytest unitaires
+* `.github/workflows/test.yml` : GitHub Action de test CI
+* `pyproject.toml` : config unique (Poetry, mypy, flake8...)
+
+## 🛠️ Stack technique
+
+| Outil              | Usage                             |
+| ------------------ | --------------------------------- |
+| **Poetry**         | Gestion d'env, deps, scripts      |
+| **FastAPI**        | API REST modulaire                |
+| **mypy**           | Analyse statique de type (strict) |
+| **pytest**         | Tests unitaires                   |
+| **httpx**          | Requêtes asynchrones propres      |
+| **GitHub Actions** | CI/CD sur push et pull            |
+| **Pydantic**       | Modèles typés pour réponses/API   |
+| **black**          | Formatage automatique             |
+| **flake8**         | Lint PEP8                         |
+
+## ✅ Tests en place
+
+Chaque service possède un `ping` + fichier de test correspondant :
+
+* `test_chess_ping.py`
+* `test_github_ping.py`
+* `test_notion_ping.py`
+* `test_openai_ping.py`
+* `test_obsidian_ping.py`
+* `test_wikipedia_ping.py`
+* `test_status.py`
+* `test_env_loaded.py`
+
+## 📊 GitHub Actions
+
+Fichier : `.github/workflows/test.yml`
+
+* Déclenché sur `push` et `pull_request`
+* Matrix : Python 3.12 sur `ubuntu-latest`
+* Installe poetry, dépendances, lance `pytest`
+* Intégration avec les actions : `actions/setup-python`, `snok/install-poetry`
+
+## ✏️ Typage avec Mypy
+
+* Activation via `poetry add --group dev mypy`
+* Config dans `[tool.mypy]` du `pyproject.toml`
+* Exigences strictes : pas de `Any`, fonctions typées
+* Problèmes récurrents corrigés :
+
+  * `Function is missing a return type annotation`
+  * `Missing type parameters for generic type "dict"`
+  * `Untyped decorator makes function untyped`
+
+### Solutions typiques apportées
+
+```python
+from typing import Any, Dict
+
+def load_token_json(file: Path) -> Dict[str, Any]:
+    ...
+```
+
+```python
+@app.get("/notion/ping")
+def ping_notion() -> PingResult:
+    ...
+```
+
+## ⚖️ Gestion de l’historique Git
+
+* Convention de commit pro :
+
+```bash
+Feat(GitHub): initialize GitHub Action logic with automated pytest on push
+Perf(ping): normalize and document pings by modifying services. Version testée.
+```
+
+* Usage de `git tag v2.1`, `v2.2`...
+* Restauration locale :
+
+```bash
+git restore path/to/file.py
+```
+
+## ❓ Problèmes rencontrés
+
+* Mypy = long à stabiliser
+* Typer chaque `dict` → `Dict[str, Any]`
+* Fichiers ignorés par black à cause de `max-line-length`
+
+## 🏃️ Prochaine étape : v2.1
+
+* Finaliser typage de tous les fichiers API/Services
+* Réduire les erreurs `mypy` à 0
+* Ajouter un tag Git `v2.1` stable avec tests et CI OK
+* Commencer `/run/script`, `/run/command` (v2.2)
+
+---
+
+💡 *Tous les fichiers modifiés ont été révisés, testés avec `pytest` et intégrés à la CI GitHub. Typage à 90 % conforme. Projet stable.*

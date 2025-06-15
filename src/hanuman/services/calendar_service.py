@@ -6,6 +6,7 @@ import httpx
 
 from hanuman.core.config import get_env_var
 from hanuman.core.token_manager import load_token_json, save_token_json
+from hanuman.models.ping import PingResult  # ✅ Ajouté
 
 logger = logging.getLogger(__name__)
 
@@ -37,12 +38,12 @@ def exchange_code_for_token(code: str) -> bool:
         return False
 
 
-def get_calendar_list() -> dict:
+def get_calendar_list() -> PingResult:
     tokens = load_token_json("google_calendar")
     access_token = tokens.get("access_token")
 
     if not access_token:
-        return {"ok": False, "error": "No access_token found"}
+        return PingResult(ok=False, source="calendar", error="No access_token found")
 
     headers = {
         "Authorization": f"Bearer {access_token}",
@@ -52,14 +53,19 @@ def get_calendar_list() -> dict:
         response = httpx.get(CALENDAR_API_URL, headers=headers, timeout=10)
         if response.status_code == 200:
             data = response.json()
-            logger.info("📆 Calendrier récupéré avec succès")
-            return {"ok": True, "calendar_count": len(data.get("items", []))}
+            return PingResult(
+                ok=True,
+                source="calendar",
+                detail={"calendar_count": len(data.get("items", []))},
+            )
 
         elif response.status_code == 401:
-            return {"ok": False, "error": "Token expiré ou invalide"}
+            return PingResult(ok=False, source="calendar", error="Token expiré ou invalide")
 
         else:
-            return {"ok": False, "error": f"Erreur HTTP {response.status_code}"}
+            return PingResult(
+                ok=False, source="calendar", error=f"Erreur HTTP {response.status_code}"
+            )
     except Exception as e:
         logger.error(f"💥 Erreur Google Calendar : {e}")
-        return {"ok": False, "error": str(e)}
+        return PingResult(ok=False, source="calendar", error=str(e))

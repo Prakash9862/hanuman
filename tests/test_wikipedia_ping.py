@@ -5,7 +5,7 @@ from hanuman.main import app
 client = TestClient(app)
 
 
-def test_wikipedia_ping():
+def test_wikipedia_ping() -> None:
     response = client.get("/wikipedia/ping")
     data = response.json()
 

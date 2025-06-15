@@ -5,7 +5,7 @@ from hanuman.main import app
 client = TestClient(app)
 
 
-def test_obsidian_ping():
+def test_obsidian_ping() -> None:
     response = client.get("/obsidian/ping")
     data = response.json()
 

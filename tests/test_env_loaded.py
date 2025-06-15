@@ -1,13 +1,14 @@
 # tests/test_env_loaded.py
 
 from fastapi.testclient import TestClient
+
 from hanuman.core.config import get_env_var
 from hanuman.main import app
 
 client = TestClient(app)
 
 
-def test_env_variable_accessible():
+def test_env_variable_accessible() -> None:
     """
     Vérifie que la variable NOTION_TOKEN est bien présente si DEBUG=true.
     """

@@ -1,6 +1,8 @@
 import logging
+from typing import Any, Dict
 
 from fastapi import APIRouter
+
 from hanuman.core.config import get_env_var  # 🔁 Nouvelle importation
 
 router = APIRouter()
@@ -8,7 +10,7 @@ logger = logging.getLogger(__name__)
 
 
 @router.get("/status")
-def get_status():
+def get_status() -> Dict[str, Any]:
     logger.info("✅ Endpoint /status appelé")
 
     response = {"status": "ok", "version": "0.2.0"}

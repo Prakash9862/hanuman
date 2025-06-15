@@ -5,7 +5,7 @@ from hanuman.main import app
 client = TestClient(app)
 
 
-def test_github_ping():
+def test_github_ping() -> None:
     response = client.get("/github/ping")
     data = response.json()
 

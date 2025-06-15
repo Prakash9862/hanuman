@@ -1,13 +1,14 @@
 import httpx
 
 from hanuman.core.config import get_env_var
+from hanuman.models.ping import PingResult  # ✅ Import modèle centralisé
 from hanuman.utils.decorators import safe_ping
 
 OPENAI_API_URL = "https://api.openai.com/v1/models"
 
 
 @safe_ping("openai")
-def ping_openai() -> dict:
+def ping_openai() -> PingResult:
     token = get_env_var("OPENAI_TOKEN")
     if not token:
         raise ValueError("Missing token")
@@ -20,7 +21,11 @@ def ping_openai() -> dict:
 
     if response.status_code == 200:
         models = response.json()
-        return {"model_count": len(models.get("data", []))}
+        return PingResult(
+            ok=True,
+            source="openai",
+            detail={"model_count": len(models.get("data", []))},
+        )
 
     elif response.status_code == 401:
         raise ValueError("Unauthorized")

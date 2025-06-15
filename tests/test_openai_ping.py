@@ -5,7 +5,7 @@ from hanuman.main import app
 client = TestClient(app)
 
 
-def test_openai_ping():
+def test_openai_ping() -> None:
     response = client.get("/openai/ping")
     data = response.json()
 

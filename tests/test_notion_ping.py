@@ -5,7 +5,7 @@ from hanuman.main import app
 client = TestClient(app)
 
 
-def test_notion_ping():
+def test_notion_ping() -> None:
     response = client.get("/notion/ping")
     data = response.json()
 

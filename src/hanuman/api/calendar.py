@@ -6,6 +6,7 @@ from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse, RedirectResponse
 
 from hanuman.core.config import get_env_var
+from hanuman.models.ping import PingResult
 from hanuman.services.calendar_service import exchange_code_for_token, get_calendar_list
 
 router = APIRouter()
@@ -13,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 
 @router.get("/calendar/auth")
-def calendar_auth():
+def calendar_auth() -> RedirectResponse:  # ✅ Typage ajouté
     logger.info("🔐 Démarrage auth Google Calendar")
 
     client_id = get_env_var("GOOGLE_CLIENT_ID")
@@ -33,7 +34,7 @@ def calendar_auth():
 
 
 @router.get("/calendar/callback")
-def calendar_callback(request: Request):
+def calendar_callback(request: Request) -> JSONResponse:  # ✅ Typage ajouté
     code = request.query_params.get("code")
     if not code:
         logger.error("❌ Aucun code OAuth2 reçu")
@@ -45,9 +46,3 @@ def calendar_callback(request: Request):
         return JSONResponse({"ok": True, "message": "Token reçu et stocké 🎉"})
     else:
         return JSONResponse({"ok": False, "error": "Échec de l’échange de code"})
-
-
-@router.get("/calendar/ping")
-def calendar_ping():
-    logger.info("📨 Appel API /calendar/ping")
-    return get_calendar_list()
