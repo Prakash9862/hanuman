@@ -2,6 +2,7 @@
 
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse, RedirectResponse
+
 from hanuman.core.config import get_env_var
 from hanuman.core.logging import get_logger
 from hanuman.models.ping import PingResult

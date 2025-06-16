@@ -7,6 +7,7 @@ from time import time
 from typing import Any, Callable, Optional, TypeVar, cast
 
 from fastapi import Request
+
 from hanuman.core.config import get_env_var
 from hanuman.core.logging import get_logger
 from hanuman.models.ping import PingResult

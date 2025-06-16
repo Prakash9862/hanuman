@@ -1,4 +1,5 @@
 import httpx
+
 from hanuman.core.config import get_env_var
 from hanuman.models.ping import PingResult  # ✅ Import modèle centralisé
 from hanuman.utils.decorators import trace_endpoint

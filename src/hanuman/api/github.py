@@ -1,6 +1,7 @@
 # src/hanuman/api/github.py
 
 from fastapi import APIRouter, Request
+
 from hanuman.core.logging import get_logger
 from hanuman.models.ping import PingResult
 from hanuman.services.github_service import ping_github

@@ -1,6 +1,7 @@
 # src/hanuman/services/calendar_service.py
 
 import httpx
+
 from hanuman.core.config import get_env_var
 from hanuman.core.token_manager import load_token_json, save_token_json
 from hanuman.models.ping import PingResult

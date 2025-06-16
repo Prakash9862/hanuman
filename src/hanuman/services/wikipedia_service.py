@@ -1,6 +1,7 @@
 import logging
 
 import httpx
+
 from hanuman.models.ping import PingResult  # ✅ Modèle structuré
 from hanuman.utils.decorators import trace_endpoint
 

@@ -1,4 +1,5 @@
 import httpx
+
 from hanuman.models.ping import PingResult  # ✅ Ajout typage propre
 from hanuman.utils.decorators import trace_endpoint
 

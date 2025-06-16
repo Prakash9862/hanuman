@@ -2,6 +2,7 @@
 
 import pytest
 from fastapi.testclient import TestClient
+
 from hanuman.main import app
 
 client = TestClient(app)
