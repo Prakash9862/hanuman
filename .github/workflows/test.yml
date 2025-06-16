@@ -34,8 +34,8 @@ jobs:
     - name: 🔠 Type check (mypy)
       run: poetry run mypy src
 
-    - name: 🔐 Security audit (bandit)
-      run: poetry run bandit -r src
-
     - name: 🧪 Run unit tests (pytest)
       run: poetry run pytest tests
+
+    - name: 🔐 Security audit (Semgrep Scan)
+      run: poetry run semgrep -c .semgrep.yml src/

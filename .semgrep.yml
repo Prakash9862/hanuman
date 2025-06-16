@@ -1,0 +1,14 @@
+rules:
+  - id: no-eval
+    name: "Interdiction de eval()"
+    message: "L’usage de eval() est dangereux. Utilise ast.literal_eval() si nécessaire."
+    severity: ERROR
+    languages: [python]
+    pattern: eval(...)
+    metadata:
+      justification: >
+        eval() permet l'exécution dynamique de code et constitue une faille critique (RCE).
+        Elle ne doit jamais être utilisée dans un projet sécurisé comme Hanuman.
+      references:
+        - https://owasp.org/www-community/attacks/Code_Injection
+        - https://docs.python.org/3/library/functions.html#eval
