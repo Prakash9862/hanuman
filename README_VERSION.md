@@ -359,3 +359,25 @@ git restore path/to/file.py
 ---
 
 💡 *Tous les fichiers modifiés ont été révisés, testés avec `pytest` et intégrés à la CI GitHub. Typage à 90 % conforme. Projet stable.*
+
+---
+
+## 📦 Hanuman `v2.1` — PingResult & CI stable
+
+### ✅ Typage & structure
+- Ajout du modèle `PingResult` (`pydantic.BaseModel`) pour tous les endpoints `/ping`
+- Remplacement des retours `dict` → `PingResult` dans tous les services
+- Tous les champs optionnels (`error`, `detail`, etc.) typés avec `= None`
+- Décorateur `@safe_ping(source)` typé, compatible `mypy strict`
+
+### 🔧 Qualité & CI
+- Tous les fichiers validés `mypy` en mode `strict`
+- 8/8 tests fonctionnels (`pytest`)
+- Réorganisation des imports (`hanuman.models.ping`)
+- Aucune dépendance instable, projet prêt pour `v2.2`
+
+### 🚀 Prochaine étape : `v2.2`
+- Endpoints `/run/command` et `/run/script`
+- Authentification JWT simple
+- Dashboard local ou CLI manuelle
+

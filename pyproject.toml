@@ -37,8 +37,16 @@ target-version = ["py312"]
 skip-string-normalization = true
 
 [tool.flake8]
-max-line-length = 100
-exclude = ["tests/*", "logs/*"]
+ignore = ["E501"]
+exclude = [
+    "tests/*",
+    "logs/*",
+    ".venv/*",
+    "venv/*",
+    "__pycache__"
+]
+max-line-length = 100              # facultatif ici, mais ok
+
 
 [tool.mypy]
 strict = true
