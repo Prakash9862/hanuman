@@ -26,4 +26,4 @@ clean:
 	find . -type d -name "__pycache__" -delete
 
 test-cov:
-	poetry run pytest --cov=src/hanuman --cov-report=term-missing
+	poetry run pytest --cov=src/hanuman --cov-report=term-missing --cov-report=xml
