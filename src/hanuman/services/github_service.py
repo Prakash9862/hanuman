@@ -1,8 +1,8 @@
 import httpx
 
 from hanuman.core.config import get_env_var
-from hanuman.utils.decorators import safe_ping
 from hanuman.models.ping import PingResult  # ✅ Modèle centralisé
+from hanuman.utils.decorators import safe_ping
 
 GITHUB_API_URL = "https://api.github.com/user"
 

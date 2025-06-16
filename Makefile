@@ -7,7 +7,10 @@ test:
 	poetry run pytest -v tests/
 
 lint:
-	poetry run flake8 src tests
+	poetry run ruff check src tests
+
+lint-fix:
+	poetry run ruff check --fix src tests
 
 format:
 	poetry run black src tests

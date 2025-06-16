@@ -4,6 +4,7 @@ import logging
 
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse, RedirectResponse
+
 from hanuman.core.config import get_env_var
 from hanuman.models.ping import PingResult
 from hanuman.services.calendar_service import (

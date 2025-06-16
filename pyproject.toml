@@ -20,7 +20,6 @@ packages = [{include = "hanuman", from = "src"}]
 
 [tool.poetry.group.dev.dependencies]
 black = "^25.1.0"
-flake8 = "^7.2.0"
 mypy = "^1.16.0"
 pylint = "^3.3.7"
 pytest = "^8.4.0"
@@ -28,6 +27,7 @@ httpx = "^0.28.1"
 types-pyyaml = "^6.0.12.20250516"
 semgrep = "^1.125.0"
 pytest-cov = "^6.2.1"
+ruff = "^0.11.13"
 
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]
@@ -38,16 +38,11 @@ line-length = 100
 target-version = ["py312"]
 skip-string-normalization = true
 
-[tool.flake8]
-ignore = ["E501"]
-exclude = [
-    "tests/*",
-    "logs/*",
-    ".venv/*",
-    "venv/*",
-    "__pycache__"
-]
-max-line-length = 100              # facultatif ici, mais ok
+[tool.ruff]
+line-length = 88
+target-version = "py311"
+lint.select = ["E", "F", "I"]         # pycodestyle, pyflakes, isort
+lint.ignore = ["E501"]                # lignes trop longues
 
 
 [tool.mypy]
