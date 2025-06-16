@@ -1,14 +1,103 @@
 rules:
+
+# 🔐 Bloc 1 — Sécurité
+
   - id: no-eval
-    name: "Interdiction de eval()"
-    message: "L’usage de eval() est dangereux. Utilise ast.literal_eval() si nécessaire."
+    message: "eval() est interdit. Utilise ast.literal_eval() si besoin."
+    pattern: eval(...)
     severity: ERROR
     languages: [python]
-    pattern: eval(...)
-    metadata:
-      justification: >
-        eval() permet l'exécution dynamique de code et constitue une faille critique (RCE).
-        Elle ne doit jamais être utilisée dans un projet sécurisé comme Hanuman.
-      references:
-        - https://owasp.org/www-community/attacks/Code_Injection
-        - https://docs.python.org/3/library/functions.html#eval
+
+  - id: no-input
+    message: "input() est interdit dans src/. Interactif = danger en prod."
+    pattern: input(...)
+    severity: WARNING
+    paths:
+        include:
+            - src/
+    languages: [python]
+
+  - id: no-secrets
+    message: "Possiblement un secret en dur dans le code (sk- ou ghp-)"
+    pattern-regex: '"(sk-[a-zA-Z0-9]{10,}|ghp_[a-zA-Z0-9]{10,})"'
+    severity: ERROR
+    languages: [python]
+
+  - id: no-subprocess-shell
+    message: "subprocess avec shell=True est interdit (RCE possible)"
+    pattern: subprocess.run(..., shell=True)
+    severity: ERROR
+    languages: [python]
+
+  - id: no-os-system
+    message: "os.system est interdit. Utilise subprocess avec shell=False"
+    pattern: os.system(...)
+    severity: ERROR
+    languages: [python]
+
+  - id: untyped-except
+    message: "except: sans exception spécifique est interdit"
+    pattern: except
+    severity: WARNING
+    languages: [python]
+
+
+# 🧩 Bloc 2 — Structure Hanuman
+
+  - id: ping-response-model
+    message: "Les endpoints /ping doivent avoir response_model=PingResult"
+    pattern: |
+        @router.get("/$ROUTE")
+    pattern-not: |
+        @router.get("/$ROUTE", response_model=PingResult)
+    severity: WARNING
+    languages: [python]
+
+  - id: ping-return-not-typed
+    pattern: |
+      def $FN($ARGS) -> $RET:
+    pattern-inside: |
+      @router.get("/$ROUTE", response_model=PingResult)
+    pattern-not: |
+      def $FN($ARGS) -> PingResult:
+    message: "Toutes les routes /ping doivent retourner un PingResult"
+    severity: WARNING
+    languages: [python]
+
+  - id: route-empty-pass
+    message: "Route FastAPI vide détectée (pass). Ajoute au moins un log."
+    pattern: |
+      @router.get(...)
+      def $FUNC(...):
+        pass
+    severity: WARNING
+    languages: [python]
+
+  - id: missing-logger
+    message: "Fichier sans déclaration explicite de logger = mauvais suivi"
+    severity: WARNING
+    languages: [python]
+    patterns:
+        - pattern: logger = $X
+        - pattern-not: logger = logging.getLogger(...)
+    paths:
+        include:
+        - src/api/
+        - src/core/
+        - src/services/
+
+
+
+# 🎨 Bloc 3 — Style & discipline
+
+  - id: no-print
+    message: "print() est interdit. Utilise logger.info(), etc."
+    pattern: print(...)
+    severity: WARNING
+    languages: [python]
+
+  - id: no-import-star
+    message: "Interdit: import * → provoque des collisions de noms"
+    pattern: from $MODULE import *
+    severity: ERROR
+    languages: [python]

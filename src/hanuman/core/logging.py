@@ -15,7 +15,7 @@ def setup_logging(level: int = logging.INFO) -> Logger:
     if logger.hasHandlers():
         return logger  # ✅ déjà configuré, on n'ajoute rien
 
-    print(f"[DEBUG] Chargement config log depuis : {config_path}")
+    logger.debug(f"Chargement config log depuis : {config_path}")
 
     if config_path.exists():
         try:
@@ -23,10 +23,10 @@ def setup_logging(level: int = logging.INFO) -> Logger:
                 config = yaml.safe_load(f)
                 logging.config.dictConfig(config)
         except Exception as e:
-            print(f"⚠️ Échec du chargement logging.yaml : {e}")
+            logger.warning(f"⚠️ Échec du chargement logging.yaml : {e}")
             logging.basicConfig(level=level)
     else:
-        print("⚠️ logging.yaml introuvable, fallback basicConfig.")
+        logger.warning("⚠️ logging.yaml introuvable, fallback basicConfig.")
         logging.basicConfig(level=level)
 
     return logger
