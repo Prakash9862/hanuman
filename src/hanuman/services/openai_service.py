@@ -1,13 +1,12 @@
 import httpx
-
 from hanuman.core.config import get_env_var
 from hanuman.models.ping import PingResult  # ✅ Import modèle centralisé
-from hanuman.utils.decorators import safe_ping
+from hanuman.utils.decorators import trace_endpoint
 
 OPENAI_API_URL = "https://api.openai.com/v1/models"
 
 
-@safe_ping("openai")
+@trace_endpoint("openai", catch=True)
 def ping_openai() -> PingResult:
     token = get_env_var("OPENAI_TOKEN")
     if not token:

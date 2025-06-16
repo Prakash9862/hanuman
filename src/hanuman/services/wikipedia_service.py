@@ -1,15 +1,14 @@
 import logging
 
 import httpx
-
 from hanuman.models.ping import PingResult  # ✅ Modèle structuré
-from hanuman.utils.decorators import safe_ping
+from hanuman.utils.decorators import trace_endpoint
 
 logger = logging.getLogger(__name__)
 WIKIPEDIA_URL = "https://fr.wikipedia.org/api/rest_v1/page/summary/OpenAI"
 
 
-@safe_ping("wikipedia")
+@trace_endpoint("wikipedia", catch=True)
 def ping_wikipedia() -> PingResult:
     response = httpx.get(WIKIPEDIA_URL, timeout=5)
 

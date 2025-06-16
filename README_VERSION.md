@@ -89,3 +89,142 @@
 ## 🏁 Hanuman `v3.0` — Ouverture vers les modules métiers
 
 > Aucune logique métier ne sera intégrée avant la validation complète de la v2.0.
+
+
+---
+
+
+🧱 Ce que l’on va FAIRE CONCRÈTEMENT pour intégrer structlog dans Hanuman
+1. 📁 Créer un nouveau fichier core/logging.py
+
+Structure recommandée :
+
+    get_logger(name: Optional[str]) → retourne un logger structlog
+
+    configure_logging() → à appeler une seule fois dans main.py
+
+    Deux renderers :
+
+        ConsoleRenderer() si dev (DEBUG)
+
+        JSONRenderer() si prod (INFO+)
+
+    Configuration des handlers :
+
+        hanuman_debug.log (text)
+
+        hanuman_error.log (JSON)
+
+        stdout coloré ou silencieux selon config
+
+2. 🔁 Modifier l’appel de log dans tout le projet
+Avant (standard)	Après (structlog)
+import logging	import structlog
+logger = logging.getLogger(__name__)	logger = get_logger(__name__)
+logger.info(...)	logger.info(...) + .bind(...)
+Modules à modifier :
+
+    main.py
+
+    api/*.py
+
+    services/*.py
+
+    Tous les tests si loggés
+
+    utils/helpers.py (s’il y a du print ou log implicite)
+
+3. 🧩 Modifier ou créer un décorateur @log_request ou @log_ping
+
+    Ajout automatique de :
+
+        Nom de route
+
+        IP source (request.client.host)
+
+        Timestamp
+
+        Token partiel (si présent)
+
+        Statut de réponse
+
+→ On remplace l’ancien @log_ping si besoin.
+4. 📁 Créer / Modifier la structure des fichiers logs
+
+/logs/hanuman_debug.log (niveau DEBUG+, texte lisible)
+
+/logs/hanuman_error.log (niveau ERROR+, format JSON)
+
+    (optionnel) /logs/hanuman_request.log (si on veut journaliser les requêtes)
+
+Il faudra :
+
+    Créer les fichiers à vide dans Git (.gitkeep)
+
+    Ajouter les handlers dans logging.FileHandler(...)
+
+5. 🧪 Adapter ou créer un test pour les logs
+
+    Vérifier qu’un appel à /status produit bien un log structuré
+
+    Vérifier la présence de certaines clés (event, ip, status_code)
+
+    Tester que les logs sont bien différents en dev et en prod
+
+6. ⚙️ Modifier le Makefile si besoin
+
+    Ajouter une commande utile type :
+
+make logs       # affiche les logs en live (tail -f)
+make log-debug  # affiche les logs DEBUG
+
+7. 🧼 Nettoyer l’existant
+
+    Supprimer :
+
+        config/logging.yaml (plus nécessaire avec structlog)
+
+        Toutes les références à logging.basicConfig(...)
+
+    Mettre à jour .gitignore :
+
+    logs/hanuman_debug.log
+    logs/hanuman_error.log
+
+8. 📓 Documenter la stratégie
+
+Créer un fichier :
+
+docs/README_LOGS.md
+
+Avec :
+
+    Niveau de log
+
+    Localisation des fichiers
+
+    Différence dev/prod
+
+    Comment logger dans un service proprement
+
+    Comment ajouter un contexte (.bind())
+
+✅ Résumé : impact total sur l’arborescence
+
+src/hanuman/
+├── core/
+│   └── logging.py         # 💥 Nouveau
+├── api/
+│   └── status.py          # 🔁 get_logger()
+├── services/
+│   └── notion_service.py  # 🔁 get_logger()
+tests/
+├── test_logging.py        # 💥 Nouveau
+logs/
+├── hanuman_debug.log      # 💥 Nouveau
+├── hanuman_error.log      # 💥 Nouveau
+config/
+├── logging.yaml           # ❌ À supprimer
+docs/
+├── README_LOGS.md         # 💥 Nouveau
+

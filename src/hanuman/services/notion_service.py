@@ -1,14 +1,13 @@
 import httpx
-
 from hanuman.core.config import get_env_var
 from hanuman.models.ping import PingResult  # ✅ le bon modèle
-from hanuman.utils.decorators import safe_ping
+from hanuman.utils.decorators import trace_endpoint
 
 NOTION_API_URL = "https://api.notion.com/v1/users/me"
 NOTION_VERSION = "2022-06-28"
 
 
-@safe_ping("notion")
+@trace_endpoint("notion", catch=True)
 def ping_notion() -> PingResult:
     token = get_env_var("NOTION_TOKEN")
     if not token:

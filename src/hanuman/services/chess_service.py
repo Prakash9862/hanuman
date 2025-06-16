@@ -1,13 +1,12 @@
 import httpx
-
 from hanuman.models.ping import PingResult  # ✅ Ajout typage propre
-from hanuman.utils.decorators import safe_ping
+from hanuman.utils.decorators import trace_endpoint
 
 CHESS_USERNAME = "prakash9862"
 CHESS_API_URL = f"https://api.chess.com/pub/player/{CHESS_USERNAME}"
 
 
-@safe_ping("chess")
+@trace_endpoint("chess", catch=True)
 def ping_chess() -> PingResult:
     response = httpx.get(CHESS_API_URL, timeout=5)
 
