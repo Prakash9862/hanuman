@@ -37,7 +37,7 @@ jobs:
     - name: Run tests with pytest + coverage
       run: poetry run pytest --cov=src/hanuman --cov-report=term-missing --cov-report=xml
     - name: Upload coverage to Codecov
-      uses: codecov/codecov-action@v4
+      uses: codecov/codecov-action@v5
       with:
         token: ${{ secrets.de06d89e-022e-4597-aa92-d4d9d0f5b629 }}
         files: coverage.xml
