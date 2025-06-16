@@ -34,8 +34,8 @@ jobs:
     - name: 🔠 Type check (mypy)
       run: poetry run mypy src
 
-    - name: 🧪 Run unit tests (pytest)
-      run: poetry run pytest tests
+    - name: Run tests with coverage
+      run: poetry run pytest --cov=src/hanuman --cov-report=term-missing
 
     - name: 🔐 Security audit (Semgrep Scan)
       run: poetry run semgrep -c .semgrep.yml src/

@@ -21,3 +21,6 @@ semgrep:
 clean:
 	find . -type f -name "*.pyc" -delete
 	find . -type d -name "__pycache__" -delete
+
+test-cov:
+	poetry run pytest --cov=src/hanuman --cov-report=term-missing
