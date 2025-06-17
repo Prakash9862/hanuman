@@ -11,6 +11,7 @@ from fastapi import Request
 from hanuman.core.config import get_env_var
 from hanuman.core.logging import get_logger
 from hanuman.models.ping import PingResult
+from hanuman.utils.log_helpers import get_ip, get_method, get_path
 
 F = TypeVar("F", bound=Callable[..., Any])
 
@@ -33,13 +34,12 @@ def trace_endpoint(source: str, catch: bool = True) -> Callable[[F], F]:
             request: Optional[Request] = next((a for a in args if isinstance(a, Request)), None)
             logger = get_logger(source)
 
-            if request:
-                logger.bind(
-                    ip=request.client.host,
-                    endpoint=request.url.path,
-                    method=request.method,
-                    debug_mode=get_env_var("DEBUG", "false"),
-                ).info("📅 Requête reçue")
+            logger.bind(
+                ip=get_ip(request),
+                endpoint=get_path(request),
+                method=get_method(request),
+                debug_mode=get_env_var("DEBUG", "false"),
+            ).info("📥 Requête reçue")
 
             try:
                 result = await func(*args, **kwargs)
@@ -73,13 +73,12 @@ def trace_endpoint(source: str, catch: bool = True) -> Callable[[F], F]:
             request: Optional[Request] = next((a for a in args if isinstance(a, Request)), None)
             logger = get_logger(source)
 
-            if request:
-                logger.bind(
-                    ip=request.client.host,
-                    endpoint=request.url.path,
-                    method=request.method,
-                    debug_mode=get_env_var("DEBUG", "false"),
-                ).info("📅 Requête reçue")
+            logger.bind(
+                ip=get_ip(request),
+                endpoint=get_path(request),
+                method=get_method(request),
+                debug_mode=get_env_var("DEBUG", "false"),
+            ).info("📥 Requête reçue")
 
             try:
                 result = func(*args, **kwargs)

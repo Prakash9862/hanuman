@@ -1,21 +1,18 @@
+# src/hanuman/api/status.py
+
 from fastapi import APIRouter, Request
 
 from hanuman.core.config import get_env_var
-from hanuman.core.logging import get_logger
 from hanuman.models.status import StatusResult
+from hanuman.utils.decorators import trace_endpoint
 
 router = APIRouter()
-logger = get_logger("status")
 
 
 @router.get("/status", response_model=StatusResult)
+@trace_endpoint("status", catch=True)
 def get_status(request: Request) -> StatusResult:
-    client_ip = request.client.host
     debug_mode = get_env_var("DEBUG", "false")
-
-    logger.bind(endpoint="/status", ip=client_ip, debug_mode=debug_mode).info(
-        "✅ Endpoint /status appelé"
-    )
 
     data = {
         "status": "ok",

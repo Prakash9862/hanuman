@@ -15,7 +15,7 @@ lint-fix:
 format:
 	poetry run black src tests
 
-typecheck:
+mypy:
 	poetry run mypy src tests
 
 semgrep:

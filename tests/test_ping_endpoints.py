@@ -21,7 +21,7 @@ PING_ENDPOINTS = [
 
 
 @pytest.mark.parametrize("endpoint", PING_ENDPOINTS)
-def test_ping_endpoint_response(endpoint: str):
+def test_ping_endpoint_response(endpoint: str) -> None:
     response = client.get(endpoint)
     assert response.status_code == 200
     data = response.json()

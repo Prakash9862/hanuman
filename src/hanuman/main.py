@@ -11,11 +11,13 @@ from hanuman.api import (
     status,
     wikipedia,
 )
-from hanuman.core.logging import setup_logging
+from hanuman.core.logging import configure_logging, get_logger
 
-# Initialisation du logger
-logger = setup_logging()
+# Initialisation du système de logs
+configure_logging()
+logger = get_logger(__name__)
 logger.info("🚀 Lancement de Hanuman API")
+
 
 # Création de l'app FastAPI
 app = FastAPI(
