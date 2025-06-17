@@ -3,6 +3,7 @@
 from fastapi import APIRouter, Request
 
 from hanuman.core.config import get_env_var
+from hanuman.core.token_manager import load_token_json
 from hanuman.models.status import StatusResult
 from hanuman.utils.decorators import trace_endpoint
 
@@ -20,8 +21,9 @@ def get_status(request: Request) -> StatusResult:
     }
 
     if debug_mode == "true":
-        token_preview = get_env_var("NOTION_TOKEN", "")
-        if token_preview:
-            data["notion_token_preview"] = token_preview[:6] + "..."
+        token_data = load_token_json("notion")
+        token_value = token_data.get("token") or token_data.get("access_token")
+        if token_value:
+            data["notion_token_preview"] = token_value[:6] + "..."
 
     return StatusResult(**data)
