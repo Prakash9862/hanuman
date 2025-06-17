@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Dict, Optional
 
 from pydantic import BaseModel
 
@@ -6,4 +6,4 @@ from pydantic import BaseModel
 class StatusResult(BaseModel):
     status: str
     version: str
-    notion_token_preview: Optional[str] = None
+    token_previews: Optional[Dict[str, str]] = None
