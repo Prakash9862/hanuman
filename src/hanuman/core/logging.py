@@ -1,56 +1,30 @@
-# src/hanuman/core/logging.py
-
 import logging
 import sys
 from pathlib import Path
-from typing import (
-    Any,
-    Callable,
-    Mapping,
-    MutableMapping,
-    Optional,
-    Tuple,
-    Union,
-)
+from typing import Any, Callable, MutableMapping
 
 import structlog
 from structlog.contextvars import merge_contextvars
+from structlog.dev import ConsoleRenderer
 from structlog.processors import JSONRenderer, TimeStamper
-from structlog.stdlib import LoggerFactory
+
+Processor = Callable[[Any, str, MutableMapping[str, Any]], Any]
 
 LOG_DIR = Path("logs")
-LOG_DIR.mkdir(exist_ok=True)
-
-# Typage conforme à structlog.typing.Processor (doc officielle v25.4.0)
-Processor = Callable[
-    [Any, str, MutableMapping[str, Any]],
-    Union[
-        Mapping[str, Any],
-        str,
-        bytes,
-        bytearray,
-        Tuple[Any, ...],
-    ],
-]
+LOG_DIR.mkdir(parents=True, exist_ok=True)
 
 
-def configure_logging(debug: bool = True) -> None:
-    """
-    Configure le système de logging structlog pour l'application Hanuman.
-    - Logs vers stdout + fichiers séparés DEBUG et ERROR
-    - Format console en dev, JSON en prod
-    """
+class LevelFilter(logging.Filter):
+    def __init__(self, level: int) -> None:
+        super().__init__()
+        self.level = level
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        return record.levelno == self.level
+
+
+def configure_logging(debug: bool = False) -> None:
     level = logging.DEBUG if debug else logging.INFO
-
-    logging.basicConfig(
-        level=level,
-        format="%(message)s",
-        handlers=[
-            logging.StreamHandler(sys.stdout),
-            logging.FileHandler(LOG_DIR / "hanuman_debug.log", mode="a", encoding="utf-8"),
-            logging.FileHandler(LOG_DIR / "hanuman_error.log", mode="a", encoding="utf-8"),
-        ],
-    )
 
     processors: list[Processor] = [
         merge_contextvars,
@@ -58,21 +32,46 @@ def configure_logging(debug: bool = True) -> None:
         TimeStamper(fmt="iso"),
     ]
 
-    renderer: Processor = structlog.dev.ConsoleRenderer() if debug else JSONRenderer()
+    renderer: Processor = ConsoleRenderer() if debug else JSONRenderer()
     processors.append(renderer)
+
+    info_file_handler = logging.FileHandler(
+        LOG_DIR / "hanuman_info.json", mode="a", encoding="utf-8"
+    )
+    info_file_handler.setLevel(logging.INFO)
+    info_file_handler.addFilter(LevelFilter(logging.INFO))
+
+    debug_file_handler = logging.FileHandler(
+        LOG_DIR / "hanuman_debug.json", mode="a", encoding="utf-8"
+    )
+    debug_file_handler.setLevel(logging.DEBUG)
+    debug_file_handler.addFilter(LevelFilter(logging.DEBUG))
+
+    error_file_handler = logging.FileHandler(
+        LOG_DIR / "hanuman_error.json", mode="a", encoding="utf-8"
+    )
+    error_file_handler.setLevel(logging.ERROR)
+    error_file_handler.addFilter(LevelFilter(logging.ERROR))
+
+    logging.basicConfig(
+        level=level,
+        format="%(message)s",
+        handlers=[
+            logging.StreamHandler(sys.stdout),
+            debug_file_handler,
+            info_file_handler,
+            error_file_handler,
+        ],
+        force=True,
+    )
 
     structlog.configure(
         processors=processors,
-        context_class=dict,
-        logger_factory=LoggerFactory(),
-        wrapper_class=structlog.stdlib.BoundLogger,
+        wrapper_class=structlog.make_filtering_bound_logger(level),
+        logger_factory=structlog.stdlib.LoggerFactory(),
         cache_logger_on_first_use=True,
     )
 
 
-def get_logger(name: Optional[str] = None) -> Any:
-    """
-    Retourne un logger structlog configuré pour Hanuman.
-    Note : structlog.get_logger retourne un proxy typé dynamiquement (LazyLogger)
-    """
+def get_logger(name: str | None = None) -> structlog.BoundLogger:
     return structlog.get_logger(name or "hanuman")
