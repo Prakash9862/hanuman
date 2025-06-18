@@ -12,6 +12,7 @@ from hanuman.api import (
     wikipedia,
 )
 from hanuman.core.logging import configure_logging, get_logger
+from hanuman.core.middleware import log_requests
 
 # Initialisation du système de logs
 configure_logging()
@@ -25,6 +26,7 @@ app = FastAPI(
     version="1.1.0",
     description="API personnelle d’orchestration modulaire",
 )
+app.middleware("http")(log_requests)
 
 # Inclusion des routes
 app.include_router(status.router)

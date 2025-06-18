@@ -17,7 +17,7 @@ lint:
 	@$(POETRY_RUN) ruff check src tests
 
 lint-fix:
-	@$(POETRY_RUN) ruff check --fix src tests
+	@$(POETRY_RUN) ruff check --fix --unsafe-fixes src tests && black src tests
 
 format:
 	@$(POETRY_RUN) black src tests
