@@ -5,13 +5,10 @@ POETRY_RUN = poetry run
 .PHONY: run test lint format typecheck scan clean
 		lean_logs clean_log_debug clean_log_info clean_log_error
 
-# Code main analysers adding to GitHub Actions
+# Static analyzers
 
 run:
 	@$(POETRY_RUN) uvicorn src.hanuman.main:app --reload
-
-test:
-	@$(POETRY_RUN) pytest -v tests/
 
 lint:
 	@$(POETRY_RUN) ruff check src tests
@@ -32,9 +29,20 @@ clean:
 	find . -type f -name "*.pyc" -delete
 	find . -type d -name "__pycache__" -delete
 
+# Test
+
+test:
+	@$(POETRY_RUN) pytest -v tests/
+
 test-cov:
 	@$(POETRY_RUN) pytest --cov=src/hanuman --cov-report=term-missing --cov-report=xml
 
+coverage-html:
+	@$(POETRY_RUN) pytest --cov=src/hanuman --cov-report=html --cov-report=term-missing
+	@xdg-open htmlcov/index.html
+
+clean-coverage:
+	rm -rf .coverage htmlcov coverage.xml
 
 # Logs cleaner and display
 
