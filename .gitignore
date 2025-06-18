@@ -8,6 +8,9 @@ secrets/
 # Logs
 logs/
 *.log
+logs/hanuman_debug.log
+logs/hanuman_error.log
+
 
 # Python
 __pycache__/
