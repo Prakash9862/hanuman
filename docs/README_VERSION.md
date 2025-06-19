@@ -48,43 +48,43 @@ hanuman/
 
 ### 🚀 API FastAPI
 
-* Point d’entrée : `main.py`
-* Routes dynamiquement importées via `include_router()`
-* Middleware d’audit (`log_requests`) actif sur toutes les routes
+- Point d’entrée : `main.py`
+- Routes dynamiquement importées via `include_router()`
+- Middleware d’audit (`log_requests`) actif sur toutes les routes
 
 ### 🔧 Logging structlog
 
-* Logging unifié avec **structlog 25.4**
-* Configuration centralisée dans `core/logging.py`
-* Logs formatés : timestamp, module, niveau, message enrichi (requête, IP...)
-* Fichier unique `logs/hanuman.log`, rotation future prévue
+- Logging unifié avec **structlog 25.4**
+- Configuration centralisée dans `core/logging.py`
+- Logs formatés : timestamp, module, niveau, message enrichi (requête, IP...)
+- Fichier unique `logs/hanuman.log`, rotation future prévue
 
 ### 🌐 Sécurité
 
-* Variables d’environnement via `.env` chargé manuellement
-* `token_manager.py` pour gestion de tokens dynamiques (non finalisé)
-* Clés sensibles ignorées via `.gitignore`
+- Variables d’environnement via `.env` chargé manuellement
+- `token_manager.py` pour gestion de tokens dynamiques (non finalisé)
+- Clés sensibles ignorées via `.gitignore`
 
 ### 🔬 Analyse statique
 
-* Formatage : **Black**, ligne 100
-* Lint : **Ruff** (E, F, I), ignore E501 (lignes longues)
-* Typage strict via **mypy** (activé dans `pyproject.toml`)
-* Sécurité : **Semgrep** avec catégories `security`, `structure`, `style`
+- Formatage : **Black**, ligne 100
+- Lint : **Ruff** (E, F, I), ignore E501 (lignes longues)
+- Typage strict via **mypy** (activé dans `pyproject.toml`)
+- Sécurité : **Semgrep** avec catégories `security`, `structure`, `style`
 
 ### 🔮 Tests professionnels
 
-* Framework : **pytest** avec **pytest-cov**
-* Rapport de couverture **HTML** et **XML** pour Codecov
-* `Makefile` avec cibles `test`, `test-cov`, `coverage-html`, `clean`
-* Arborescence des tests par module, un `ping` par service
-* Convention de réponse testée : `{ "ok": true|false, "error"?: str }`
+- Framework : **pytest** avec **pytest-cov**
+- Rapport de couverture **HTML** et **XML** pour Codecov
+- `Makefile` avec cibles `test`, `test-cov`, `coverage-html`, `clean`
+- Arborescence des tests par module, un `ping` par service
+- Convention de réponse testée : `{ "ok": true|false, "error"?: str }`
 
 ### 🏆 Intégration continue (CI)
 
-* GitHub Actions actif
-* Codecov badge affiché
-* Préparation d’un système robuste d’échecs tolérés à terme
+- GitHub Actions actif
+- Codecov badge affiché
+- Préparation d’un système robuste d’échecs tolérés à terme
 
 ---
 
@@ -152,23 +152,138 @@ coverage-html:
 
 ## 📄 Fichiers critiques (paths absolus utiles)
 
-* `src/hanuman/main.py` : point d’entrée
-* `logs/hanuman.log` : log consolidé
-* `tests/` : tous les tests organisés par service
-* `htmlcov/index.html` : rapport HTML local de couverture
-* `.env` : variables sensibles (gitignored)
-* `Makefile` : automatisation locale
-* `pyproject.toml` : référence centrale de la config (toolchain)
+- `src/hanuman/main.py` : point d’entrée
+- `logs/hanuman.log` : log consolidé
+- `tests/` : tous les tests organisés par service
+- `htmlcov/index.html` : rapport HTML local de couverture
+- `.env` : variables sensibles (gitignored)
+- `Makefile` : automatisation locale
+- `pyproject.toml` : référence centrale de la config (toolchain)
 
 ---
 
 ## 🛠️ Prochaines idées (hors scope README)
 
-* Déploiement Docker (en local)
-* Organisation d’une CLI `hanuman`
-* Ajout de workers asynchrones
-* Intégration progressive de business logic utile
+- Déploiement Docker (en local)
+- Organisation d’une CLI `hanuman`
+- Ajout de workers asynchrones
+- Intégration progressive de business logic utile
 
 ---
 
 ▶️ Ce fichier est généré manuellement, ne pas le remplacer par le README.md original. Il constitue une référence technique interne pour les versions en cours.
+
+---
+
+✅ Tâches :
+
+    Définir une image de base (python:3.12-slim)
+
+    Installer poetry
+
+    Copier pyproject.toml et poetry.lock
+
+    Lancer poetry install --no-root
+
+    Définir WORKDIR, ENTRYPOINT, CMD
+
+    Ajouter make, curl, git (via apt)
+
+🔍 ÉTAPE 4 — TEST LOCAL DU BUILD
+🎯 Objectif :
+
+Vérifier que l’image se build sans erreur
+✅ Tâches :
+
+    Commande docker build -t hanuman-dev .
+
+    Résolution des erreurs éventuelles
+
+    Analyse du cache et des layers
+
+🚀 ÉTAPE 5 — RUN LOCAL AVEC MONTAGE LIVE
+🎯 Objectif :
+
+Faire tourner un conteneur Docker en mode dev avec ton code monté
+✅ Tâches :
+
+    docker run -it --rm -v $(pwd):/app --env-file .env hanuman-dev
+
+    Test : make run, pytest, ruff, etc. depuis l’intérieur
+
+    Vérifier que les logs, le code, etc. fonctionnent comme attendu
+
+🧪 ÉTAPE 6 — TEST D’EXÉCUTION DIRECTE
+🎯 Objectif :
+
+Exécuter directement un script FastAPI (main.py) depuis l’image
+✅ Tâches :
+
+    docker run --rm --env-file .env hanuman-dev poetry run python src/hanuman/main.py
+
+    Vérifier que ça fonctionne sans shell interactif
+
+🔒 ÉTAPE 7 — SÉCURITÉ & .dockerignore
+🎯 Objectif :
+
+S’assurer qu’aucun secret, log, ou fichier inutile ne rentre dans l’image
+✅ Tâches :
+
+    Créer .dockerignore propre
+
+    Ajouter tous les fichiers/dossiers suivants :
+
+    .git
+    .env
+    *.log
+    *.md
+    __pycache__/
+    .pytest_cache/
+    .coverage
+    secrets/
+    logs/
+    data/
+
+🧪 ÉTAPE 8 — TEST DES OUTILS DEV
+🎯 Objectif :
+
+S’assurer que tu peux utiliser tous tes outils de dev dans le conteneur
+✅ Tâches :
+
+    make format, make test, ruff, mypy
+
+    Valider que tout fonctionne comme localement
+
+🧰 ÉTAPE 9 — OUTILS PRO (optionnels mais recommandés)
+🎯 Objectif :
+
+Préparer le terrain pour du Docker ultra-pro plus tard
+✅ Options :
+
+    Ajouter docker-compose.yml pour orchestrer tests/volumes/env
+
+    Ajouter entrypoint.sh pour lancer tests ou custom debug
+
+    Ajouter multi-stage build pour séparer build/test/run
+
+🛠️ ÉTAPE 10 — INTÉGRATION CI (GitHub Actions)
+🎯 Objectif :
+
+Tester ton Dockerfile automatiquement dans tes workflows CI
+✅ Tâches :
+
+    Ajouter une action docker build
+
+    Ajouter un job docker run make test
+
+    Valider uniformité des builds
+
+🔚 CONCLUSION
+
+À la fin de ce plan, tu auras :
+
+    une image de dev pro prête à tout
+
+    une maîtrise concrète de Docker
+
+    un socle propre, sécurisé, modulaire

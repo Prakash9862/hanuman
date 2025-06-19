@@ -1,0 +1,17 @@
+version: "3.9"
+
+services:
+    hanuman:
+        image: hanuman-dev
+        build:
+            context: .
+            target: dev
+        ports:
+            - "8000:8000"
+        volumes:
+            - .:/app
+        env_file:
+            - .env
+        environment:
+            - RELOAD=1
+        restart: unless-stopped
