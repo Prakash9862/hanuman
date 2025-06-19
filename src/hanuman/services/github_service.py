@@ -1,6 +1,6 @@
 import httpx
 
-from hanuman.core.config import get_env_var
+from hanuman.core.config import settings
 from hanuman.models.ping import PingResult  # ✅ Modèle centralisé
 from hanuman.utils.decorators import trace_endpoint
 
@@ -9,7 +9,7 @@ GITHUB_API_URL = "https://api.github.com/user"
 
 @trace_endpoint("github", catch=True)
 def ping_github() -> PingResult:
-    token = get_env_var("GITHUB_TOKEN")
+    token = settings.github_token
     if not token:
         raise ValueError("Missing token")
 

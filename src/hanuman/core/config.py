@@ -1,19 +1,38 @@
-import logging
-import os
-
-from dotenv import load_dotenv
-
-load_dotenv()  # charge le .env
-
-logger = logging.getLogger(__name__)  # récupère le logger du module
-
-# ✅ Si DEBUG est actif dans .env, loggue une ligne
-if os.getenv("DEBUG", "false") == "true":
-    logger.info("🔐 .env chargé (DEBUG=true)")
+from pydantic import Field, SecretStr
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
-def get_env_var(key: str, default: str = "") -> str:
-    """
-    Récupère une variable d'environnement (depuis .env ou système).
-    """
-    return os.getenv(key, default)
+class Settings(BaseSettings):
+    # === Base ===
+    app_env: str = "dev"
+    debug: bool = False
+    log_level: str = "DEBUG"
+    log_dir: str = "logs"
+    log_to_file: bool = True
+    enable_api_docs: bool = True
+
+      # === 🔐 Secrets obligatoires ===
+    notion_token: SecretStr = Field(default=..., alias="NOTION_TOKEN")
+    github_token: SecretStr = Field(default=..., alias="GITHUB_TOKEN")
+    openai_api_key: SecretStr = Field(default=..., alias="OPENAI_API_KEY")
+
+    # === 🔐 Secrets spécifiques (Google) ===
+    google_client_id: str = Field(default=..., alias="GOOGLE_CLIENT_ID")
+    google_client_secret: str = Field(default=..., alias="GOOGLE_CLIENT_SECRET")
+    google_redirect_uri: str = Field(default=..., alias="GOOGLE_REDIRECT_URI")
+
+
+    # === ⚙️ Configs spécifiques ===
+    openai_model: str = "gpt-4o"
+    notion_base_url: str = "https://api.notion.com/v1"
+    github_api_url: str = "https://api.github.com/"
+
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        extra="ignore",
+        case_sensitive=True
+    )
+
+
+settings = Settings()

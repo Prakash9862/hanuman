@@ -3,7 +3,7 @@
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse, RedirectResponse
 
-from hanuman.core.config import get_env_var
+from hanuman.core.config import settings
 from hanuman.models.ping import PingResult
 from hanuman.services.calendar_service import exchange_code_for_token
 from hanuman.utils.decorators import trace_endpoint
@@ -14,9 +14,8 @@ router = APIRouter()
 @router.get("/calendar/auth")
 @trace_endpoint("calendar", catch=False)
 def calendar_auth(request: Request) -> RedirectResponse:
-
-    client_id = get_env_var("GOOGLE_CLIENT_ID")
-    redirect_uri = get_env_var("GOOGLE_REDIRECT_URI")
+    client_id = settings.google_client_id
+    redirect_uri = settings.google_redirect_uri
 
     scope = "https://www.googleapis.com/auth/calendar.readonly"
     auth_url = (

@@ -2,7 +2,7 @@
 
 import httpx
 
-from hanuman.core.config import get_env_var
+from hanuman.core.config import settings
 from hanuman.core.token_manager import load_token_json, save_token_json
 from hanuman.models.ping import PingResult
 from hanuman.utils.decorators import trace_endpoint
@@ -15,9 +15,9 @@ CALENDAR_API_URL = "https://www.googleapis.com/calendar/v3/users/me/calendarList
 def exchange_code_for_token(code: str) -> bool:
     data = {
         "code": code,
-        "client_id": get_env_var("GOOGLE_CLIENT_ID"),
-        "client_secret": get_env_var("GOOGLE_CLIENT_SECRET"),
-        "redirect_uri": get_env_var("GOOGLE_REDIRECT_URI"),
+        "client_id": settings.google_client_id,
+        "client_secret": settings.google_client_secret,
+        "redirect_uri": settings.google_redirect_uri,
         "grant_type": "authorization_code",
     }
 

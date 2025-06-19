@@ -8,7 +8,7 @@ from typing import Any, Callable, Optional, TypeVar, cast
 
 from fastapi import Request
 
-from hanuman.core.config import get_env_var
+from hanuman.core.config import settings
 from hanuman.core.logging import get_logger
 from hanuman.models.ping import PingResult
 from hanuman.utils.log_helpers import get_ip, get_method, get_path
@@ -38,7 +38,7 @@ def trace_endpoint(source: str, catch: bool = True) -> Callable[[F], F]:
                 ip=get_ip(request),
                 endpoint=get_path(request),
                 method=get_method(request),
-                debug_mode=get_env_var("DEBUG", "false"),
+                debug_mode=settings.debug,
             ).info("📥 Requête reçue")
 
             try:
@@ -77,7 +77,7 @@ def trace_endpoint(source: str, catch: bool = True) -> Callable[[F], F]:
                 ip=get_ip(request),
                 endpoint=get_path(request),
                 method=get_method(request),
-                debug_mode=get_env_var("DEBUG", "false"),
+                debug_mode=settings.debug,
             ).info("📥 Requête reçue")
 
             try:

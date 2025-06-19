@@ -1,319 +1,174 @@
-# Hanuman - Plan de Version 2.0 (Stabilisation Environnementale)
+# Hanuman - README Technique Complet (2025)
 
-## Objectif principal
+## 🧡 Objectif global
 
-> Finaliser une version **locale, stable, professionnelle et durable** de l’API Hanuman, sans ajout de logique métier, mais avec **toutes les fondations techniques figées** : structure de code, logs, tests, sécurité, config, outils dev, CI.
-
----
-
-## 📅 État actuel : `v2.3` (structlog)
-
-### ✅ Tâches accomplies :
-
-* Intégration initiale de `structlog`
-* Décorateurs de log (`@log_ping`)
-* Logger contextualisé
-
-### ❌ Reste à faire pour finaliser `v2.3.1` :
-
-* [ ] Ajout `hanuman_error.log` + `hanuman_debug.log` séparés
-* [ ] Logging JSON (prod) / coloré (dev)
-* [ ] Middleware de logging HTTP
+**Hanuman** est une API locale d’orchestration personnelle, modulaire, testable et sécurisée, développée en **Python 3.12** avec **FastAPI**, destinée à interfacer des services tiers (GitHub, Notion, OpenAI...) avec des scripts et données locales. Sa philosophie repose sur un design **scalable**, **entierèrement testé**, **loggé proprement**, **lisible**, **typé**, et **configurable à tous les niveaux**.
 
 ---
 
-## 🔮 `v2.4` — Testabilité & Couverture
+## 🔄 Arborescence
 
-* [ ] Convention uniforme de test `ok / error`
-* [ ] Edge case tests : token manquant, endpoint invalide, fichier manquant
-* [ ] Ajout de `pytest-cov` + badge
-* [ ] `tests/conftest.py` avec fixtures
-* [ ] Rapport HTML de couverture
-
----
-
-## 🔐 `v2.5` — Sécurité & Auth
-
-* [ ] Middleware de tokenisation (`X-Hanuman-Token`)
-* [ ] Refus HTTP 401 si token absent/erroné
-* [ ] `.env` + `.env.example` avec token obligatoire
-* [ ] Option de whitelist IP (127.0.0.1)
-* [ ] Aucun endpoint libre sauf `/status`
-
----
-
-## 🧹 `v2.6` — Configuration & Nettoyage
-
-* [ ] Centralisation des chemins dans `config.py`
-* [ ] `hanuman_config.json` lu dynamiquement
-* [ ] Script `scripts/check_env.py`
-* [ ] Nettoyage `pyproject.toml`
-* [ ] Ajout `.env.example`
-
-### Documentation interne
-
-* [ ] `docs/README_STRUCTURE.md`
-* [ ] `docs/README_LOGS.md`
-* [ ] `docs/README_ENV.md`
-* [ ] Export `docs/openapi.json`
-
----
-
-## ⚙️ `v2.7` — Outils de développement & CI
-
-* [ ] `Makefile` : lint / test / coverage / docker
-* [ ] `pre-commit` : black, mypy, ruff, pytest, isort
-* [ ] `make install-hooks`
-* [ ] GitHub Actions : lint + test + coverage badge
+```bash
+hanuman/
+├── .env                         # Secrets/API tokens (non versionné)
+├── Makefile                     # Commandes d’automatisation
+├── pyproject.toml               # Configuration Poetry + outils
+├── poetry.lock                  # Verrouillage des dépendances
+├── .gitignore                   # Fichiers exclus du repo
+├── .semgrep.yml                 # Règles de sécurité/statique
+├── coverage.xml                 # Rapport de couverture XML (Codecov)
+├── logs/
+│   └── hanuman.log              # Log unique consolidé
+├── src/
+│   ├── hanuman/
+│   │   ├── main.py             # Entrée principale FastAPI
+│   │   ├── api/               # Routes REST regroupées par domaine
+│   │   ├── core/              # Logging, sécurité, config
+│   │   ├── services/          # Logique fonctionnelle (traitement)
+│   │   ├── models/            # Pydantic (si besoin)
+│   │   └── utils/             # Helpers (log, décorateurs...)
+├── tests/
+│   ├── __init__.py
+│   ├── test_status.py
+│   ├── test_log_trace_endpoint.py
+│   ├── services/
+│   │   ├── test_calendar_ping.py
+│   │   ├── test_chess_ping.py
+│   │   ├── test_github_ping.py
+│   │   ├── test_notion_ping.py
+│   │   ├── test_openai_ping.py
+│   │   ├── test_obsidian_ping.py
+│   │   └── test_wikipedia_ping.py
+│   └── conftest.py          # Fixtures partagées
+```
 
 ---
 
-## 🛥️ `v2.8` — Dockerisation locale
+## ✨ Points techniques clés
 
-* [ ] Dockerfile pour environnement local
-* [ ] docker-compose.yml si services tiers
-* [ ] Intégration Makefile : `make docker`, `make docker-up`
+### 🚀 API FastAPI
+
+* Point d’entrée : `main.py`
+* Routes dynamiquement importées via `include_router()`
+* Middleware d’audit (`log_requests`) actif sur toutes les routes
+
+### 🔧 Logging structlog
+
+* Logging unifié avec **structlog 25.4**
+* Configuration centralisée dans `core/logging.py`
+* Logs formatés : timestamp, module, niveau, message enrichi (requête, IP...)
+* Fichier unique `logs/hanuman.log`, rotation future prévue
+
+### 🌐 Sécurité
+
+* Variables d’environnement via `.env` chargé manuellement
+* `token_manager.py` pour gestion de tokens dynamiques (non finalisé)
+* Clés sensibles ignorées via `.gitignore`
+
+### 🔬 Analyse statique
+
+* Formatage : **Black**, ligne 100
+* Lint : **Ruff** (E, F, I), ignore E501 (lignes longues)
+* Typage strict via **mypy** (activé dans `pyproject.toml`)
+* Sécurité : **Semgrep** avec catégories `security`, `structure`, `style`
+
+### 🔮 Tests professionnels
+
+* Framework : **pytest** avec **pytest-cov**
+* Rapport de couverture **HTML** et **XML** pour Codecov
+* `Makefile` avec cibles `test`, `test-cov`, `coverage-html`, `clean`
+* Arborescence des tests par module, un `ping` par service
+* Convention de réponse testée : `{ "ok": true|false, "error"?: str }`
+
+### 🏆 Intégration continue (CI)
+
+* GitHub Actions actif
+* Codecov badge affiché
+* Préparation d’un système robuste d’échecs tolérés à terme
 
 ---
 
-## 🌟 `v2.9` — Consolidation finale
+## 🛠️ Makefile (extraits)
 
-* [ ] Création endpoint `/health`
-* [ ] Listing de tous les endpoints actifs
-* [ ] README.md à jour
-* [ ] Freeze de la structure : figée pour future v3
-* [ ] Export final docs (structure, openapi, convention, conf)
+```make
+run:              # uvicorn reload auto
+	poetry run uvicorn src.hanuman.main:app --reload
 
----
+lint:             # Analyse lint (Ruff)
+	poetry run ruff check .
 
-## 🏁 Hanuman `v3.0` — Ouverture vers les modules métiers
+format:           # Format avec black
+	poetry run black .
 
-> Aucune logique métier ne sera intégrée avant la validation complète de la v2.0.
+clean:            # Supprime .pyc et cache tests
+	rm -rf .pytest_cache __pycache__ */__pycache__ *.pyc
 
+clean-logs:
+	rm -f logs/*.log
 
----
+test:
+	poetry run pytest
 
+test-cov:
+	poetry run pytest --cov=src/ --cov-report=xml
 
-🧱 Ce que l’on va FAIRE CONCRÈTEMENT pour intégrer structlog dans Hanuman
-1. 📁 Créer un nouveau fichier core/logging.py
-
-Structure recommandée :
-
-    get_logger(name: Optional[str]) → retourne un logger structlog
-
-    configure_logging() → à appeler une seule fois dans main.py
-
-    Deux renderers :
-
-        ConsoleRenderer() si dev (DEBUG)
-
-        JSONRenderer() si prod (INFO+)
-
-    Configuration des handlers :
-
-        hanuman_debug.log (text)
-
-        hanuman_error.log (JSON)
-
-        stdout coloré ou silencieux selon config
-
-2. 🔁 Modifier l’appel de log dans tout le projet
-Avant (standard)	Après (structlog)
-import logging	import structlog
-logger = logging.getLogger(__name__)	logger = get_logger(__name__)
-logger.info(...)	logger.info(...) + .bind(...)
-Modules à modifier :
-
-    main.py
-
-    api/*.py
-
-    services/*.py
-
-    Tous les tests si loggés
-
-    utils/helpers.py (s’il y a du print ou log implicite)
-
-3. 🧩 Modifier ou créer un décorateur @log_request ou @log_ping
-
-    Ajout automatique de :
-
-        Nom de route
-
-        IP source (request.client.host)
-
-        Timestamp
-
-        Token partiel (si présent)
-
-        Statut de réponse
-
-→ On remplace l’ancien @log_ping si besoin.
-4. 📁 Créer / Modifier la structure des fichiers logs
-
-/logs/hanuman_debug.log (niveau DEBUG+, texte lisible)
-
-/logs/hanuman_error.log (niveau ERROR+, format JSON)
-
-    (optionnel) /logs/hanuman_request.log (si on veut journaliser les requêtes)
-
-Il faudra :
-
-    Créer les fichiers à vide dans Git (.gitkeep)
-
-    Ajouter les handlers dans logging.FileHandler(...)
-
-5. 🧪 Adapter ou créer un test pour les logs
-
-    Vérifier qu’un appel à /status produit bien un log structuré
-
-    Vérifier la présence de certaines clés (event, ip, status_code)
-
-    Tester que les logs sont bien différents en dev et en prod
-
-6. ⚙️ Modifier le Makefile si besoin
-
-    Ajouter une commande utile type :
-
-make logs       # affiche les logs en live (tail -f)
-make log-debug  # affiche les logs DEBUG
-
-7. 🧼 Nettoyer l’existant
-
-    Supprimer :
-
-        config/logging.yaml (plus nécessaire avec structlog)
-
-        Toutes les références à logging.basicConfig(...)
-
-    Mettre à jour .gitignore :
-
-    logs/hanuman_debug.log
-    logs/hanuman_error.log
-
-8. 📓 Documenter la stratégie
-
-Créer un fichier :
-
-docs/README_LOGS.md
-
-Avec :
-
-    Niveau de log
-
-    Localisation des fichiers
-
-    Différence dev/prod
-
-    Comment logger dans un service proprement
-
-    Comment ajouter un contexte (.bind())
-
-✅ Résumé : impact total sur l’arborescence
-
-src/hanuman/
-├── core/
-│   └── logging.py         # 💥 Nouveau
-├── api/
-│   └── status.py          # 🔁 get_logger()
-├── services/
-│   └── notion_service.py  # 🔁 get_logger()
-tests/
-├── test_logging.py        # 💥 Nouveau
-logs/
-├── hanuman_debug.log      # 💥 Nouveau
-├── hanuman_error.log      # 💥 Nouveau
-config/
-├── logging.yaml           # ❌ À supprimer
-docs/
-├── README_LOGS.md         # 💥 Nouveau
+coverage-html:
+	poetry run pytest --cov=src/ --cov-report=html
+	xdg-open htmlcov/index.html || open htmlcov/index.html || true
+```
 
 ---
 
-# Structlog - Plan d'amélioration avancée Hanuman
+## 🔢 Services disponibles
 
-## ⚠️ 0. Harmonisation des erreurs
-
-Avant toute chose, on constate **de nombreuses erreurs mypy (16 erreurs / 11 fichiers)**
-liées à :
-
-* des `None` non typés dans les objets `Request`
-* des retours sans annotation
-* des signatures manquantes dans les wrappers
-* des mauvaises signatures dans les `bind()`
-
-### 🔧 Objectif
-
-Mettre en place une **stratégie d’harmonisation de la typage et des interfaces loguées** :
-
-* typage propre de `Request` dans les décorateurs
-* typage des `return` pour toutes les fonctions — même les lambdas ou wrappers
-* mise en place d’un linter typographique stricte
-* éventuellement, wrapper structlog dans une interface typée maison
+| Service   | Fichier route      | Fichier service                 | Token ? |
+| --------- | ------------------ | ------------------------------- | ------- |
+| Status    | `api/status.py`    | —                               | Non     |
+| Notion    | `api/notion.py`    | `services/notion_service.py`    | Oui     |
+| GitHub    | `api/github.py`    | `services/github_service.py`    | Oui     |
+| Chess.com | `api/chess_com.py` | `services/chess_service.py`     | Non     |
+| Obsidian  | `api/obsidian.py`  | `services/obsidian_service.py`  | Non     |
+| OpenAI    | `api/openai.py`    | `services/openai_service.py`    | Oui     |
+| Calendar  | `api/calendar.py`  | `services/calendar_service.py`  | Oui     |
+| Wikipedia | `api/wikipedia.py` | `services/wikipedia_service.py` | Non     |
 
 ---
 
-## 🌐 1. Ajout de contexte enrichi dans les logs
+## 🔝 Qualité actuelle
 
-### 📄 Actuel :
-
-Les logs enrichissent l’appel avec :
-
-* `ip`
-* `endpoint`
-* `method`
-* `debug_mode`
-
-### ✅ À faire :
-
-* Ajouter : `user_id`, `source`, `token_prefix`, `platform`, `agent`, `lang`, `session_id`
-* Tous les `logger.bind(...)` pourront être faits une seule fois via une fonction `build_context(request: Request) -> dict`
+| Domaine             | État                          |
+| ------------------- | ----------------------------- |
+| Logging             | Structlog 100% opérationnel   |
+| Typage              | Mypy strict                   |
+| Lint / Format       | Black + Ruff                  |
+| Sécurité statique   | Semgrep personnalisé          |
+| Tests unitaires     | 100% ping testés              |
+| Couverture globale  | > 81% (hors fichiers mineurs) |
+| CI GitHub           | Fonctionnelle                 |
+| Convention de tests | Unifiée ok/error + JSON       |
+| Codebase            | Propre, modulaire, claire     |
 
 ---
 
-## 🎨 2. Loguer les retours de fonction (optionnel)
+## 📄 Fichiers critiques (paths absolus utiles)
 
-### ✅ À faire :
-
-* Ajouter un argument à `@trace_endpoint(..., log_return=True)`
-* Si activé : logguer le `result` en `DEBUG`, uniquement s’il est de type éligible (PingResult, dict, str...)
-* Ajout d’un `truncate_long_values(result)` pour éviter les dump illisibles
-
----
-
-## 🔧 3. Test structlog avec caplog
-
-### 📄 Objectif : valider que les logs sont bien produits
-
-* [ ] Écrire un test `test_trace_logging()` avec `caplog`
-* [ ] Appeler une fonction de service logguée
-* [ ] Vérifier qu’au moins une ligne contient :
-
-  * `"Requête reçue"`
-  * `"Exécution réussie"` ou `"Erreur ... dans ..."`
+* `src/hanuman/main.py` : point d’entrée
+* `logs/hanuman.log` : log consolidé
+* `tests/` : tous les tests organisés par service
+* `htmlcov/index.html` : rapport HTML local de couverture
+* `.env` : variables sensibles (gitignored)
+* `Makefile` : automatisation locale
+* `pyproject.toml` : référence centrale de la config (toolchain)
 
 ---
 
-## 🔢 4. Rotation et nettoyage des logs
+## 🛠️ Prochaines idées (hors scope README)
 
-### ✅ À faire :
-
-* Ajouter un handler `TimedRotatingFileHandler` dans `logging.py`
-* Gérer la rotation de `hanuman_debug.log` tous les 7 jours, 4 fichiers max
-* Ajouter une suppression automatique des logs > 28 jours (cron ou script manuel ?)
-
----
-
-## 📃 5. Documenter la stratégie
-
-### 🔖 Fichier `docs/README_LOGS.md`
-
-Contenu attendu :
-
-* niveaux utilisés (DEBUG, INFO, ERROR)
-* conventions sur le bind
-* exemple de JSON produit
-* structure des fichiers `.log`
-* comment lire / filtrer les logs (grep, jq, Loki ?)
+* Déploiement Docker (en local)
+* Organisation d’une CLI `hanuman`
+* Ajout de workers asynchrones
+* Intégration progressive de business logic utile
 
 ---
+
+▶️ Ce fichier est généré manuellement, ne pas le remplacer par le README.md original. Il constitue une référence technique interne pour les versions en cours.

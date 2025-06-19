@@ -1,6 +1,6 @@
 import httpx
 
-from hanuman.core.config import get_env_var
+from hanuman.core.config import settings
 from hanuman.models.ping import PingResult  # ✅ le bon modèle
 from hanuman.utils.decorators import trace_endpoint
 
@@ -10,7 +10,7 @@ NOTION_VERSION = "2022-06-28"
 
 @trace_endpoint("notion", catch=True)
 def ping_notion() -> PingResult:
-    token = get_env_var("NOTION_TOKEN")
+    token = settings.notion_token
     if not token:
         raise ValueError("Missing token")
 
