@@ -1,60 +1,70 @@
-# =======================
-# 🟩 STAGE 1 — Base
-# =======================
+############################
+# 🔹 STAGE 1 — Base commune
+############################
 FROM python:3.12-slim AS base
 
-WORKDIR /app
+# 👉 Argument d’environnement (prod/dev)
+ARG YOUR_ENV=development
+ENV YOUR_ENV=${YOUR_ENV}
 
-# Variables d'env minimales
-ENV PYTHONDONTWRITEBYTECODE=1
-ENV PYTHONUNBUFFERED=1
+# 👉 Config environnement Python et Poetry
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    POETRY_VIRTUALENVS_CREATE=false \
+    POETRY_NO_INTERACTION=1 \
+    POETRY_HOME="/opt/poetry" \
+    PATH="$POETRY_HOME/bin:$PATH"
 
-# Dépendances système de base
+# 👉 Dépendances système essentielles
 RUN apt-get update && apt-get install -y \
-    build-essential \
     curl \
     git \
     make \
+    build-essential \
     && rm -rf /var/lib/apt/lists/*
 
-# Installer Poetry
-ENV POETRY_VERSION=1.8.2
-RUN curl -sSL https://install.python-poetry.org | python3 - && \
-    ln -s /root/.local/bin/poetry /usr/local/bin/poetry
+# 👉 Installer Poetry (version verrouillée)
+ENV POETRY_HOME="/root/.local"
+ENV PATH="$POETRY_HOME/bin:$PATH"
 
-# Copier les fichiers de dépendances
+RUN curl -sSL https://install.python-poetry.org | python3 -
+
+# 👉 Dossier de travail
+WORKDIR /app
+
+# 👉 Copier fichiers de dépendances en cache build
 COPY pyproject.toml poetry.lock ./
 
-# Installer les dépendances (sans le code)
-RUN poetry install --no-root --no-interaction
+# 👉 Installer les dépendances selon l’environnement
+RUN poetry install --with dev --no-ansi --no-root
 
-# Copier le code (peut être évité en dev via volume)
-COPY src/ ./src/
-COPY Makefile ./
-COPY config/ ./config/
-
-# =======================
-# 🟦 STAGE 2 — Dev
-# =======================
+#############################
+# 🔹 STAGE 2 — Dev complet
+#############################
 FROM base AS dev
 
-# Créer le dossier logs (monté si volume local)
+# 👉 Créer le dossier de logs explicitement (au cas où volume)
 RUN mkdir -p /app/logs
 
-# Copier les scripts
-COPY scripts/docker-entrypoint.sh /app/scripts/docker-entrypoint.sh
+# 👉 Copier tout le reste du projet
+COPY . .
+
+# 👉 Rendre le script entrypoint exécutable
 RUN chmod +x /app/scripts/docker-entrypoint.sh
 
-# Entrée interactive par défaut (modifiable)
+# 👉 Définir l’entrée du conteneur
 ENTRYPOINT ["/app/scripts/docker-entrypoint.sh"]
 
-# =======================
-# 🟥 STAGE 3 — Prod
-# =======================
+#############################
+# 🔹 STAGE 3 — Prod allégée
+#############################
 FROM base AS prod
 
-# Pas de --reload, pas de make, pas de test
-COPY scripts/docker-entrypoint.sh /app/scripts/docker-entrypoint.sh
-RUN chmod +x /app/scripts/docker-entrypoint.sh
+# 👉 Copier uniquement le strict nécessaire
+COPY . .
 
-ENTRYPOINT ["/app/scripts/docker-entrypoint.sh"]
+# 👉 Supprimer tests et fichiers inutiles en prod (optionnel)
+RUN rm -rf tests scripts/docker-entrypoint.sh .git .github
+
+# 👉 Entrée du conteneur production (par exemple gunicorn/uvicorn)
+ENTRYPOINT ["poetry", "run", "python", "src/hanuman/main.py"]
