@@ -11,3 +11,4 @@ logs/
 *.md
 .coverage
 .pytest_cache/
+.venv

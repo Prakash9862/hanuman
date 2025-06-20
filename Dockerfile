@@ -24,19 +24,20 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # 👉 Installer Poetry (version verrouillée)
+
 ENV POETRY_HOME="/root/.local"
 ENV PATH="$POETRY_HOME/bin:$PATH"
 
 RUN curl -sSL https://install.python-poetry.org | python3 -
 
-# 👉 Dossier de travail
-WORKDIR /app
-
-# 👉 Copier fichiers de dépendances en cache build
+# 👉 Dossier temporaire pour build isolé
+WORKDIR /tmp/build
 COPY pyproject.toml poetry.lock ./
 
-# 👉 Installer les dépendances selon l’environnement
-RUN poetry install --with dev --no-ansi --no-root
+RUN mkdir -p /install && cp pyproject.toml poetry.lock /install/ && cd /install && poetry install --with dev --no-ansi --no-root
+
+# 👉 Dossier de travail réel
+WORKDIR /app
 
 #############################
 # 🔹 STAGE 2 — Dev complet
