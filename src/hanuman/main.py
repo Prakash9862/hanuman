@@ -1,16 +1,18 @@
 from fastapi import FastAPI
 from fastapi.routing import APIRoute
 
-from hanuman.api import (
+from hanuman.api.core import (
     calendar,
     chess_com,
     github,
-    github_sync_notion,
     notion,
     obsidian,
     openai,
-    status,
     wikipedia,
+)
+from hanuman.api.orchestrations import (
+    github_sync_notion,
+    status,
 )
 from hanuman.core.logging import configure_logging, get_logger
 from hanuman.core.middleware import log_requests

@@ -1,8 +1,10 @@
 import pytest
 from dotenv import load_dotenv
+
 load_dotenv()
 
 from hanuman.services.orchestrations import github_sync_notion_services
+
 
 @pytest.mark.asyncio
 async def test_get_open_issues_returns_list():

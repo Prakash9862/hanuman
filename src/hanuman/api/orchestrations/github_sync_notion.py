@@ -8,6 +8,7 @@ from hanuman.services.orchestrations.github_sync_notion_services import (
 
 router = APIRouter()
 
+
 @router.post("/github_sync_notion/sync")
 async def sync_github_dashboard():
     return await sync_issues_to_notion()
