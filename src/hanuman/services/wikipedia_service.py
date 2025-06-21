@@ -1,11 +1,10 @@
-import logging
-
 import httpx
 
+from hanuman.core.logging import get_logger
 from hanuman.models.ping import PingResult  # ✅ Modèle structuré
 from hanuman.utils.decorators import trace_endpoint
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 WIKIPEDIA_URL = "https://fr.wikipedia.org/api/rest_v1/page/summary/OpenAI"
 
 

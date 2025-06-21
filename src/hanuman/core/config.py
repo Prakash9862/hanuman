@@ -1,6 +1,10 @@
 from pydantic import Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from hanuman.core.logging import get_logger
+
+logger = get_logger(__name__)
+
 
 class Settings(BaseSettings):
     # === Base ===
