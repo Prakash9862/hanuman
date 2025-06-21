@@ -5,7 +5,7 @@ from fastapi.responses import JSONResponse, RedirectResponse
 
 from hanuman.core.config import settings
 from hanuman.models.ping import PingResult
-from hanuman.services.calendar_service import exchange_code_for_token
+from hanuman.services.core.calendar_service import exchange_code_for_token
 from hanuman.utils.decorators import trace_endpoint
 
 router = APIRouter()

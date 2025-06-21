@@ -33,7 +33,7 @@ Ce système de logs a pour but de fournir une **traçabilité structurée**, **l
 
 1. **Console** (stdout)
 
-   - Niveau : `INFO` minimum
+   - Niveau : adapté
    - Format : human-readable via `ConsoleRenderer`
 
 2. **Fichiers `.json`** dans le dossier `logs/`

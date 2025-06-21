@@ -5,6 +5,7 @@ from hanuman.api import (
     calendar,
     chess_com,
     github,
+    github_sync_notion,
     notion,
     obsidian,
     openai,
@@ -37,6 +38,7 @@ app.include_router(obsidian.router)
 app.include_router(openai.router)
 app.include_router(wikipedia.router)
 app.include_router(calendar.router)
+app.include_router(github_sync_notion.router)
 
 # 🔍 Log intelligent de fin d'initialisation
 active_routes = [r.path for r in app.routes if isinstance(r, APIRoute)]

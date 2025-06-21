@@ -3,7 +3,7 @@
 from fastapi import APIRouter, Request
 
 from hanuman.models.ping import PingResult
-from hanuman.services.obsidian_service import ping_obsidian
+from hanuman.services.core.obsidian_service import ping_obsidian
 from hanuman.utils.decorators import trace_endpoint
 
 router = APIRouter()

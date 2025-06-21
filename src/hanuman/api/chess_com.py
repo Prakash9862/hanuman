@@ -3,7 +3,7 @@
 from fastapi import APIRouter, Request
 
 from hanuman.models.ping import PingResult
-from hanuman.services.chess_service import ping_chess
+from hanuman.services.core.chess_service import ping_chess
 from hanuman.utils.decorators import trace_endpoint
 
 router = APIRouter()

@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Request
 
 from hanuman.models.ping import PingResult
-from hanuman.services.notion_service import ping_notion
+from hanuman.services.core.notion_service import ping_notion
 from hanuman.utils.decorators import trace_endpoint
 
 router = APIRouter()
