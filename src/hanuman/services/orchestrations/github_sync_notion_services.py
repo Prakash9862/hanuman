@@ -1,4 +1,4 @@
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 import httpx
 
@@ -27,7 +27,7 @@ async def get_open_issues() -> List[Dict[str, Any]]:
         "User-Agent": "hanuman-sync",
     }
     async with httpx.AsyncClient() as client:
-        response = await client.get(url, headers=headers, params={"state": "open"})
+        response = await client.get(url, headers=headers, params={"state": "all"})
         response.raise_for_status()
         issues = response.json()
         logger.info("📥 Issues GitHub récupérées", count=len(issues))
@@ -40,13 +40,28 @@ async def get_open_issues() -> List[Dict[str, Any]]:
 
 
 def transform_issue_for_notion(issue: Dict[str, Any]) -> Dict[str, Any]:
+    # 🔹 Gestion labels
+    labels = issue.get("labels", [])
+    label_names = [label["name"] for label in labels if "name" in label]
+
+    # 🔹 Assignee
+    assignee = issue.get("assignee")
+    assignee_name = assignee["login"] if assignee and "login" in assignee else None
+
     return {
-        "parent": {"database_id": load_token_json("notion_db_github_issues")['token']},
+        "parent": {
+            "database_id": load_token_json("notion_db_github_issues")["token"]
+        },
         "properties": {
             "Name": {"title": [{"text": {"content": issue.get("title", "Issue sans titre")}}]},
             "URL": {"url": issue.get("html_url")},
             "Etat": {"select": {"name": issue.get("state", "open")}},
             "Numéro": {"number": issue.get("number")},
+            "Labels": {"multi_select": [{"name": name} for name in label_names]},
+            "Assigné": {"select": {"name": assignee_name}} if assignee_name else {"select": None},
+            "Créé le": {"date": {"start": issue.get("created_at")}},
+            "Modifié le": {"date": {"start": issue.get("updated_at")}},
+            "Contenu": {"rich_text": [{"text": {"content": issue.get("body") or ""}}]},
         },
     }
 
@@ -79,6 +94,28 @@ async def send_to_notion(payload: Dict[str, Any]) -> bool:
 # 🎯 Orchestration
 # ========================
 
+async def page_exists(issue_number: int) -> Optional[str]:
+    headers = {
+        "Authorization": f"Bearer {load_token_json('notion')['token']}",
+        "Notion-Version": NOTION_VERSION,
+        "Content-Type": "application/json",
+    }
+    payload = {
+        "filter": {
+            "property": "Numéro",  # ⚠️ le nom exact dans ta base Notion
+            "number": {"equals": issue_number}
+        }
+    }
+    search_url = f"https://api.notion.com/v1/databases/{load_token_json('notion_db_github_issues')['token']}/query"
+
+    async with httpx.AsyncClient() as client:
+        response = await client.post(search_url, headers=headers, json=payload)
+        response.raise_for_status()
+        results = response.json().get("results", [])
+        if results:
+            return results[0]["id"]
+        return None
+
 
 async def sync_issues_to_notion() -> Dict[str, Any]:
     logger.info("🚀 Début de synchronisation GitHub → Notion")
@@ -87,10 +124,16 @@ async def sync_issues_to_notion() -> Dict[str, Any]:
         created = 0
 
         for issue in issues:
+            existing = await page_exists(issue["number"])
+            if existing:
+                logger.info("🟡 Issue déjà présente dans Notion", issue_number=issue["number"])
+                continue
+
             payload = transform_issue_for_notion(issue)
             success = await send_to_notion(payload)
             if success:
                 created += 1
+
 
         logger.info("🏁 Synchronisation terminée", total=len(issues), succès=created)
         return {"status": "ok", "total": len(issues), "succès": created}
