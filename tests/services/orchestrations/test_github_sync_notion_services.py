@@ -1,13 +1,13 @@
 import pytest
 from dotenv import load_dotenv
 
-load_dotenv()
-
 from hanuman.services.orchestrations import github_sync_notion_services
+
+load_dotenv()
 
 
 @pytest.mark.asyncio
-async def test_get_open_issues_returns_list():
+async def test_get_open_issues_returns_list() -> None:
     issues = await github_sync_notion_services.get_open_issues()
     assert isinstance(issues, list)
     if issues:

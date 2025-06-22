@@ -1,3 +1,5 @@
+from typing import Any, Dict, List
+
 import httpx
 
 from hanuman.core.logging import get_logger
@@ -17,7 +19,7 @@ NOTION_VERSION = "2022-06-28"
 # ========================
 
 
-async def get_open_issues():
+async def get_open_issues() -> List[Dict[str, Any]]:
     url = f"{GITHUB_API_URL}/repos/{REPO_OWNER}/{REPO_NAME}/issues"
     headers = {
         "Authorization": f"Bearer {load_token_json('github')['token']}",
@@ -29,7 +31,7 @@ async def get_open_issues():
         response.raise_for_status()
         issues = response.json()
         logger.info("📥 Issues GitHub récupérées", count=len(issues))
-        return issues
+        return issues  # type: ignore[no-any-return]
 
 
 # ========================
@@ -37,7 +39,7 @@ async def get_open_issues():
 # ========================
 
 
-def transform_issue_for_notion(issue: dict) -> dict:
+def transform_issue_for_notion(issue: Dict[str, Any]) -> Dict[str, Any]:
     return {
         "parent": {"database_id": load_token_json("notion_db_github_issues")['token']},
         "properties": {
@@ -54,7 +56,7 @@ def transform_issue_for_notion(issue: dict) -> dict:
 # ========================
 
 
-async def send_to_notion(payload: dict) -> bool:
+async def send_to_notion(payload: Dict[str, Any]) -> bool:
     headers = {
         "Authorization": f"Bearer {load_token_json('notion')['token']}",
         "Notion-Version": NOTION_VERSION,
@@ -64,7 +66,9 @@ async def send_to_notion(payload: dict) -> bool:
         response = await client.post(NOTION_API_URL, headers=headers, json=payload)
         if response.status_code >= 400:
             logger.warning(
-                "❌ Échec création page Notion", status=response.status_code, detail=response.text
+                "❌ Échec création page Notion",
+                status=response.status_code,
+                detail=response.text,
             )
             return False
         logger.info("✅ Page Notion créée", status=response.status_code)
@@ -76,9 +80,8 @@ async def send_to_notion(payload: dict) -> bool:
 # ========================
 
 
-async def sync_issues_to_notion():
+async def sync_issues_to_notion() -> Dict[str, Any]:
     logger.info("🚀 Début de synchronisation GitHub → Notion")
-
     try:
         issues = await get_open_issues()
         created = 0
@@ -91,7 +94,6 @@ async def sync_issues_to_notion():
 
         logger.info("🏁 Synchronisation terminée", total=len(issues), succès=created)
         return {"status": "ok", "total": len(issues), "succès": created}
-
     except Exception as e:
         logger.error("🔥 Erreur de synchronisation", error=str(e))
         return {"status": "error", "message": str(e)}
