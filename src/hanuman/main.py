@@ -12,6 +12,7 @@ from hanuman.api.core import (
 )
 from hanuman.api.orchestrations import (
     github_sync_notion,
+    obsidian_to_notion,
     status,
 )
 from hanuman.core.logging import configure_logging, get_logger
@@ -41,6 +42,7 @@ app.include_router(openai.router)
 app.include_router(wikipedia.router)
 app.include_router(calendar.router)
 app.include_router(github_sync_notion.router)
+app.include_router(obsidian_to_notion.router)
 
 # 🔍 Log intelligent de fin d'initialisation
 active_routes = [r.path for r in app.routes if isinstance(r, APIRoute)]

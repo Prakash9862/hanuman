@@ -1,29 +1,31 @@
-import httpx
+# -*- coding: utf-8 -*-
+from __future__ import annotations
+import os, json, requests
+from typing import List, Dict, Any
 
-from hanuman.core.config import settings
-from hanuman.models.ping import PingResult  # ✅ le bon modèle
-from hanuman.utils.decorators import trace_endpoint
+NOTION_TOKEN   = os.getenv("NOTION_TOKEN", "")
+NOTION_VERSION = os.getenv("NOTION_VERSION", "2025-09-03")
+DEFAULT_PARENT = os.getenv("NOTION_PARENT_ID", "")  # page_id (UUID avec tirets)
+API = "https://api.notion.com/v1"
 
-NOTION_API_URL = "https://api.notion.com/v1/users/me"
-NOTION_VERSION = "2022-06-28"
+def _hdr() -> Dict[str, str]:
+    if not NOTION_TOKEN:
+        raise RuntimeError("NOTION_TOKEN manquant.")
+    return {"Authorization": f"Bearer {NOTION_TOKEN}",
+            "Notion-Version": NOTION_VERSION,
+            "Content-Type": "application/json"}
 
-
-@trace_endpoint("notion", catch=True)
-def ping_notion() -> PingResult:
-    token = settings.notion_token
-    if not token:
-        raise ValueError("Missing token")
-
-    headers = {
-        "Authorization": f"Bearer {token}",
-        "Notion-Version": NOTION_VERSION,
+def create_page_under_parent(title: str, blocks: List[Dict[str, Any]], parent_page_id: str | None = None) -> Dict[str, Any]:
+    parent = (parent_page_id or DEFAULT_PARENT).strip()
+    if not parent:
+        raise RuntimeError("NOTION_PARENT_ID manquant (env ou param).")
+    payload: Dict[str, Any] = {
+        "parent": {"page_id": parent},
+        "properties": {"title": {"title": [{"type":"text","text":{"content": title}}]}},
     }
-
-    response = httpx.get(NOTION_API_URL, headers=headers, timeout=5)
-
-    if response.status_code == 200:
-        return PingResult(ok=True, source="notion", detail={"user": response.json()})
-    elif response.status_code == 401:
-        raise ValueError("Unauthorized")
-
-    raise RuntimeError(f"Unexpected status: {response.status_code}")
+    if blocks:
+        payload["children"] = blocks[:95]  # marge de sécurité
+    r = requests.post(f"{API}/pages", headers=_hdr(), data=json.dumps(payload), timeout=30)
+    if r.status_code >= 300:
+        raise RuntimeError(f"Notion error {r.status_code}: {r.text}")
+    return r.json()

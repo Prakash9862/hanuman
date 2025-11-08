@@ -1,21 +1,61 @@
+# -*- coding: utf-8 -*-
+from __future__ import annotations
 from pathlib import Path
+import os, re
+from typing import List, Dict, Any, Tuple
 
-from hanuman.models.ping import PingResult  # ✅ Import modèle global
-from hanuman.utils.decorators import trace_endpoint
+OBSIDIAN_VAULT_DIR = os.getenv("OBSIDIAN_VAULT_DIR", os.path.expanduser("~/Prakash/obsidian"))
 
-VAULT_PATH = Path("/home/prakash/Prakash/obsidian/Privé")
+def abs_path(rel_or_abs: str) -> Path:
+    p = Path(rel_or_abs).expanduser()
+    return p if p.is_absolute() else Path(OBSIDIAN_VAULT_DIR) / p
 
+def read_markdown(path: str) -> str:
+    p = abs_path(path)
+    if not p.is_file():
+        raise FileNotFoundError(f"Markdown introuvable: {p}")
+    return p.read_text(encoding="utf-8", errors="replace")
 
-@trace_endpoint("obsidian", catch=True)
-def ping_obsidian() -> PingResult:
-    if not VAULT_PATH.exists() or not VAULT_PATH.is_dir():
-        raise FileNotFoundError(f"Vault introuvable : {VAULT_PATH}")
+def _chunks(s: str, n: int = 1800):
+    for i in range(0, len(s), n):
+        yield s[i:i+n]
 
-    return PingResult(
-        ok=True,
-        source="obsidian",
-        detail={
-            "path": str(VAULT_PATH),
-            "note_count": len(list(VAULT_PATH.glob("*.md"))),
-        },
-    )
+def md_to_blocks(md: str) -> List[Dict[str, Any]]:
+    """Parse sobre et robuste: H1→titre de page, H2/H3, listes, paragraphes (avec découpe)."""
+    blocks: List[Dict[str, Any]] = []
+    lines = md.splitlines()
+
+    def t(s: str) -> Dict[str, Any]:
+        return {"type": "text", "text": {"content": s}}
+
+    for raw in lines:
+        line = raw.rstrip()
+        if line.strip() == "":
+            blocks.append({"object":"block","type":"paragraph","paragraph":{"rich_text":[]}})
+            continue
+        if line.startswith("### "):
+            blocks.append({"object":"block","type":"heading_3","heading_3":{"rich_text":[t(line[4:].strip())]}})
+            continue
+        if line.startswith("## "):
+            blocks.append({"object":"block","type":"heading_2","heading_2":{"rich_text":[t(line[3:].strip())]}})
+            continue
+        if line.startswith("# "):
+            # on saute: ce H1 servira de titre (géré dans le service Notion)
+            continue
+        if re.match(r'^\s*[-*]\s+', line):
+            val = re.sub(r'^\s*[-*]\s+', '', line).strip()
+            blocks.append({"object":"block","type":"bulleted_list_item","bulleted_list_item":{"rich_text":[t(val)]}})
+            continue
+        if re.match(r'^\s*\d+\.\s+', line):
+            val = re.sub(r'^\s*\d+\.\s+', '', line).strip()
+            blocks.append({"object":"block","type":"numbered_list_item","numbered_list_item":{"rich_text":[t(val)]}})
+            continue
+        for part in _chunks(line, 1800):
+            blocks.append({"object":"block","type":"paragraph","paragraph":{"rich_text":[t(part)]}})
+    return blocks or [{"object":"block","type":"paragraph","paragraph":{"rich_text":[{"type":"text","text":{"content":" "}}]}}]
+
+def md_title(md: str, fallback: str) -> str:
+    for ln in md.splitlines():
+        if ln.startswith("# "):
+            return ln[2:].strip()
+    return fallback
