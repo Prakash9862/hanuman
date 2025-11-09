@@ -1,9 +1,11 @@
 from __future__ import annotations
+
+import os
+from pathlib import Path
+
+import requests
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
-from pathlib import Path
-import os
-import requests
 
 router = APIRouter(prefix="/obsidian", tags=["obsidian", "notion"])
 
@@ -17,11 +19,13 @@ if not NOTION_VERSION:
     raise RuntimeError("NOTION_VERSION manquant dans l'environnement.")
 if not DEFAULT_PARENT_ID:
     # on laisse possible via requête, mais on prévient tôt
-    print("[obsidian_to_notion] ⚠️ NOTION_PARENT_ID absent — pourra être passé dans la requête.")
+    print(
+        "[obsidian_to_notion] ⚠️ NOTION_PARENT_ID absent — pourra être passé dans la requête."
+    )
 
 
 class SyncOnePayload(BaseModel):
-    path: str              # chemin vers le .md
+    path: str  # chemin vers le .md
     title: str | None = None
     parent_id: str | None = None  # si absent -> DEFAULT_PARENT_ID
 
@@ -37,26 +41,28 @@ def _md_to_blocks(md: str) -> list[dict]:
         text = line.rstrip()
         if not text:
             # paragraphe vide pour les sauts
-            blocks.append({
+            blocks.append(
+                {"object": "block", "type": "paragraph", "paragraph": {"rich_text": []}}
+            )
+            continue
+        blocks.append(
+            {
                 "object": "block",
                 "type": "paragraph",
-                "paragraph": {"rich_text": []}
-            })
-            continue
-        blocks.append({
+                "paragraph": {
+                    "rich_text": [{"type": "text", "text": {"content": text}}]
+                },
+            }
+        )
+    return blocks or [
+        {
             "object": "block",
             "type": "paragraph",
             "paragraph": {
-                "rich_text": [
-                    {"type": "text", "text": {"content": text}}
-                ]
-            }
-        })
-    return blocks or [{
-        "object": "block",
-        "type": "paragraph",
-        "paragraph": {"rich_text": [{"type": "text", "text": {"content": "(empty file)"}}]}
-    }]
+                "rich_text": [{"type": "text", "text": {"content": "(empty file)"}}]
+            },
+        }
+    ]
 
 
 def _create_page(parent_page_id: str, title: str, children: list[dict]) -> dict:
@@ -69,9 +75,7 @@ def _create_page(parent_page_id: str, title: str, children: list[dict]) -> dict:
     payload = {
         "parent": {"page_id": parent_page_id},
         "properties": {
-            "title": {
-                "title": [{"type": "text", "text": {"content": title}}]
-            }
+            "title": {"title": [{"type": "text", "text": {"content": title}}]}
         },
         "children": children,
     }
@@ -79,7 +83,11 @@ def _create_page(parent_page_id: str, title: str, children: list[dict]) -> dict:
     if resp.status_code >= 400:
         raise HTTPException(
             status_code=resp.status_code,
-            detail={"where": "notion.pages.create", "payload": payload, "resp": resp.text},
+            detail={
+                "where": "notion.pages.create",
+                "payload": payload,
+                "resp": resp.text,
+            },
         )
     return resp.json()
 
@@ -97,7 +105,9 @@ def sync_one(payload: SyncOnePayload):
     title = payload.title or md_path.stem
     parent_id = (payload.parent_id or DEFAULT_PARENT_ID).strip()
     if not parent_id:
-        raise HTTPException(status_code=400, detail="parent_id manquant (et NOTION_PARENT_ID vide).")
+        raise HTTPException(
+            status_code=400, detail="parent_id manquant (et NOTION_PARENT_ID vide)."
+        )
 
     md_text = md_path.read_text(encoding="utf-8", errors="replace")
     blocks = _md_to_blocks(md_text)

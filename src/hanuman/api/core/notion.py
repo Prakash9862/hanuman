@@ -1,11 +1,13 @@
 # src/hanuman/api/core/notion.py
-from fastapi import APIRouter
 import os
+
 import requests
+from fastapi import APIRouter
 
 router = APIRouter(prefix="/notion", tags=["notion"])
 
 NOTION_API = "https://api.notion.com/v1"
+
 
 def _headers() -> dict:
     token = os.getenv("NOTION_TOKEN", "")
@@ -15,6 +17,7 @@ def _headers() -> dict:
         "Notion-Version": version,
         "Content-Type": "application/json",
     }
+
 
 @router.get("/ping")
 def ping():

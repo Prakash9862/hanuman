@@ -1,21 +1,31 @@
 # -*- coding: utf-8 -*-
 from __future__ import annotations
-from fastapi import APIRouter, HTTPException, Body
-from typing import List, Optional, Dict, Any
-from pathlib import Path
 
-from hanuman.services.core.obsidian_service import read_markdown, md_to_blocks, md_title, abs_path
+from typing import Any, Dict, List, Optional
+
+from fastapi import APIRouter, Body, HTTPException
+
 from hanuman.services.core.notion_service import create_page_under_parent
+from hanuman.services.core.obsidian_service import (
+    abs_path,
+    md_title,
+    md_to_blocks,
+    read_markdown,
+)
 
-router = APIRouter(prefix="/obsidian", tags=["obsidian","notion"])
+router = APIRouter(prefix="/obsidian", tags=["obsidian", "notion"])
+
 
 @router.get("/ping")
 def ping() -> Dict[str, Any]:
     return {"ok": True, "service": "obsidian→notion"}
 
+
 @router.post("/sync_one")
 def sync_one(
-    path: str = Body(..., embed=True, description="Chemin (absolu ou relatif au vault)"),
+    path: str = Body(
+        ..., embed=True, description="Chemin (absolu ou relatif au vault)"
+    ),
     title: Optional[str] = Body(None),
     parent_page_id: Optional[str] = Body(None),
 ) -> Dict[str, Any]:
@@ -27,6 +37,7 @@ def sync_one(
         return {"ok": True, "title": t, "url": page.get("url"), "id": page.get("id")}
     except Exception as e:
         raise HTTPException(400, f"sync_one failed: {e}")
+
 
 @router.post("/sync_many")
 def sync_many(
@@ -42,5 +53,10 @@ def sync_many(
             page = create_page_under_parent(t, blocks, parent_page_id=parent_page_id)
             results.append({"path": p, "title": t, "url": page.get("url"), "ok": True})
         except Exception as e:
-            results.append({"path": p, "title": None, "url": None, "ok": False, "err": str(e)})
-    return {"status": "ok" if all(r["ok"] for r in results) else "partial", "results": results}
+            results.append(
+                {"path": p, "title": None, "url": None, "ok": False, "err": str(e)}
+            )
+    return {
+        "status": "ok" if all(r["ok"] for r in results) else "partial",
+        "results": results,
+    }

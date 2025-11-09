@@ -45,21 +45,33 @@ def configure_logging(debug: bool = False) -> None:
     )
 
     info_file_handler = TimedRotatingFileHandler(
-        LOG_DIR / "hanuman_info.json", when="midnight", interval=1, backupCount=7, encoding="utf-8"
+        LOG_DIR / "hanuman_info.json",
+        when="midnight",
+        interval=1,
+        backupCount=7,
+        encoding="utf-8",
     )
     info_file_handler.setLevel(logging.INFO)
     info_file_handler.addFilter(LevelFilter(logging.INFO))
     info_file_handler.setFormatter(json_formatter)
 
     debug_file_handler = TimedRotatingFileHandler(
-        LOG_DIR / "hanuman_debug.json", when="midnight", interval=1, backupCount=7, encoding="utf-8"
+        LOG_DIR / "hanuman_debug.json",
+        when="midnight",
+        interval=1,
+        backupCount=7,
+        encoding="utf-8",
     )
     debug_file_handler.setLevel(logging.DEBUG)
     debug_file_handler.addFilter(LevelFilter(logging.DEBUG))
     debug_file_handler.setFormatter(json_formatter)
 
     error_file_handler = TimedRotatingFileHandler(
-        LOG_DIR / "hanuman_error.json", when="midnight", interval=1, backupCount=7, encoding="utf-8"
+        LOG_DIR / "hanuman_error.json",
+        when="midnight",
+        interval=1,
+        backupCount=7,
+        encoding="utf-8",
     )
     error_file_handler.setLevel(logging.ERROR)
     error_file_handler.addFilter(LevelFilter(logging.ERROR))

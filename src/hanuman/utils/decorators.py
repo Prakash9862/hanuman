@@ -31,7 +31,9 @@ def trace_endpoint(source: str, catch: bool = True) -> Callable[[F], F]:
         @wraps(func)
         async def async_wrapper(*args: object, **kwargs: object) -> Any:
             start = time()
-            request: Optional[Request] = next((a for a in args if isinstance(a, Request)), None)
+            request: Optional[Request] = next(
+                (a for a in args if isinstance(a, Request)), None
+            )
             logger = get_logger(source)
 
             logger.bind(
@@ -47,7 +49,9 @@ def trace_endpoint(source: str, catch: bool = True) -> Callable[[F], F]:
 
                 if isinstance(result, PingResult):
                     return PingResult(
-                        **result.model_dump(), duration_ms=duration, timestamp=datetime.now(UTC)
+                        **result.model_dump(),
+                        duration_ms=duration,
+                        timestamp=datetime.now(UTC),
                     )
 
                 logger.info(f"✅ Exécution réussie : {source} [{duration} ms]")
@@ -70,7 +74,9 @@ def trace_endpoint(source: str, catch: bool = True) -> Callable[[F], F]:
         @wraps(func)
         def sync_wrapper(*args: object, **kwargs: object) -> Any:
             start = time()
-            request: Optional[Request] = next((a for a in args if isinstance(a, Request)), None)
+            request: Optional[Request] = next(
+                (a for a in args if isinstance(a, Request)), None
+            )
             logger = get_logger(source)
 
             logger.bind(
@@ -86,7 +92,9 @@ def trace_endpoint(source: str, catch: bool = True) -> Callable[[F], F]:
 
                 if isinstance(result, PingResult):
                     return PingResult(
-                        **result.model_dump(), duration_ms=duration, timestamp=datetime.now(UTC)
+                        **result.model_dump(),
+                        duration_ms=duration,
+                        timestamp=datetime.now(UTC),
                     )
 
                 logger.info(f"✅ Exécution réussie : {source} [{duration} ms]")

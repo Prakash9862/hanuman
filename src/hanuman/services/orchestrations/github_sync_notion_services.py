@@ -41,9 +41,11 @@ async def get_open_issues() -> List[Dict[str, Any]]:
 
 def transform_issue_for_notion(issue: Dict[str, Any]) -> Dict[str, Any]:
     return {
-        "parent": {"database_id": load_token_json("notion_db_github_issues")['token']},
+        "parent": {"database_id": load_token_json("notion_db_github_issues")["token"]},
         "properties": {
-            "Name": {"title": [{"text": {"content": issue.get("title", "Issue sans titre")}}]},
+            "Name": {
+                "title": [{"text": {"content": issue.get("title", "Issue sans titre")}}]
+            },
             "URL": {"url": issue.get("html_url")},
             "Etat": {"select": {"name": issue.get("state", "open")}},
             "Numéro": {"number": issue.get("number")},

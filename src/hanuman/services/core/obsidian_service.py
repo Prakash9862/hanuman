@@ -1,14 +1,20 @@
 # -*- coding: utf-8 -*-
 from __future__ import annotations
-from pathlib import Path
-import os, re
-from typing import List, Dict, Any, Tuple
 
-OBSIDIAN_VAULT_DIR = os.getenv("OBSIDIAN_VAULT_DIR", os.path.expanduser("~/Prakash/obsidian"))
+import os
+import re
+from pathlib import Path
+from typing import Any, Dict, List
+
+OBSIDIAN_VAULT_DIR = os.getenv(
+    "OBSIDIAN_VAULT_DIR", os.path.expanduser("~/Prakash/obsidian")
+)
+
 
 def abs_path(rel_or_abs: str) -> Path:
     p = Path(rel_or_abs).expanduser()
     return p if p.is_absolute() else Path(OBSIDIAN_VAULT_DIR) / p
+
 
 def read_markdown(path: str) -> str:
     p = abs_path(path)
@@ -16,9 +22,11 @@ def read_markdown(path: str) -> str:
         raise FileNotFoundError(f"Markdown introuvable: {p}")
     return p.read_text(encoding="utf-8", errors="replace")
 
+
 def _chunks(s: str, n: int = 1800):
     for i in range(0, len(s), n):
-        yield s[i:i+n]
+        yield s[i : i + n]
+
 
 def md_to_blocks(md: str) -> List[Dict[str, Any]]:
     """Parse sobre et robuste: H1→titre de page, H2/H3, listes, paragraphes (avec découpe)."""
@@ -31,28 +39,67 @@ def md_to_blocks(md: str) -> List[Dict[str, Any]]:
     for raw in lines:
         line = raw.rstrip()
         if line.strip() == "":
-            blocks.append({"object":"block","type":"paragraph","paragraph":{"rich_text":[]}})
+            blocks.append(
+                {"object": "block", "type": "paragraph", "paragraph": {"rich_text": []}}
+            )
             continue
         if line.startswith("### "):
-            blocks.append({"object":"block","type":"heading_3","heading_3":{"rich_text":[t(line[4:].strip())]}})
+            blocks.append(
+                {
+                    "object": "block",
+                    "type": "heading_3",
+                    "heading_3": {"rich_text": [t(line[4:].strip())]},
+                }
+            )
             continue
         if line.startswith("## "):
-            blocks.append({"object":"block","type":"heading_2","heading_2":{"rich_text":[t(line[3:].strip())]}})
+            blocks.append(
+                {
+                    "object": "block",
+                    "type": "heading_2",
+                    "heading_2": {"rich_text": [t(line[3:].strip())]},
+                }
+            )
             continue
         if line.startswith("# "):
             # on saute: ce H1 servira de titre (géré dans le service Notion)
             continue
-        if re.match(r'^\s*[-*]\s+', line):
-            val = re.sub(r'^\s*[-*]\s+', '', line).strip()
-            blocks.append({"object":"block","type":"bulleted_list_item","bulleted_list_item":{"rich_text":[t(val)]}})
+        if re.match(r"^\s*[-*]\s+", line):
+            val = re.sub(r"^\s*[-*]\s+", "", line).strip()
+            blocks.append(
+                {
+                    "object": "block",
+                    "type": "bulleted_list_item",
+                    "bulleted_list_item": {"rich_text": [t(val)]},
+                }
+            )
             continue
-        if re.match(r'^\s*\d+\.\s+', line):
-            val = re.sub(r'^\s*\d+\.\s+', '', line).strip()
-            blocks.append({"object":"block","type":"numbered_list_item","numbered_list_item":{"rich_text":[t(val)]}})
+        if re.match(r"^\s*\d+\.\s+", line):
+            val = re.sub(r"^\s*\d+\.\s+", "", line).strip()
+            blocks.append(
+                {
+                    "object": "block",
+                    "type": "numbered_list_item",
+                    "numbered_list_item": {"rich_text": [t(val)]},
+                }
+            )
             continue
         for part in _chunks(line, 1800):
-            blocks.append({"object":"block","type":"paragraph","paragraph":{"rich_text":[t(part)]}})
-    return blocks or [{"object":"block","type":"paragraph","paragraph":{"rich_text":[{"type":"text","text":{"content":" "}}]}}]
+            blocks.append(
+                {
+                    "object": "block",
+                    "type": "paragraph",
+                    "paragraph": {"rich_text": [t(part)]},
+                }
+            )
+    return blocks or [
+        {
+            "object": "block",
+            "type": "paragraph",
+            "paragraph": {"rich_text": [{"type": "text", "text": {"content": " "}}]},
+        }
+    ]
+
 
 def md_title(md: str, fallback: str) -> str:
     for ln in md.splitlines():
