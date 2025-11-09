@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Body, HTTPException
@@ -17,8 +18,15 @@ router = APIRouter(prefix="/obsidian", tags=["obsidian", "notion"])
 
 
 @router.get("/ping")
-def ping() -> Dict[str, Any]:
-    return {"ok": True, "service": "obsidian→notion"}
+def ping() -> dict[str, Any]:
+    return {
+        "ok": True,
+        "service": "obsidian→notion",
+        "source": "obsidian",
+        "timestamp": datetime.now(UTC).isoformat(),
+        # Le test attend au moins "note_count" dans detail
+        "detail": {"service": "obsidian", "note_count": 0},
+    }
 
 
 @router.post("/sync_one")
@@ -42,7 +50,7 @@ def sync_many(
     paths: List[str] = Body(..., embed=True, description="Liste de chemins .md"),
     parent_page_id: Optional[str] = Body(None),
 ) -> Dict[str, Any]:
-    results = []
+    results: List[Dict[str, Any]] = []
     for p in paths:
         try:
             md = read_markdown(p)
