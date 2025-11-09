@@ -1,5 +1,6 @@
 # src/hanuman/services/calendar_service.py
 
+
 import httpx
 
 from hanuman.core.config import settings

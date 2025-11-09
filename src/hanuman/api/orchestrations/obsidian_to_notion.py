@@ -1,12 +1,13 @@
 from __future__ import annotations
 
 import os
+from logging import getLogger
 from pathlib import Path
 
 import requests
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
-from logging import getLogger
+
 logger = getLogger(__name__)
 
 router = APIRouter(prefix="/obsidian", tags=["obsidian", "notion"])
@@ -21,7 +22,9 @@ if not NOTION_VERSION:
     raise RuntimeError("NOTION_VERSION manquant dans l'environnement.")
 if not DEFAULT_PARENT_ID:
     # on laisse possible via requête, mais on prévient tôt
-    logger.info("[obsidian_to_notion] ⚠️ NOTION_PARENT_ID absent — pourra être passé dans la requête.")
+    logger.info(
+        "[obsidian_to_notion] ⚠️ NOTION_PARENT_ID absent — pourra être passé dans la requête."
+    )
 
 
 class SyncOnePayload(BaseModel):
