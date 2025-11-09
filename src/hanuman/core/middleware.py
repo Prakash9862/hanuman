@@ -24,9 +24,7 @@ async def log_requests(
     try:
         response = await call_next(request)
     except Exception as e:
-        logger.error(
-            "💥 Erreur pendant la requête", error=str(e), request_id=request_id
-        )
+        logger.error("💥 Erreur pendant la requête", error=str(e), request_id=request_id)
         raise
 
     duration_ms = round((time.perf_counter() - start_time) * 1000, 2)

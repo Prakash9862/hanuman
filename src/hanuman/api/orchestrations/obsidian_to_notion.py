@@ -6,6 +6,8 @@ from pathlib import Path
 import requests
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
+from logging import getLogger
+logger = getLogger(__name__)
 
 router = APIRouter(prefix="/obsidian", tags=["obsidian", "notion"])
 
@@ -19,9 +21,7 @@ if not NOTION_VERSION:
     raise RuntimeError("NOTION_VERSION manquant dans l'environnement.")
 if not DEFAULT_PARENT_ID:
     # on laisse possible via requête, mais on prévient tôt
-    print(
-        "[obsidian_to_notion] ⚠️ NOTION_PARENT_ID absent — pourra être passé dans la requête."
-    )
+    logger.info("[obsidian_to_notion] ⚠️ NOTION_PARENT_ID absent — pourra être passé dans la requête.")
 
 
 class SyncOnePayload(BaseModel):
@@ -41,26 +41,20 @@ def _md_to_blocks(md: str) -> list[dict]:
         text = line.rstrip()
         if not text:
             # paragraphe vide pour les sauts
-            blocks.append(
-                {"object": "block", "type": "paragraph", "paragraph": {"rich_text": []}}
-            )
+            blocks.append({"object": "block", "type": "paragraph", "paragraph": {"rich_text": []}})
             continue
         blocks.append(
             {
                 "object": "block",
                 "type": "paragraph",
-                "paragraph": {
-                    "rich_text": [{"type": "text", "text": {"content": text}}]
-                },
+                "paragraph": {"rich_text": [{"type": "text", "text": {"content": text}}]},
             }
         )
     return blocks or [
         {
             "object": "block",
             "type": "paragraph",
-            "paragraph": {
-                "rich_text": [{"type": "text", "text": {"content": "(empty file)"}}]
-            },
+            "paragraph": {"rich_text": [{"type": "text", "text": {"content": "(empty file)"}}]},
         }
     ]
 
@@ -74,9 +68,7 @@ def _create_page(parent_page_id: str, title: str, children: list[dict]) -> dict:
     }
     payload = {
         "parent": {"page_id": parent_page_id},
-        "properties": {
-            "title": {"title": [{"type": "text", "text": {"content": title}}]}
-        },
+        "properties": {"title": {"title": [{"type": "text", "text": {"content": title}}]}},
         "children": children,
     }
     resp = requests.post(url, headers=headers, json=payload, timeout=30)

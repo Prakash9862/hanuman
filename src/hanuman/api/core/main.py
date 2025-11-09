@@ -15,9 +15,7 @@ log = logging.getLogger("hanuman.main")
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 
 
-def try_include(
-    app: FastAPI, dotted: str, attr: str = "router", prefix: str | None = None
-):
+def try_include(app: FastAPI, dotted: str, attr: str = "router", prefix: str | None = None):
     """Importe un module et inclut son router si présent. N'échoue jamais l'app."""
     try:
         mod = importlib.import_module(dotted)
@@ -63,9 +61,11 @@ def create_app() -> FastAPI:
         env = {k: (os.getenv(k) is not None) for k in keys}
         return {
             "env": env,
-            "mounted": sorted(list(app.router.routes_map.keys()))
-            if hasattr(app.router, "routes_map")
-            else "n/a",
+            "mounted": (
+                sorted(list(app.router.routes_map.keys()))
+                if hasattr(app.router, "routes_map")
+                else "n/a"
+            ),
         }
 
     # ====== Montage des routeurs connus (best-effort) ======
@@ -74,9 +74,7 @@ def create_app() -> FastAPI:
     try_include(
         app, "hanuman.api.orchestrations.github_sync_notion"
     )  # /github_sync_notion/* (si existant)
-    try_include(
-        app, "hanuman.api.orchestrations.calendar"
-    )  # /calendar/* (auth/ping/callback)
+    try_include(app, "hanuman.api.orchestrations.calendar")  # /calendar/* (auth/ping/callback)
 
     # Core services ping (selon tes captures, tu avais ces routes)
     try_include(app, "hanuman.api.core.github")  # /github/ping
