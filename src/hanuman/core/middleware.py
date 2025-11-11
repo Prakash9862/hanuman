@@ -1,5 +1,7 @@
-from typing import Callable, Awaitable
+from typing import Awaitable, Callable
+
 from fastapi import Request, Response
+
 from hanuman.core.logging import get_logger
 
 logger = get_logger(__name__)

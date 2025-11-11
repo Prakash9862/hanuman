@@ -1,68 +1,41 @@
+.RECIPEPREFIX := >
+SHELL := /bin/bash
+.ONESHELL:
+.SHELLFLAGS := -euo pipefail -c
 
-LOG_DIR = logs
-POETRY_RUN = poetry run
+POETRY ?= $(shell command -v poetry 2>/dev/null)
+RUN     := $(POETRY) run
+SRC     := src/hanuman
+TESTS   := tests
 
-.PHONY: run test lint format typecheck scan clean
-		lean_logs clean_log_debug clean_log_info clean_log_error
+help: ## Affiche l’aide
+> awk 'BEGIN{FS":.*##";print "\nCibles :\n"} /^[A-Za-z0-9_.-]+:.*##/ {printf "  \033[36m%-18s\033[0m %s\n", $$1, $$2} END{print ""}' $(MAKEFILE_LIST)
 
-# Static analyzers
+install: ## Installe les dépendances
+> $(POETRY) install
 
-run:
-	@$(POETRY_RUN) uvicorn src.hanuman.main:app --reload
+fmt: ## Format
+> $(RUN) ruff format . || true
 
-lint:
-	@$(POETRY_RUN) ruff check src tests
+lint: ## Lint
+> $(RUN) ruff check . --fix || true
 
-lint-fix:
-	@$(POETRY_RUN) ruff check --fix --unsafe-fixes src tests && black src tests
+type: ## Type-check
+> $(RUN) mypy $(SRC) $(TESTS)
 
-format:
-	@$(POETRY_RUN) black src tests
+test: ## Tests
+> $(RUN) pytest -q
 
-mypy:
-	@$(POETRY_RUN) mypy src tests
+coverage: ## Couverture
+> $(RUN) pytest --cov=$(SRC) --cov-report=term-missing --cov-report=xml:coverage.xml
 
-semgrep:
-	@$(POETRY_RUN) semgrep -c .semgrep.yml src/
+check: fmt lint type test ## Tout-en-un
 
-clean:
-	find . -type f -name "*.pyc" -delete
-	find . -type d -name "__pycache__" -delete
+run: ## Lance l’API
+> [ -f .env ] && set -a && source .env && set +a || true
+> $(RUN) uvicorn hanuman.api.main:app --reload --host 127.0.0.1 --port $${PORT:-8000}
 
-# Test
+clean: ## Nettoyage
+> find . -type d -name "__pycache__" -exec rm -rf {} + || true
+> rm -rf .pytest_cache .mypy_cache htmlcov coverage.xml .coverage || true
 
-test:
-	@$(POETRY_RUN) pytest -v tests/
-
-test-cov:
-	@$(POETRY_RUN) pytest --cov=src/hanuman --cov-report=term-missing --cov-report=xml
-
-coverage-html:
-	@$(POETRY_RUN) pytest --cov=src/hanuman --cov-report=html --cov-report=term-missing
-	@xdg-open htmlcov/index.html
-
-clean-coverage:
-	rm -rf .coverage htmlcov coverage.xml
-
-# Logs cleaner and display
-
-clean_logs:
-	rm -f $(LOG_DIR)/hanuman_*.json $(LOG_DIR)/hanuman_*.json
-
-clean_log_debug:
-	rm -f $(LOG_DIR)/hanuman_debug.json
-
-clean_log_info:
-	rm -f $(LOG_DIR)/hanuman_info.json
-
-clean_log_error:
-	rm -f $(LOG_DIR)/hanuman_error.json
-
-log-debug:
-	@tail -f $(LOG_DIR)/hanuman_debug.json
-
-log-info:
-	@tail -f $(LOG_DIR)/hanuman_info.json
-
-log-error:
-	@tail -f $(LOG_DIR)/hanuman_error.json
