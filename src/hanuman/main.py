@@ -1,8 +1,4 @@
-import os
 from dotenv import load_dotenv
-
-load_dotenv(dotenv_path=".env", override=True)
-
 from fastapi import FastAPI
 from fastapi.routing import APIRoute
 
@@ -22,6 +18,8 @@ from hanuman.api.orchestrations import (
 )
 from hanuman.core.logging import configure_logging, get_logger
 from hanuman.core.middleware import log_requests
+
+load_dotenv(dotenv_path=".env", override=True)
 
 # Initialisation du système de logs
 configure_logging()
