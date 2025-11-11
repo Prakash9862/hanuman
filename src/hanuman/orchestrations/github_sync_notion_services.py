@@ -1,5 +1,6 @@
-from typing import Any, Dict, List
 import asyncio
+from typing import Any, Dict, List
+
 
 def get_open_issues() -> List[Dict[str, Any]]:
     # stub: le test vérifie seulement que c'est une liste

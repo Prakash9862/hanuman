@@ -1,10 +1,13 @@
 from dotenv import load_dotenv
+
 load_dotenv(dotenv_path=".env", override=True)
+
+import importlib
+from typing import Iterable
 
 from fastapi import FastAPI
 from fastapi.routing import APIRoute
-import importlib
-from typing import Iterable
+
 from hanuman.core.logging import configure_logging, get_logger
 from hanuman.core.middleware import log_requests
 
@@ -39,6 +42,7 @@ include_optional(app, [
 ])
 
 from hanuman.api.core.status import router as status_router
+
 app.include_router(status_router)
 # v5 — orchestrations unifiées
 include_optional(app, [

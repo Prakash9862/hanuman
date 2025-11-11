@@ -1,7 +1,9 @@
 import pytest
 from dotenv import load_dotenv
 
-from hanuman.orchestrations.github_sync_notion_services import github_sync_notion_services
+from hanuman.orchestrations.github_sync_notion_services import (
+    github_sync_notion_services,
+)
 
 load_dotenv()
 

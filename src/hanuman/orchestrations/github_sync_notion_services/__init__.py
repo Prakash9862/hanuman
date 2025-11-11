@@ -1,6 +1,7 @@
+import asyncio
 from types import SimpleNamespace
 from typing import Any, Dict, List
-import asyncio
+
 
 async def get_open_issues() -> List[Dict[str, Any]]:
     # stub: le test veut juste une LISTE
