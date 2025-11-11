@@ -1,9 +1,7 @@
-from typing import Dict, Optional
-
 from pydantic import BaseModel
+from typing import Optional
 
-
-class StatusResult(BaseModel):
-    status: str
-    version: str
-    token_previews: Optional[Dict[str, str]] = None
+class Status(BaseModel):
+    ok: bool
+    message: str
+    version: Optional[str] = None
