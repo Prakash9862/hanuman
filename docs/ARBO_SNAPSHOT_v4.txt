@@ -1,0 +1,129 @@
+.
+├── config
+│   └── hanuman_config.json
+├── data
+│   └── .gitkeep
+├── docker-compose.yml
+├── Dockerfile
+├── .dockerignore
+├── docs
+│   ├── ARBO_SNAPSHOT_v4.txt
+│   ├── README_DOCKER.md
+│   ├── README_LOGS.md
+│   ├── README_TESTS.md
+│   └── README_VERSION.md
+├── .env
+├── .github
+│   └── workflows
+│       └── test.yml
+├── .gitignore
+├── logs
+│   ├── hanuman_debug.json
+│   ├── hanuman_error.json
+│   ├── hanuman_error.json.2025-11-10
+│   ├── hanuman_info.json
+│   └── hanuman_info.json.2025-11-10
+├── Makefile
+├── mypy.ini
+├── poetry.lock
+├── pyproject.toml
+├── README.md
+├── .ruff_cache
+│   ├── 0.11.13
+│   │   ├── 11828879454894010999
+│   │   ├── 14861140030811053189
+│   │   ├── 184642823728417891
+│   │   ├── 2305414453642724722
+│   │   ├── 5561448469880996554
+│   │   ├── 6109024853794249810
+│   │   ├── 8269517669876800340
+│   │   └── 9736410947126674071
+│   ├── CACHEDIR.TAG
+│   └── .gitignore
+├── scripts
+│   ├── dev.sh
+│   ├── docker-entrypoint.sh
+│   └── hanuman_cli.py
+├── secrets
+├── .semgrep.yml
+├── src
+│   ├── hanuman
+│   │   ├── api
+│   │   │   ├── core
+│   │   │   │   ├── calendar.py
+│   │   │   │   ├── chess_com.py
+│   │   │   │   ├── github.py
+│   │   │   │   ├── __init__.py
+│   │   │   │   ├── main.py
+│   │   │   │   ├── notion.py
+│   │   │   │   ├── obsidian.py
+│   │   │   │   ├── openai.py
+│   │   │   │   └── wikipedia.py
+│   │   │   ├── __init__.py
+│   │   │   └── orchestrations
+│   │   │       ├── github_sync_notion.py
+│   │   │       ├── obsidian_to_notion.py
+│   │   │       └── status.py
+│   │   ├── core
+│   │   │   ├── config.py
+│   │   │   ├── __init__.py
+│   │   │   ├── logging.py
+│   │   │   ├── middleware.py
+│   │   │   ├── security.py
+│   │   │   └── token_manager.py
+│   │   ├── __init__.py
+│   │   ├── main.py
+│   │   ├── models
+│   │   │   ├── __init__.py
+│   │   │   ├── ping.py
+│   │   │   └── status.py
+│   │   ├── services
+│   │   │   ├── core
+│   │   │   │   ├── calendar_service.py
+│   │   │   │   ├── chess_service.py
+│   │   │   │   ├── github_service.py
+│   │   │   │   ├── notion_service.py
+│   │   │   │   ├── obsidian_service.py
+│   │   │   │   ├── openai_service.py
+│   │   │   │   └── wikipedia_service.py
+│   │   │   ├── __init__.py
+│   │   │   └── orchestrations
+│   │   │       └── github_sync_notion_services.py
+│   │   ├── types.py
+│   │   └── utils
+│   │       ├── decorators.py
+│   │       ├── helpers.py
+│   │       └── log_helpers.py
+│   └── __init__.py
+└── tests
+    ├── api
+    │   ├── __init__.py
+    │   ├── test_config.py
+    │   ├── test_log_trace_endpoint.py
+    │   └── test_status.py
+    ├── conftest.py
+    ├── data
+    │   └── __init__.py
+    ├── errors
+    │   └── __init__.py
+    ├── __init__.py
+    ├── integration
+    │   └── __init__.py
+    ├── security
+    │   └── __init__.py
+    ├── services
+    │   ├── core
+    │   │   ├── test_calendar_ping.py
+    │   │   ├── test_chess_ping.py
+    │   │   ├── test_github_ping.py
+    │   │   ├── test_notion_ping.py
+    │   │   ├── test_obsidian_ping.py
+    │   │   ├── test_openai_ping.py
+    │   │   └── test_wikipedia_ping.py
+    │   ├── __init__.py
+    │   └── orchestrations
+    │       └── test_github_sync_notion_services.py
+    └── unit
+        └── __init__.py
+
+32 directories, 95 files
