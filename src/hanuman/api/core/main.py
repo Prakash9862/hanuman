@@ -70,11 +70,11 @@ def create_app() -> FastAPI:
 
     # ====== Montage des routeurs connus (best-effort) ======
     # Orchestrations
-    try_include(app, "hanuman.api.orchestrations.obsidian_to_notion")  # /obsidian/*
+    try_include(app, "hanuman.orchestrations.obsidian_to_notion")  # /obsidian/*
     try_include(
-        app, "hanuman.api.orchestrations.github_sync_notion"
+        app, "hanuman.orchestrations.github_sync_notion"
     )  # /github_sync_notion/* (si existant)
-    try_include(app, "hanuman.api.orchestrations.calendar")  # /calendar/* (auth/ping/callback)
+    try_include(app, "hanuman.orchestrations.calendar")  # /calendar/* (auth/ping/callback)
 
     # Core services ping (selon tes captures, tu avais ces routes)
     try_include(app, "hanuman.api.core.github")  # /github/ping
