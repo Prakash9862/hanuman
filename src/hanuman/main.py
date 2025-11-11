@@ -1,3 +1,8 @@
+import os
+from dotenv import load_dotenv
+
+load_dotenv(dotenv_path=".env", override=True)
+
 from fastapi import FastAPI
 from fastapi.routing import APIRoute
 
