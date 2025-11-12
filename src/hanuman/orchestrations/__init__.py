@@ -1,6 +1,6 @@
 """
-Compat shim (temporaire) — redirige les imports legacy vers services.orchestrations.
-À supprimer après migration complète.
+Application layer — use-cases/workflows.
+Ne pas importer services.* ici. Les routers appellent ces fonctions.
 """
-
-from hanuman.services.orchestrations.github_sync_notion_services import *  # noqa: F401,F403
+# expose explicit only (exemples)
+# from .github_sync_notion import run_github_sync_to_notion
