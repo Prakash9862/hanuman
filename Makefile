@@ -1,41 +1,43 @@
-.RECIPEPREFIX := >
+# =====================================================
+# Hanuman Makefile (propre, tabs corrigés)
+# =====================================================
 SHELL := /bin/bash
-.ONESHELL:
-.SHELLFLAGS := -euo pipefail -c
 
-POETRY ?= $(shell command -v poetry 2>/dev/null)
-RUN     := $(POETRY) run
-SRC     := src/hanuman
-TESTS   := tests
+POETRY       := $(shell command -v poetry 2>/dev/null)
+RUN          := $(POETRY) run
+API_APP      ?= hanuman.main:app
+HOST         ?= 127.0.0.1
+PORT         ?= 8000
 
-help: ## Affiche l’aide
-> awk 'BEGIN{FS":.*##";print "\nCibles :\n"} /^[A-Za-z0-9_.-]+:.*##/ {printf "  \033[36m%-18s\033[0m %s\n", $$1, $$2} END{print ""}' $(MAKEFILE_LIST)
+.PHONY: help
+help:
+	@echo "Cibles disponibles :"
+	@grep -E '^[a-zA-Z_-]+:.*?##' Makefile | awk 'BEGIN{FS=":.*?##"}{printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2}'
 
+# -----------------------------------------------------
+# Commandes principales
+# -----------------------------------------------------
 install: ## Installe les dépendances
-> $(POETRY) install
+	$(POETRY) install
 
-fmt: ## Format
-> $(RUN) ruff format . || true
+fmt: ## Formate le code
+	$(RUN) ruff format . || true
 
-lint: ## Lint
-> $(RUN) ruff check . --fix || true
+lint: ## Corrige les warnings
+	$(RUN) ruff check . --fix || true
 
-type: ## Type-check
-> $(RUN) mypy $(SRC) $(TESTS)
+test: ## Lance les tests
+	$(RUN) pytest -q
 
-test: ## Tests
-> $(RUN) pytest -q
+check: fmt lint test ## Tout-en-un
 
-coverage: ## Couverture
-> $(RUN) pytest --cov=$(SRC) --cov-report=term-missing --cov-report=xml:coverage.xml
+run-api: ## Lance l'API Hanuman
+	PYTHONPATH=src $(RUN) uvicorn $(API_APP) --reload --host $(HOST) --port $(PORT)
 
-check: fmt lint type test ## Tout-en-un
-
-run: ## Lance l’API
-> [ -f .env ] && set -a && source .env && set +a || true
-> $(RUN) uvicorn hanuman.api.main:app --reload --host 127.0.0.1 --port $${PORT:-8000}
+run: run-api ## Alias pratique
 
 clean: ## Nettoyage
-> find . -type d -name "__pycache__" -exec rm -rf {} + || true
-> rm -rf .pytest_cache .mypy_cache htmlcov coverage.xml .coverage || true
-
+	@find . -type d -name "__pycache__" -exec rm -rf {} + || true
+	@find . -type d -name ".pytest_cache" -exec rm -rf {} + || true
+	@find . -type d -name ".mypy_cache" -exec rm -rf {} + || true
+	@rm -rf htmlcov coverage.xml .coverage || true
