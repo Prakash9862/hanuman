@@ -31,11 +31,15 @@ def create_page_under_parent(
         raise RuntimeError("NOTION_PARENT_ID manquant (env ou param).")
     payload: Dict[str, Any] = {
         "parent": {"page_id": parent},
-        "properties": {"title": {"title": [{"type": "text", "text": {"content": title}}]}},
+        "properties": {
+            "title": {"title": [{"type": "text", "text": {"content": title}}]}
+        },
     }
     if blocks:
         payload["children"] = blocks[:95]  # marge de sécurité
-    r = requests.post(f"{API}/pages", headers=_hdr(), data=json.dumps(payload), timeout=30)
+    r = requests.post(
+        f"{API}/pages", headers=_hdr(), data=json.dumps(payload), timeout=30
+    )
     if r.status_code >= 300:
         raise RuntimeError(f"Notion error {r.status_code}: {r.text}")
     return r.json()

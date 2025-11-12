@@ -14,7 +14,9 @@ def ping_wikipedia() -> PingResult:
 
     if response.status_code == 200:
         data = response.json()
-        return PingResult(ok=True, source="wikipedia", detail={"title": data.get("title")})
+        return PingResult(
+            ok=True, source="wikipedia", detail={"title": data.get("title")}
+        )
 
     elif response.status_code == 404:
         raise ValueError("Article non trouvé")

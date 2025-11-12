@@ -6,7 +6,9 @@ import re
 from pathlib import Path
 from typing import Any, Dict, List
 
-OBSIDIAN_VAULT_DIR = os.getenv("OBSIDIAN_VAULT_DIR", os.path.expanduser("~/Prakash/obsidian"))
+OBSIDIAN_VAULT_DIR = os.getenv(
+    "OBSIDIAN_VAULT_DIR", os.path.expanduser("~/Prakash/obsidian")
+)
 
 
 def abs_path(rel_or_abs: str) -> Path:
@@ -37,7 +39,9 @@ def md_to_blocks(md: str) -> List[Dict[str, Any]]:
     for raw in lines:
         line = raw.rstrip()
         if line.strip() == "":
-            blocks.append({"object": "block", "type": "paragraph", "paragraph": {"rich_text": []}})
+            blocks.append(
+                {"object": "block", "type": "paragraph", "paragraph": {"rich_text": []}}
+            )
             continue
         if line.startswith("### "):
             blocks.append(

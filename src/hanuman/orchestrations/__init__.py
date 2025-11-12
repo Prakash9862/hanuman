@@ -1,10 +1,6 @@
-from typing import Any, Dict
+"""
+Compat shim (temporaire) — redirige les imports legacy vers services.orchestrations.
+À supprimer après migration complète.
+"""
 
-from . import github_sync_notion_services as github_sync_notion_services  # module
-
-
-# optionnel pendant la migration
-def sync_github_to_notion() -> Dict[str, Any]:
-    return {"status": "stub"}
-
-__all__ = ["github_sync_notion_services", "sync_github_to_notion"]
+from hanuman.services.orchestrations.github_sync_notion_services import *  # noqa: F401,F403
