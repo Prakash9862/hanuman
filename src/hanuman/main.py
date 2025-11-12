@@ -1,53 +1,51 @@
 from dotenv import load_dotenv
-
-load_dotenv(dotenv_path=".env", override=True)
-
-import importlib
-from typing import Iterable
-
 from fastapi import FastAPI
 from fastapi.routing import APIRoute
 
+from hanuman.api.core.calendar import router as calendar_router
+from hanuman.api.core.chess_com import router as chess_router
+from hanuman.api.core.github import router as github_router
+from hanuman.api.core.log import router as log_router
+from hanuman.api.core.notion import router as notion_router
+from hanuman.api.core.obsidian import router as obsidian_router
+from hanuman.api.core.openai import router as openai_router
+from hanuman.api.core.orchestrations_router import router as orchestrations_router
+
+# Routers API
+from hanuman.api.core.status import router as status_router
+from hanuman.api.core.wikipedia import router as wikipedia_router
 from hanuman.core.logging import configure_logging, get_logger
 from hanuman.core.middleware import log_requests
 
+# ---- config runtime (après imports) ----
+load_dotenv(dotenv_path=".env", override=True)
 configure_logging()
 logger = get_logger(__name__)
-logger.info("🚀 Lancement de Hanuman API (v5-dev)")
 
-app = FastAPI(title="Hanuman API", version="1.1.0",
-              description="API personnelle d’orchestration modulaire")
+app = FastAPI(title="Hanuman API", version="0.1.0")
+
+# middleware
 app.middleware("http")(log_requests)
 
-def include_optional(app: FastAPI, modules: Iterable[str], attr: str = "router") -> None:
-    for mod in modules:
-        try:
-            m = importlib.import_module(mod)
-            r = getattr(m, attr)
-            app.include_router(r)
-            logger.info(f"✅ Router chargé: {mod}")
-        except Exception as e:
-            logger.warning(f"⏭️  Router ignoré ({mod}): {e}")
+# routers
+for r in (
+    status_router,
+    obsidian_router,
+    notion_router,
+    openai_router,
+    github_router,
+    wikipedia_router,
+    calendar_router,
+    chess_router,
+    log_router,
+    orchestrations_router,
+):
+    app.include_router(r)
 
-# Core routers (on n'inclut que ce qui existe réellement)
-include_optional(app, [
-    "hanuman.api.core.log",
-    "hanuman.api.core.notion",
-    "hanuman.api.core.github",
-    "hanuman.api.core.chess_com",
-    "hanuman.api.core.obsidian",
-    "hanuman.api.core.openai",
-    "hanuman.api.core.wikipedia",
-    "hanuman.api.core.calendar",
-])
 
-from hanuman.api.core.status import router as status_router
-
-app.include_router(status_router)
-# v5 — orchestrations unifiées
-include_optional(app, [
-    "hanuman.api.core.log","hanuman.api.core.orchestrations_router"])
-
-# Log des routes actives
-active_routes = [r.path for r in app.routes if isinstance(r, APIRoute)]
-logger.info(f"📦 Routes actives : {active_routes}")
+def list_routes() -> list[str]:
+    return [
+        f"{route.name}: {route.path}"
+        for route in app.routes
+        if isinstance(route, APIRoute)
+    ]

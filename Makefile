@@ -41,3 +41,20 @@ clean: ## Nettoyage
 	@find . -type d -name ".pytest_cache" -exec rm -rf {} + || true
 	@find . -type d -name ".mypy_cache" -exec rm -rf {} + || true
 	@rm -rf htmlcov coverage.xml .coverage || true
+
+.type: ;
+
+.PHONY: typecheck
+.PHONY: check
+check: fmt lint typecheck test  ## Tout-en-un
+
+.PHONY: typecheck
+.PHONY: check
+check: fmt lint typecheck test  ## Tout-en-un
+
+.PHONY: stop
+stop:
+	@pkill -f "uvicorn .*hanuman\.main:app" || true
+.PHONY: typecheck
+typecheck:  ## mypy
+	$(RUN) mypy src/hanuman tests
