@@ -1,8 +1,26 @@
-from typing import Any, Dict
+from __future__ import annotations
 
-from hanuman.orchestrations.github_sync_notion import sync_github_to_notion as _sync
+from typing import Any, Dict, TypedDict
 
 
-async def github_sync_notion_services() -> Dict[str, Any]:
-    # Legacy async wrapper for tests; call sync orchestration.
-    return _sync()
+class SyncResult(TypedDict, total=False):
+    repo: str
+    page: str
+    synced: int
+    status: str
+    detail: str
+
+
+def sync_github_to_notion(repo: str, notion_page_id: str) -> Dict[str, Any]:
+    """
+    Shim minimal (post-refactor) pour garder une API stable côté services.
+    À remplacer ensuite par l'implémentation réelle (appel GitHub + Notion).
+    """
+    result: Dict[str, Any] = {
+        "repo": repo,
+        "page": notion_page_id,
+        "synced": 0,
+        "status": "noop",
+        "detail": "orchestration stubbed after refactor",
+    }
+    return result
