@@ -9,11 +9,11 @@ from hanuman.api.core.log import router as log_router
 from hanuman.api.core.notion import router as notion_router
 from hanuman.api.core.obsidian import router as obsidian_router
 from hanuman.api.core.openai import router as openai_router
-from hanuman.api.core.orchestrations_router import router as orchestrations_router
 
 # Routers API
 from hanuman.api.core.status import router as status_router
 from hanuman.api.core.wikipedia import router as wikipedia_router
+from hanuman.api.routers.orchestrations import router as orchestrations_router
 from hanuman.core.logging import configure_logging, get_logger
 from hanuman.core.middleware import log_requests
 
