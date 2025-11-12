@@ -44,7 +44,7 @@ clean: ## Nettoyage
 
 .type: ;
 
-.PHONY: typecheck
+
 .PHONY: check
 check: fmt lint typecheck test  ## Tout-en-un
 
