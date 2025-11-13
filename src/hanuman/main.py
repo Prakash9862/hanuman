@@ -14,7 +14,6 @@ from hanuman.api.core.openai import router as openai_router
 from hanuman.api.core.status import router as status_router
 from hanuman.api.core.wikipedia import router as wikipedia_router
 from hanuman.api.routers.orchestrations import router as orchestrations_router
-
 from hanuman.core.logging import configure_logging, get_logger
 from hanuman.core.middleware import log_requests
 
@@ -51,6 +50,7 @@ for r in (
     orchestrations_router,
 ):
     app.include_router(r)
+
 
 def list_routes() -> list[str]:
     return [

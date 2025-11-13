@@ -1,6 +1,7 @@
+import os
+
 from fastapi import APIRouter
 from pydantic import BaseModel
-import os
 
 # Import du moteur d’orchestration
 from hanuman.orchestrations.obsidian_to_notion import send_markdown_to_notion
@@ -9,6 +10,7 @@ router = APIRouter(
     prefix="/orchestrations",
     tags=["orchestrations"],
 )
+
 
 # === Modèles d’entrée ===
 class ObsidianToNotionIn(BaseModel):
@@ -34,7 +36,7 @@ def obsidian_to_notion(body: ObsidianToNotionIn):
     if not parent:
         return {
             "ok": False,
-            "error": "Parent Notion manquant (env NOTION_PARENT_PAGE_ID/NOTION_PARENT_ID ou body.parent_id)"
+            "error": "Parent Notion manquant (env NOTION_PARENT_PAGE_ID/NOTION_PARENT_ID ou body.parent_id)",
         }
 
     try:
@@ -42,7 +44,8 @@ def obsidian_to_notion(body: ObsidianToNotionIn):
             path=body.path,
             parent_id=parent,
             parent_is_db=body.parent_is_db,
-            db_title_name=body.db_title_name or os.environ.get("NOTION_DB_TITLE_NAME", "Name"),
+            db_title_name=body.db_title_name
+            or os.environ.get("NOTION_DB_TITLE_NAME", "Name"),
         )
         return {"ok": True, "notion": out}
 
