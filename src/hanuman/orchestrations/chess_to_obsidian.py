@@ -111,11 +111,19 @@ def _build_opening_note(opening_key: str, games: List[ChessGame]) -> str:
     """Construit le contenu Markdown pour une ouverture donnée."""
     eco, name = _split_opening_key(opening_key)
 
+    # 🔁 Fallback : si l'ECO est vide, on le prend sur la première partie
+    if not eco and games:
+        eco = (games[0].eco or "").strip().upper()
+
+    # 🔁 Fallback : si le nom est vide, on prend au moins l'ECO ou la clé
+    if not name:
+        name = eco or opening_key
+
     tags: List[str] = ["#chess", "#ouverture"]
     if eco:
         tags.append(f"#eco/{eco}")
 
-    title = name or opening_key
+    title = f"{eco} {name}" if eco and eco not in name else name
 
     header_lines: List[str] = [
         "---",
@@ -129,6 +137,7 @@ def _build_opening_note(opening_key: str, games: List[ChessGame]) -> str:
         f"# {title}",
         "",
     ]
+
 
     if eco:
         header_lines.append(f"**ECO**: `{eco}`")
