@@ -29,7 +29,7 @@ class Settings(BaseSettings):
     openai_model: str = "gpt-4o"
     notion_base_url: str = "https://api.notion.com/v1"
     github_api_url: str = "https://api.github.com/"
-    chess_com_username: str = "prakash9862"
+    chess_com_username: str = "prakasch"
 
     model_config = SettingsConfigDict(
         env_file=".env", env_file_encoding="utf-8", extra="ignore", case_sensitive=True

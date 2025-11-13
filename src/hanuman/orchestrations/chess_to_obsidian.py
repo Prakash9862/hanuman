@@ -89,11 +89,25 @@ def _format_game_line(game: ChessGame) -> str:
 
     opponent = game.white if game.color == "black" else game.black
 
+    # Affichage ECO + nom d’ouverture
+    eco = (game.eco or "").strip()
+    opening_name = (game.opening_name or "").strip()
+
+    if eco and opening_name:
+        opening_cell = f"`{eco}` {opening_name}"
+    elif eco:
+        opening_cell = f"`{eco}`"
+    elif opening_name:
+        opening_cell = opening_name
+    else:
+        opening_cell = "—"
+
     return (
         f"| {date} | {color_tag} | {res_symbol} {result_tag} | "
-        f"{tc_tag or game.time_control} | vs **{opponent}** | "
-        f"[Lien]({game.url}) |"
+        f"{tc_tag or game.time_control} | {opening_cell} | "
+        f"vs **{opponent}** | [Lien]({game.url}) |"
     )
+
 
 
 
@@ -144,13 +158,14 @@ def _build_opening_note(opening_key: str, games: List[ChessGame]) -> str:
         header_lines.append("")
 
     header_lines.extend(
-        [
-            "## Parties liées",
-            "",
-            "| Date | Couleur | Résultat | Cadence | Adversaire | Lien |",
-            "|------|---------|----------|---------|------------|------|",
-        ]
-    )
+    [
+        "## Parties liées",
+        "",
+        "| Date | Couleur | Résultat | Cadence | ECO / Ouverture | Adversaire | Lien |",
+        "|------|---------|----------|---------|------------------|------------|------|",
+    ]
+)
+
 
     lines: List[str] = header_lines.copy()
 

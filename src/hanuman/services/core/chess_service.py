@@ -10,7 +10,7 @@ from hanuman.utils.decorators import trace_endpoint
 
 # --- Ping de base déjà utilisé ailleurs ---
 
-CHESS_USERNAME = "prakash9862"
+CHESS_USERNAME = "prakasch"
 CHESS_API_URL = f"https://api.chess.com/pub/player/{CHESS_USERNAME}"
 
 
@@ -77,7 +77,8 @@ class ChessService:
         """Extrait ECO et nom d'ouverture à partir du PGN."""
         eco = ""
         opening_name = ""
-        for line in pgn.splitlines():
+        for raw_line in pgn.splitlines():
+            line = raw_line.strip()  # 🔥 on nettoie les espaces au début/fin
             if line.startswith("[ECO "):
                 try:
                     eco = line.split('"', 2)[1]
@@ -88,7 +89,14 @@ class ChessService:
                     opening_name = line.split('"', 2)[1]
                 except IndexError:
                     pass
+
+        # Fallback : si pas de nom mais un ECO, on met au moins l'ECO comme nom
+        if not opening_name and eco:
+            opening_name = eco
+
         return eco, opening_name
+
+
 
     def get_latest_games(self, username: str, limit: int = 200) -> List[Dict[str, Any]]:
         """
