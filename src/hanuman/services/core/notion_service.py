@@ -8,9 +8,10 @@ from typing import Any, Dict, List, Optional, cast
 import requests
 
 from hanuman.config.env import (
-    NOTION_PARENT_ID,
     NOTION_TOKEN,
     NOTION_VERSION,
+    NOTION_PARENT_ID,
+    NOTION_ISSUES_DB_ID,
 )
 
 API_BASE_URL = "https://api.notion.com/v1"
@@ -30,7 +31,7 @@ class NotionApiError(RuntimeError):
 
 
 # ---------------------------------------------------------------------------
-# Modèles simples pour structurer un minimum
+# Modèles simples
 # ---------------------------------------------------------------------------
 
 
@@ -49,7 +50,7 @@ class NotionService:
     """Client Notion central pour Hanuman.
 
     - Utilise le token et la version d'API définis dans hanuman.config.env
-    - Fournit des méthodes génériques : create_page, append_blocks, etc.
+    - Fournit des méthodes génériques : create_page, append_blocks, search, etc.
     - Sert de base à tous les orchestrateurs (Obsidian, GitHub, …)
     """
 
@@ -66,9 +67,7 @@ class NotionService:
             )
 
         self._api_base_url = api_base_url.rstrip("/")
-        self._notion_version = (
-            notion_version or NOTION_VERSION
-        ).strip() or "2025-09-03"
+        self._notion_version = (notion_version or NOTION_VERSION or "").strip() or "2025-09-03"
 
     # ----------------- internes ----------------- #
 
@@ -110,11 +109,13 @@ class NotionService:
             raise NotionAuthError("Token Notion invalide ou expiré.")
 
         if resp.status_code >= 300:
-            raise NotionApiError(f"Erreur Notion {resp.status_code}: {resp.text}")
+            raise NotionApiError(
+                f"Erreur Notion {resp.status_code}: {resp.text}"
+            )
 
         return cast(Dict[str, Any], resp.json())
 
-    # ----------------- API publique ----------------- #
+    # ----------------- API publique : pages ----------------- #
 
     def create_page_under_parent(
         self,
@@ -122,26 +123,51 @@ class NotionService:
         blocks: List[Dict[str, Any]],
         parent_page_id: Optional[str] = None,
     ) -> NotionPageRef:
-        """Crée une page enfant sous une page Notion (parent page_id).
-
-        - title : titre de la page (propriété 'title')
-        - blocks : liste de blocs Notion déjà prêts (children)
-        - parent_page_id : UUID (avec tirets). Si None, NOTION_PARENT_ID est utilisé.
-        """
+        """Crée une page enfant sous une page Notion (parent page_id)."""
         parent = (parent_page_id or (NOTION_PARENT_ID or "")).strip()
         if not parent:
-            raise NotionApiError("NOTION_PARENT_ID manquant (dans .env ou param).")
+            raise NotionApiError(
+                "NOTION_PARENT_ID manquant (dans .env ou param)."
+            )
 
         payload: Dict[str, Any] = {
             "parent": {"page_id": parent},
             "properties": {
-                "title": {"title": [{"type": "text", "text": {"content": title}}]}
+                "title": {
+                    "title": [
+                        {"type": "text", "text": {"content": title}}
+                    ]
+                }
             },
         }
 
-        # petite marge de sécurité pour éviter les erreurs "too many children"
         if blocks:
             payload["children"] = blocks[:95]
+
+        data = self._request("POST", "/pages", payload=payload)
+        page_id = data.get("id", "")
+        url = data.get("url", "")
+
+        return NotionPageRef(page_id=page_id, url=url)
+
+    def create_page_in_database(
+        self,
+        database_id: str,
+        properties: Dict[str, Any],
+        children: Optional[List[Dict[str, Any]]] = None,
+    ) -> NotionPageRef:
+        """Crée une page dans une database Notion existante."""
+        db_id = database_id.strip()
+        if not db_id:
+            raise NotionApiError("database_id manquant pour create_page_in_database().")
+
+        payload: Dict[str, Any] = {
+            "parent": {"database_id": db_id},
+            "properties": properties,
+        }
+
+        if children:
+            payload["children"] = children[:95]
 
         data = self._request("POST", "/pages", payload=payload)
         page_id = data.get("id", "")
@@ -191,19 +217,17 @@ class NotionService:
 
 
 # ---------------------------------------------------------------------------
-# FONCTION HISTORIQUE COMPATIBLE (NE PAS CASSER LES ORCHESTRATIONS EXISTANTES)
+# Compatibilité historique (Obsidian → Notion)
 # ---------------------------------------------------------------------------
 
 
 def _legacy_hdr() -> Dict[str, str]:
-    """Ancienne fonction interne, conservée pour compatibilité éventuelle.
-
-    Elle n'est plus utilisée en interne, mais on évite de casser d'anciens imports.
-    """
-    if not (NOTION_TOKEN or "").strip():
+    """Ancienne fonction interne, conservée pour compatibilité éventuelle."""
+    token = (NOTION_TOKEN or "").strip()
+    if not token:
         raise RuntimeError("NOTION_TOKEN manquant.")
     return {
-        "Authorization": f"Bearer {NOTION_TOKEN}",
+        "Authorization": f"Bearer {token}",
         "Notion-Version": NOTION_VERSION,
         "Content-Type": "application/json",
     }
@@ -214,18 +238,10 @@ def create_page_under_parent(
     blocks: List[Dict[str, Any]],
     parent_page_id: str | None = None,
 ) -> Dict[str, Any]:
-    """API historique utilisée par les orchestrations (Obsidian → Notion).
+    """API historique utilisée par certaines orchestrations.
 
-    Cette fonction est un **wrapper** autour de NotionService, afin de ne
-    rien casser dans le code existant :
-
-        from hanuman.services.core.notion_service import create_page_under_parent
-
-    Le comportement reste le même :
-    - besoin d'un NOTION_PARENT_ID dans le .env (ou d'un parent explicite)
-    - renvoie le dict JSON brut de Notion.
-
-    Pour les nouvelles fonctionnalités, utiliser directement NotionService.
+    Wrapper autour de NotionService.create_page_under_parent
+    pour ne pas casser le code existant.
     """
     service = NotionService()
     ref = service.create_page_under_parent(
@@ -233,7 +249,6 @@ def create_page_under_parent(
         blocks=blocks,
         parent_page_id=parent_page_id,
     )
-    # On renvoie un dict proche de l'ancienne API (JSON Notion minimal)
     return {
         "id": ref.page_id,
         "url": ref.url,

@@ -32,7 +32,7 @@ from dotenv import load_dotenv
 # parents[0] = /hanuman/src/hanuman
 # parents[1] = /hanuman/src
 # parents[2] = /hanuman         ✅ racine du projet
-ROOT_DIR = Path(__file__).resolve().parents[2]
+ROOT_DIR = Path(__file__).resolve().parents[3]
 ENV_PATH = ROOT_DIR / ".env"
 
 if ENV_PATH.exists():
