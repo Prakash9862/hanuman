@@ -1,11 +1,11 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, cast
 
 import httpx
 
-from hanuman.config.env import GITHUB_TOKEN, GITHUB_REPO
+from hanuman.config.env import GITHUB_REPO, GITHUB_TOKEN
 from hanuman.models.ping import PingResult
 from hanuman.utils.decorators import trace_endpoint
 
@@ -39,7 +39,7 @@ class GithubService:
     """
 
     def __init__(self, token: Optional[str] = None) -> None:
-        self._token = token or GITHUB_TOKEN
+        self._token = (token or GITHUB_TOKEN or "").strip()
         if not self._token:
             raise GithubAuthError(
                 "GITHUB_TOKEN manquant. Configure-le dans le .env ou passe-le au constructeur."
@@ -50,7 +50,15 @@ class GithubService:
             "Accept": "application/vnd.github+json",
         }
 
-    def _request(self, method: str, path: str, **kwargs: Any) -> httpx.Response:
+    # ------------------------------------------------------------------ #
+    #  Méthode interne basse-niveau
+    # ------------------------------------------------------------------ #
+
+    def _request(self, method: str, path: str, **kwargs: Any) -> Any:
+        """Appel bas niveau à l'API GitHub.
+
+        Retourne le JSON décodé (dict ou list selon l'endpoint).
+        """
         url = f"{GITHUB_API_BASE_URL.rstrip('/')}/{path.lstrip('/')}"
         try:
             response = httpx.request(
@@ -71,7 +79,7 @@ class GithubService:
                 f"Erreur GitHub {response.status_code}: {response.text}"
             )
 
-        return response
+        return response.json()
 
     # ------------------------------------------------------------------ #
     #  Méthodes publiques
@@ -79,27 +87,27 @@ class GithubService:
 
     def get_user(self) -> Dict[str, Any]:
         """Retourne les infos du user GitHub lié au token."""
-        r = self._request("GET", "/user")
-        return r.json()
+        data = self._request("GET", "/user")
+        return cast(Dict[str, Any], data)
 
     def get_repo(self, full_name: Optional[str] = None) -> GithubRepo:
         """Retourne les infos d'un repo (ex: 'Prakash9862/hanuman')."""
-        repo_name = full_name or GITHUB_REPO
+        repo_name = (full_name or GITHUB_REPO or "").strip()
         if not repo_name:
             raise ValueError(
                 "Aucun repo spécifié. Passe full_name ou configure GITHUB_REPO dans le .env."
             )
 
-        r = self._request("GET", f"/repos/{repo_name}")
-        data = r.json()
+        data = self._request("GET", f"/repos/{repo_name}")
+        repo = cast(Dict[str, Any], data)
 
         return GithubRepo(
-            full_name=data.get("full_name", repo_name),
-            description=data.get("description") or "",
-            stars=int(data.get("stargazers_count", 0)),
-            forks=int(data.get("forks_count", 0)),
-            html_url=data.get("html_url", ""),
-            default_branch=data.get("default_branch", "main"),
+            full_name=repo.get("full_name", repo_name),
+            description=repo.get("description") or "",
+            stars=int(repo.get("stargazers_count", 0)),
+            forks=int(repo.get("forks_count", 0)),
+            html_url=repo.get("html_url", ""),
+            default_branch=repo.get("default_branch", "main"),
         )
 
     def list_issues(
@@ -109,7 +117,7 @@ class GithubService:
         limit: int = 50,
     ) -> List[Dict[str, Any]]:
         """Liste les issues d'un repo (par défaut: ouvertes)."""
-        repo_name = full_name or GITHUB_REPO
+        repo_name = (full_name or GITHUB_REPO or "").strip()
         if not repo_name:
             raise ValueError(
                 "Aucun repo spécifié. Passe full_name ou configure GITHUB_REPO dans le .env."
@@ -120,10 +128,9 @@ class GithubService:
             "per_page": min(limit, 100),
         }
 
-        r = self._request("GET", f"/repos/{repo_name}/issues", params=params)
-        issues = r.json()
+        data = self._request("GET", f"/repos/{repo_name}/issues", params=params)
+        issues = cast(List[Dict[str, Any]], data)
 
-        # On ne garde que les issues "pures" (on filtre les PR si nécessaire)
         cleaned: List[Dict[str, Any]] = []
         for issue in issues:
             # Les PR ont une clé "pull_request"
@@ -136,7 +143,7 @@ class GithubService:
                     "title": issue.get("title"),
                     "state": issue.get("state"),
                     "url": issue.get("html_url"),
-                    "labels": [l.get("name") for l in issue.get("labels", [])],
+                    "labels": [label.get("name") for label in issue.get("labels", [])],
                 }
             )
 
