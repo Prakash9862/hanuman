@@ -34,6 +34,7 @@ def ping_chess() -> PingResult:
 
 # --- Nouveau service pour les parties ---
 
+
 class ChessService:
     """
     Service minimal pour récupérer les dernières parties Chess.com
@@ -95,8 +96,6 @@ class ChessService:
             opening_name = eco
 
         return eco, opening_name
-
-
 
     def get_latest_games(self, username: str, limit: int = 200) -> List[Dict[str, Any]]:
         """
@@ -164,8 +163,8 @@ class ChessService:
                         "end_time": end_time,
                         "white": str(white.get("username", "")),
                         "black": str(black.get("username", "")),
-                        "result": result,           # "win"/"loss"/"draw" pour TOI
-                        "color": color,             # "white"/"black" pour TOI
+                        "result": result,  # "win"/"loss"/"draw" pour TOI
+                        "color": color,  # "white"/"black" pour TOI
                         "opening_name": opening_name,
                         "eco": eco,
                         "time_control": time_control,

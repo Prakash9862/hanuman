@@ -9,7 +9,6 @@ from typing import Any, Dict, Iterable, List, Mapping
 from hanuman.core.config import settings  # config Pydantic (chess_com_username)
 from hanuman.services.core.chess_service import ChessService
 
-
 # =========================
 #  Modèle de données
 # =========================
@@ -43,6 +42,8 @@ def _slugify(value: str) -> str:
         .replace("–", "-")
         .replace("—", "-")
     )
+
+
 def _build_opening_key(game: ChessGame) -> str:
     """Construit une clé d'ouverture propre à partir d'une partie.
 
@@ -72,7 +73,6 @@ def _group_by_opening(games: Iterable[ChessGame]) -> Dict[str, List[ChessGame]]:
         key = _build_opening_key(g)
         groups.setdefault(key, []).append(g)
     return groups
-
 
 
 def _format_game_line(game: ChessGame) -> str:
@@ -107,9 +107,6 @@ def _format_game_line(game: ChessGame) -> str:
         f"{tc_tag or game.time_control} | {opening_cell} | "
         f"vs **{opponent}** | [Lien]({game.url}) |"
     )
-
-
-
 
 
 def _split_opening_key(opening_key: str) -> tuple[str, str]:
@@ -152,20 +149,18 @@ def _build_opening_note(opening_key: str, games: List[ChessGame]) -> str:
         "",
     ]
 
-
     if eco:
         header_lines.append(f"**ECO**: `{eco}`")
         header_lines.append("")
 
     header_lines.extend(
-    [
-        "## Parties liées",
-        "",
-        "| Date | Couleur | Résultat | Cadence | ECO / Ouverture | Adversaire | Lien |",
-        "|------|---------|----------|---------|------------------|------------|------|",
-    ]
-)
-
+        [
+            "## Parties liées",
+            "",
+            "| Date | Couleur | Résultat | Cadence | ECO / Ouverture | Adversaire | Lien |",
+            "|------|---------|----------|---------|------------------|------------|------|",
+        ]
+    )
 
     lines: List[str] = header_lines.copy()
 
@@ -264,7 +259,9 @@ def sync_chess_to_obsidian(limit: int = 200) -> None:
                     end_time=g["end_time"],
                     white=g["white"],
                     black=g["black"],
-                    result=g["result"],  # "win" / "loss" / "draw" (normalisé côté service)
+                    result=g[
+                        "result"
+                    ],  # "win" / "loss" / "draw" (normalisé côté service)
                     color=g["color"],  # "white" / "black" pour TOI
                     opening_name=g["opening_name"],
                     eco=g.get("eco", ""),
