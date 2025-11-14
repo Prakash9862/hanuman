@@ -5,6 +5,9 @@ from pydantic import BaseModel
 
 # Import du moteur d’orchestration
 from hanuman.orchestrations.obsidian_to_notion import send_markdown_to_notion
+from hanuman.orchestrations.wikipedia_to_notion import (
+    publish_wikipedia_page_to_notion,
+)
 
 router = APIRouter(
     prefix="/orchestrations",
@@ -18,6 +21,11 @@ class ObsidianToNotionIn(BaseModel):
     parent_id: str | None = None
     parent_is_db: bool | None = None
     db_title_name: str | None = None
+
+
+class WikipediaToNotionIn(BaseModel):
+    query: str
+    parent_id: str | None = None
 
 
 # === Endpoint Obsidian → Notion ===
@@ -51,6 +59,19 @@ def obsidian_to_notion(body: ObsidianToNotionIn):
 
     except Exception as e:
         return {"ok": False, "error": str(e)}
+
+
+# === Endpoint Wikipedia → Notion ===
+@router.post("/wikipedia-to-notion")
+def wikipedia_to_notion(body: WikipediaToNotionIn):
+    try:
+        ref = publish_wikipedia_page_to_notion(
+            body.query,
+            parent_page_id=body.parent_id,
+        )
+        return {"ok": True, "notion": {"id": ref.page_id, "url": ref.url}}
+    except Exception as exc:  # pragma: no cover - renvoyé comme erreur HTTP
+        return {"ok": False, "error": str(exc)}
 
 
 # === Endpoint basique de ping (sanity check) ===
