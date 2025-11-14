@@ -26,6 +26,7 @@ class ChessGame:
     eco: str
     time_control: str  # "blitz", "rapid", etc.
     url: str
+    pgn: str
 
 
 # =========================
@@ -119,62 +120,83 @@ def _split_opening_key(opening_key: str) -> tuple[str, str]:
 
 
 def _build_opening_note(opening_key: str, games: List[ChessGame]) -> str:
-    """Construit le contenu Markdown pour une ouverture donnée."""
-    eco, name = _split_opening_key(opening_key)
+ """Construit le contenu Markdown pour une ouverture donnée."""
+ eco, name = _split_opening_key(opening_key)
 
-    # 🔁 Fallback : si l'ECO est vide, on le prend sur la première partie
-    if not eco and games:
-        eco = (games[0].eco or "").strip().upper()
+ # Fallback : si l'ECO est vide, on le prend sur la première partie
+ if not eco and games:
+     eco = (games[0].eco or "").strip().upper()
 
-    # 🔁 Fallback : si le nom est vide, on prend au moins l'ECO ou la clé
-    if not name:
-        name = eco or opening_key
+ # Fallback : si le nom est vide, on prend au moins l'ECO ou la clé brute
+ if not name:
+     name = eco or opening_key
 
-    tags: List[str] = ["#chess", "#ouverture"]
-    if eco:
-        tags.append(f"#eco/{eco}")
+ tags: List[str] = ["#chess", "#ouverture"]
+ if eco:
+     tags.append(f"#eco/{eco}")
 
-    title = f"{eco} {name}" if eco and eco not in name else name
+ title = f"{eco} {name}" if eco and eco not in name else name
 
-    header_lines: List[str] = [
-        "---",
-        f'title: "{title}"',
-        f"eco: {eco!r}",
-        "tags:",
-        *[f"  - {t}" for t in tags],
-        f"games_count: {len(games)}",
-        "---",
-        "",
-        f"# {title}",
-        "",
-    ]
+ header_lines: List[str] = [
+     "---",
+     f'title: "{title}"',
+     f"eco: {eco!r}",
+     "tags:",
+     *[f"  - {t}" for t in tags],
+     f"games_count: {len(games)}",
+     "---",
+     "",
+     f"# {title}",
+     "",
+ ]
 
-    if eco:
-        header_lines.append(f"**ECO**: `{eco}`")
-        header_lines.append("")
+ if eco:
+     header_lines.append(f"**ECO**: `{eco}`")
+     header_lines.append("")
 
-    header_lines.extend(
-        [
-            "## Parties liées",
-            "",
-            "| Date | Couleur | Résultat | Cadence | ECO / Ouverture | Adversaire | Lien |",
-            "|------|---------|----------|---------|------------------|------------|------|",
-        ]
-    )
+ header_lines.extend(
+     [
+         "## Parties liées",
+         "",
+         "| Date | Couleur | Résultat | Cadence | ECO / Ouverture | Adversaire | Lien |",
+         "|------|---------|----------|---------|------------------|------------|------|",
+     ]
+ )
 
-    lines: List[str] = header_lines.copy()
+ lines: List[str] = header_lines.copy()
 
-    # Tri par date décroissante
-    for g in sorted(games, key=lambda x: x.end_time, reverse=True):
-        lines.append(_format_game_line(g))
+ # Tableau récapitulatif (tri par date décroissante)
+ for g in sorted(games, key=lambda x: x.end_time, reverse=True):
+     lines.append(_format_game_line(g))
 
-    lines.append("")
-    lines.append("## Notes personnelles")
-    lines.append("")
-    lines.append("> Ajoute ici tes idées, plans, erreurs récurrentes, etc.")
-    lines.append("")
+ # Section PGN détaillée
+ lines.append("")
+ lines.append("## PGN des parties")
+ lines.append("")
 
-    return "\n".join(lines)
+ for g in sorted(games, key=lambda x: x.end_time, reverse=True):
+     if not g.pgn.strip():
+         continue
+
+     date_str = g.end_time.strftime("%Y-%m-%d")
+     opponent = g.white if g.color == "black" else g.black
+     title_line = f"{date_str} vs {opponent}"
+
+     lines.append(f"### {title_line}")
+     lines.append("")
+     lines.append("```pgn")
+     lines.append(g.pgn.strip())
+     lines.append("```")
+     lines.append("")
+
+ # Zone pour tes remarques
+ lines.append("## Notes personnelles")
+ lines.append("")
+ lines.append("> Ajoute ici tes idées, plans, erreurs récurrentes, etc.")
+ lines.append("")
+
+ return "\n".join(lines)
+
 
 
 def _build_overview_note(groups: Mapping[str, List[ChessGame]]) -> str:
@@ -254,21 +276,21 @@ def sync_chess_to_obsidian(limit: int = 200) -> None:
         # ICI: adapte aux champs renvoyés par ChessService
         try:
             games.append(
-                ChessGame(
-                    game_id=g["id"],
-                    end_time=g["end_time"],
-                    white=g["white"],
-                    black=g["black"],
-                    result=g[
-                        "result"
-                    ],  # "win" / "loss" / "draw" (normalisé côté service)
-                    color=g["color"],  # "white" / "black" pour TOI
-                    opening_name=g["opening_name"],
-                    eco=g.get("eco", ""),
-                    time_control=g.get("time_control", ""),
-                    url=g.get("url", ""),
-                )
-            )
+    ChessGame(
+        game_id=g["id"],
+        end_time=g["end_time"],
+        white=g["white"],
+        black=g["black"],
+        result=g["result"],
+        color=g["color"],
+        opening_name=g["opening_name"],
+        eco=g.get("eco", ""),
+        time_control=g.get("time_control", ""),
+        url=g.get("url", ""),
+        pgn=g.get("pgn", ""),  # 🔥 AJOUT OBLIGATOIRE
+    )
+)
+
         except KeyError:
             # Si une partie est incomplète, on l'ignore
             continue

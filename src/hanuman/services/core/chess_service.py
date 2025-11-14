@@ -111,6 +111,7 @@ class ChessService:
         - eco: str
         - time_control: str (blitz, rapid, etc.)
         - url: str
+        - pgn: str
         """
         archives = self._get_archives(username)
         games: List[Dict[str, Any]] = []
@@ -169,6 +170,7 @@ class ChessService:
                         "eco": eco,
                         "time_control": time_control,
                         "url": url,
+                        "pgn": pgn,
                     }
                 )
 
