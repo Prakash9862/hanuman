@@ -196,6 +196,59 @@ class NotionService:
             payload=payload,
         )
 
+    def query_database(
+        self,
+        database_id: str,
+        filter_: Optional[Dict[str, Any]] = None,
+    ) -> List[Dict[str, Any]]:
+        """Interroge une database Notion et renvoie tous les résultats."""
+
+        db_id = database_id.strip()
+        if not db_id:
+            raise NotionApiError("database_id manquant pour query_database().")
+
+        base_payload: Dict[str, Any] = {}
+        if filter_ is not None:
+            base_payload["filter"] = filter_
+
+        results: List[Dict[str, Any]] = []
+        next_cursor: Optional[str] = None
+
+        while True:
+            payload = dict(base_payload)
+            if next_cursor is not None:
+                payload["start_cursor"] = next_cursor
+
+            # 🔴 C'est CETTE URL qui doit être parfaite
+            data = self._request(
+                "POST",
+                f"/databases/{db_id}/query",
+                payload=payload,
+            )
+
+            results.extend(data.get("results", []))
+
+            if not data.get("has_more"):
+                break
+
+            next_cursor = data.get("next_cursor")
+
+        return results
+
+
+
+    def update_page_properties(
+        self,
+        page_id: str,
+        properties: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        """Met à jour uniquement les propriétés d'une page Notion."""
+        if not page_id.strip():
+            raise ValueError("page_id manquant pour update_page_properties().")
+
+        payload = {"properties": properties}
+        return self._request("PATCH", f"/pages/{page_id}", payload=payload)
+
     def retrieve_page(self, page_id: str) -> Dict[str, Any]:
         """Récupère les métadonnées d'une page Notion."""
         if not page_id.strip():
