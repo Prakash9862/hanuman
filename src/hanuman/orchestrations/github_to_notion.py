@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import argparse
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 from hanuman.config.env import GITHUB_REPO, NOTION_ISSUES_DB_ID
 from hanuman.services.core.github_service import GithubService
@@ -53,38 +53,23 @@ def _build_issue_properties(issue: Dict[str, Any], repo_name: str) -> Dict[str, 
 def _find_issue_page_by_number(
     notion: NotionService,
     issue_number: int,
-    limit: int = 10,
-) -> Optional[str]:
-    """Essaie de retrouver la page Notion correspondant à une issue GitHub donnée.
+) -> str | None:
+    results = notion.query_database(
+        NOTION_ISSUES_DB_ID,
+        filter_={
+            "property": "Numéro",
+            "number": {"equals": issue_number},
+        },
+    )
 
-    Stratégie :
-    - on utilise Notion /search avec comme query le numéro (ou rien)
-    - on filtre ensuite côté Python les résultats :
-        - uniquement les pages
-        - qui possèdent une propriété 'Numéro' == issue_number
-        - et qui appartiennent à la bonne database (parent.database_id = NOTION_ISSUES_DB_ID)
-    """
+    if not results:
+        return None
 
-    # On recherche sans query (ou avec le numéro) pour limiter un peu
-    data = notion.search(query=str(issue_number), limit=limit)
+    first = results[0]
+    page_id = first.get("id")
 
-    results = data.get("results", [])
-    for result in results:
-        if result.get("object") != "page":
-            continue
-
-        parent = result.get("parent", {})
-        parent_db_id = parent.get("database_id")
-        if parent_db_id and NOTION_ISSUES_DB_ID and parent_db_id != NOTION_ISSUES_DB_ID:
-            # Page d'une autre database → on ignore
-            continue
-
-        props = result.get("properties", {})
-        numero_prop = props.get("Numéro", {})
-        number_value = numero_prop.get("number")
-
-        if isinstance(number_value, (int, float)) and int(number_value) == issue_number:
-            return result.get("id")
+    if isinstance(page_id, str):
+        return page_id
 
     return None
 

@@ -31,7 +31,7 @@ def test_build_issue_properties_basic() -> None:
     assert props["Numéro"]["number"] == 42
 
     labels_prop: List[Dict[str, Any]] = props["Labels"]["multi_select"]
-    assert {l["name"] for l in labels_prop} == {"bug", "chess"}
+    assert {label["name"] for label in labels_prop} == {"bug", "chess"}
 
 
 def test_build_issue_properties_dates_optional() -> None:
@@ -51,4 +51,3 @@ def test_build_issue_properties_dates_optional() -> None:
     assert props["Etat"]["select"]["name"] == "closed"
     assert props["Créé le"]["date"]["start"] == "2025-01-01T12:00:00Z"
     assert props["Modifié le"]["date"]["start"] == "2025-01-02T13:30:00Z"
-

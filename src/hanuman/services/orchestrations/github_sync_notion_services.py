@@ -13,12 +13,11 @@ et tout ancien code qui importerait encore l'ancien chemin.
 
 from __future__ import annotations
 
-from typing import Any, Optional
+from typing import Optional
 
 from hanuman.orchestrations.github_to_notion import (
     sync_github_issues_to_notion,
 )
-
 
 __all__ = ["sync_github_issues_to_notion", "main"]
 
@@ -38,4 +37,3 @@ def main(
         state=state,
         limit=limit,
     )
-
