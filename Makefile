@@ -31,6 +31,20 @@ test: ## Lance les tests
 
 check: fmt lint test ## Tout-en-un
 
+# ============================
+#         COVERAGE
+# ============================
+
+coverage:
+	$(POETRY) run coverage run -m pytest
+	$(POETRY) run coverage report -m
+
+coverage-html:
+	$(POETRY) run coverage run -m pytest
+	$(POETRY) run coverage html
+	@echo "📊 Rapport HTML généré : file://$(PWD)/htmlcov/index.html"
+
+
 run-api: ## Lance l'API Hanuman
 	PYTHONPATH=src $(RUN) uvicorn $(API_APP) --reload --host $(HOST) --port $(PORT)
 

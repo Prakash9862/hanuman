@@ -8,10 +8,9 @@ from typing import Any, Dict, List, Optional, cast
 import requests
 
 from hanuman.config.env import (
+    NOTION_PARENT_ID,
     NOTION_TOKEN,
     NOTION_VERSION,
-    NOTION_PARENT_ID,
-    NOTION_ISSUES_DB_ID,
 )
 
 API_BASE_URL = "https://api.notion.com/v1"
@@ -67,7 +66,9 @@ class NotionService:
             )
 
         self._api_base_url = api_base_url.rstrip("/")
-        self._notion_version = (notion_version or NOTION_VERSION or "").strip() or "2025-09-03"
+        self._notion_version = (
+            notion_version or NOTION_VERSION or ""
+        ).strip() or "2025-09-03"
 
     # ----------------- internes ----------------- #
 
@@ -109,9 +110,7 @@ class NotionService:
             raise NotionAuthError("Token Notion invalide ou expiré.")
 
         if resp.status_code >= 300:
-            raise NotionApiError(
-                f"Erreur Notion {resp.status_code}: {resp.text}"
-            )
+            raise NotionApiError(f"Erreur Notion {resp.status_code}: {resp.text}")
 
         return cast(Dict[str, Any], resp.json())
 
@@ -126,18 +125,12 @@ class NotionService:
         """Crée une page enfant sous une page Notion (parent page_id)."""
         parent = (parent_page_id or (NOTION_PARENT_ID or "")).strip()
         if not parent:
-            raise NotionApiError(
-                "NOTION_PARENT_ID manquant (dans .env ou param)."
-            )
+            raise NotionApiError("NOTION_PARENT_ID manquant (dans .env ou param).")
 
         payload: Dict[str, Any] = {
             "parent": {"page_id": parent},
             "properties": {
-                "title": {
-                    "title": [
-                        {"type": "text", "text": {"content": title}}
-                    ]
-                }
+                "title": {"title": [{"type": "text", "text": {"content": title}}]}
             },
         }
 
@@ -234,8 +227,6 @@ class NotionService:
             next_cursor = data.get("next_cursor")
 
         return results
-
-
 
     def update_page_properties(
         self,
