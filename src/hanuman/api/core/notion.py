@@ -46,14 +46,16 @@ def ping() -> dict:
                 "detail": {"user": js},
             }
 
-        # échec HTTP côté Notion
+        # échec HTTP côté Notion (401, 403, 500...)
         return {
             "ok": False,
             "status": r.status_code,
             "body": r.text[:3000],
+            "error": "Notion API request failed or token is invalid",
             "source": "notion",
             "timestamp": datetime.now(UTC).isoformat(),
         }
+
     except Exception as e:
         return {
             "ok": False,

@@ -6,7 +6,7 @@ import os
 import re
 import urllib.error
 import urllib.request
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, cast
 
@@ -21,13 +21,16 @@ import yaml
 class FrontMatter:
     title: Optional[str] = None
     summary: Optional[str] = None
-    tags: Optional[List[str]] = None
+    tags: List[str] = field(default_factory=list)
     date: Optional[str] = None
-    props: Optional[Dict[str, Any]] = None  # reste des champs
+    extra_props: Dict[str, Any] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
-        if self.props is None:
-            self.props = {}
+        # Sécurise au cas où on instancie avec des None
+        if self.tags is None:
+            self.tags = []
+        if self.extra_props is None:
+            self.extra_props = {}
 
 
 FM_RE = re.compile(r"^\s*---\s*\n(.*?)\n---\s*\n?", re.DOTALL)
@@ -72,26 +75,31 @@ def split_frontmatter(text: str) -> Tuple[FrontMatter, str]:
 def normalize_frontmatter(fm: Dict[str, Any]) -> FrontMatter:
     title = fm.get("title") or fm.get("name") or None
     summary = fm.get("summary") or fm.get("description") or None
-    tags = None
+
+    # Tags toujours en liste
+    tags: List[str] = []
     if "tags" in fm:
-        if isinstance(fm["tags"], list):
-            tags = [str(t) for t in fm["tags"]]
-        elif isinstance(fm["tags"], str):
-            tags = [t.strip() for t in fm["tags"].split(",") if t.strip()]
+        raw = fm["tags"]
+        if isinstance(raw, list):
+            tags = [str(t) for t in raw]
+        elif isinstance(raw, str):
+            tags = [t.strip() for t in raw.split(",") if t.strip()]
+
     date = fm.get("date") or fm.get("created") or None
-    # retire champs connus
-    props = {
+
+    extra_props = {
         k: v
         for k, v in fm.items()
         if k
         not in {"title", "name", "summary", "description", "tags", "date", "created"}
     }
+
     return FrontMatter(
         title=title,
         summary=summary,
         tags=tags,
         date=str(date) if date else None,
-        props=props,
+        extra_props=extra_props,
     )
 
 
@@ -286,22 +294,44 @@ def md_to_blocks(md: str) -> List[Dict[str, Any]]:
 
 
 def build_notion_body(
-    path: str,
+    markdown_path: str,
     parent_id: str,
     parent_is_db: bool,
     front: FrontMatter,
-    md_body: str,
+    body_md: str,
     *,
     db_title_name: str = "Name",
     db_tags_name: str = "Tags",
-    db_summary_name: str = "Summary",
+    db_summary_name: str = "Résumé",
     db_date_name: str = "Date",
 ) -> Dict[str, Any]:
-    title = front.title or Path(path).stem
-    children = md_to_blocks(md_body)
+    title = front.title or Path(markdown_path).stem
+    children = md_to_blocks(body_md)
+
+    # On prépare un éventuel callout de métadonnées (utilisé seulement pour les DB)
+    meta_lines: List[str] = []
+    if front.summary:
+        meta_lines.append(f"Résumé: {front.summary}")
+    if front.tags:
+        meta_lines.append("Tags: " + ", ".join(front.tags))
+    if front.date:
+        meta_lines.append(f"Date: {front.date}")
+    for k, v in (front.extra_props or {}).items():
+        meta_lines.append(f"{k}: {v}")
+
+    callout_block: Optional[Dict[str, Any]] = None
+    if meta_lines:
+        callout_block = {
+            "object": "block",
+            "type": "callout",
+            "callout": {
+                "rich_text": _rich("\n".join(meta_lines)),
+                "icon": {"type": "emoji", "emoji": "🗂️"},
+            },
+        }
 
     if parent_is_db:
-        # Database parent: on mappe vers des propriétés
+        # Database parent: on mappe vers des propriétés + callout en premier enfant
         props: Dict[str, Any] = {
             db_title_name: {"title": _rich(title)},
         }
@@ -312,59 +342,50 @@ def build_notion_body(
         if front.date:
             props[db_date_name] = {"date": {"start": front.date}}
 
-        # autres props scalaires simples
-        for k, v in (front.props or {}).items():
+        for k, v in (front.extra_props or {}).items():
             if isinstance(v, str):
                 props[k] = {"rich_text": _rich(v)}
             elif isinstance(v, (int, float)):
                 props[k] = {"number": v}
             elif isinstance(v, list):
-                # on tente en multi_select de noms
                 props[k] = {"multi_select": [{"name": str(x)} for x in v]}
-            # sinon on ignore poliment
+
+        if callout_block is not None:
+            children = [callout_block, *children]
 
         body = {
-            "parent": {"type": "database_id", "database_id": parent_id},
+            "parent": {
+                "database_id": parent_id
+            },  # ⚠️ sans "type" -> comme dans les tests
             "properties": props,
             "children": children,
         }
     else:
-        # Page parent: seule prop 'title', le reste vit dans les blocks
-        body = {
-            "parent": {"type": "page_id", "page_id": parent_id},
-            "properties": {"title": _rich(title)},
-            "children": children
-            if children
-            else [
+        # Page parent : on commence toujours par un heading_1 avec le titre
+        heading_block: Dict[str, Any] = {
+            "object": "block",
+            "type": "heading_1",
+            "heading_1": {"rich_text": _rich(title)},
+        }
+
+        # Si le markdown est vide, on met juste un paragraphe vide après le heading
+        if children:
+            final_children = [heading_block, *children]
+        else:
+            final_children = [
+                heading_block,
                 {
                     "object": "block",
                     "type": "paragraph",
                     "paragraph": {"rich_text": _rich("")},
-                }
-            ],
-        }
-
-        # Ajoute un callout résumant le front-matter si utile
-        meta_lines = []
-        if front.summary:
-            meta_lines.append(f"Résumé: {front.summary}")
-        if front.tags:
-            meta_lines.append("Tags: " + ", ".join(front.tags))
-        if front.date:
-            meta_lines.append(f"Date: {front.date}")
-        for k, v in (front.props or {}).items():
-            meta_lines.append(f"{k}: {v}")
-        if meta_lines:
-            callout_block: Dict[str, Any] = {
-                "object": "block",
-                "type": "callout",
-                "callout": {
-                    "rich_text": _rich("\n".join(meta_lines)),
-                    "icon": {"type": "emoji", "emoji": "🗂️"},
                 },
-            }
-            existing_children = cast(List[Dict[str, Any]], body.get("children", []))
-            body["children"] = [callout_block, *existing_children]
+            ]
+
+        body = {
+            "parent": {"page_id": parent_id},
+            "properties": {"title": {"title": _rich(title)}},
+            "children": final_children,
+        }
 
     return body
 
@@ -382,57 +403,65 @@ def _read_markdown(path: str) -> str:
 
 
 def send_markdown_to_notion(
-    path: str,
+    markdown_path: str,
     parent_id: str,
     parent_is_db: bool | None = None,
+    notion_token: str | None = None,
+    notion_version: str | None = None,
     db_title_name: str = "Name",
     db_tags_name: str = "Tags",
-    db_summary_name: str = "Summary",
+    db_summary_name: str = "Résumé",
     db_date_name: str = "Date",
 ) -> Dict[str, Any]:
-    md = _read_markdown(path)
+    # Charge le markdown
+    md = _read_markdown(markdown_path)
     front, body_md = split_frontmatter(md)
 
-    # déduction du type parent si non fourni
+    # Optionnel : override des variables d'env depuis les arguments
+    if notion_token:
+        os.environ["NOTION_TOKEN"] = notion_token
+    if notion_version:
+        os.environ["NOTION_VERSION"] = notion_version
+
+    # Déduction du type parent si non fourni
     if parent_is_db is None:
         env_flag = os.environ.get("NOTION_PARENT_IS_DB", "").strip().lower()
         parent_is_db = env_flag in ("1", "true", "yes", "y")
 
+    # 1ère tentative : parent tel que fourni
     body = build_notion_body(
-        path=path,
+        markdown_path=markdown_path,
         parent_id=parent_id,
         parent_is_db=bool(parent_is_db),
         front=front,
-        md_body=body_md,
-        db_title_name=db_title_name or os.environ.get("NOTION_DB_TITLE_NAME", "Name"),
-        db_tags_name=db_tags_name or os.environ.get("NOTION_DB_TAGS_NAME", "Tags"),
-        db_summary_name=db_summary_name
-        or os.environ.get("NOTION_DB_SUMMARY_NAME", "Summary"),
-        db_date_name=db_date_name or os.environ.get("NOTION_DB_DATE_NAME", "Date"),
+        body_md=body_md,
+        db_title_name=db_title_name,
+        db_tags_name=db_tags_name,
+        db_summary_name=db_summary_name,
+        db_date_name=db_date_name,
     )
 
     try:
         return _post_create_page(body)
-    except urllib.error.HTTPError as e:
-        detail = e.read().decode("utf-8", errors="ignore")
-        # auto-retry: inverse page<->database sur 400 de validation
-        if e.code == 400 and (
-            "Invalid property" in detail or "validation_error" in detail
-        ):
+    except urllib.error.HTTPError as exc:
+        detail = exc.read().decode("utf-8", errors="ignore")
+
+        # Fallback : inversion database_id <-> page_id quand Notion renvoie validation_error
+        if exc.code == 400 and "validation_error" in detail:
             body_alt = build_notion_body(
-                path=path,
+                markdown_path=markdown_path,
                 parent_id=parent_id,
                 parent_is_db=not bool(parent_is_db),
                 front=front,
-                md_body=body_md,
+                body_md=body_md,
+                db_title_name=db_title_name,
+                db_tags_name=db_tags_name,
+                db_summary_name=db_summary_name,
+                db_date_name=db_date_name,
             )
-            try:
-                return _post_create_page(body_alt)
-            except urllib.error.HTTPError as e2:
-                raise RuntimeError(
-                    f"Notion API error {e2.code}: {e2.read().decode('utf-8', 'ignore')}"
-                ) from e2
-        raise RuntimeError(f"Notion API error {e.code}: {detail}") from e
+            return _post_create_page(body_alt)
+
+        raise RuntimeError(f"Notion API error {exc.code}: {detail}") from exc
 
 
 # =========
@@ -475,7 +504,7 @@ def main() -> None:
         )
 
     out = send_markdown_to_notion(
-        path=args.path,
+        markdown_path=args.path,
         parent_id=args.parent_id,
         parent_is_db=args.parent_is_db,
         db_title_name=args.db_title_name,
@@ -483,6 +512,7 @@ def main() -> None:
         db_summary_name=args.db_summary_name,
         db_date_name=args.db_date_name,
     )
+
     print(json.dumps(out, indent=2, ensure_ascii=False))
 
 

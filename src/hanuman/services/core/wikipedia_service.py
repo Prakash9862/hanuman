@@ -16,7 +16,9 @@ logger = get_logger(__name__)
 
 WIKIPEDIA_BASE_URL = "https://fr.wikipedia.org/api/rest_v1"
 WIKIPEDIA_URL = f"{WIKIPEDIA_BASE_URL}/page/summary/OpenAI"
-USER_AGENT = "HanumanBot/1.0 (+https://github.com/prakasch; contact: prakash@example.com)"
+USER_AGENT = (
+    "HanumanBot/1.0 (+https://github.com/prakasch; contact: prakash@example.com)"
+)
 
 
 @trace_endpoint("wikipedia", catch=True)
@@ -30,7 +32,9 @@ def ping_wikipedia() -> PingResult:
 
     if resp.status_code == 200:
         data = resp.json()
-        return PingResult(ok=True, source="wikipedia", detail={"title": data.get("title")})
+        return PingResult(
+            ok=True, source="wikipedia", detail={"title": data.get("title")}
+        )
 
     if resp.status_code == 404:
         raise ValueError("Article non trouvé")
@@ -150,7 +154,7 @@ class WikipediaService:
         # 1) Résumé
         summary_data = self._get(f"page/summary/{title}")
 
-    # 2) Sections complètes (mobile-sections)
+        # 2) Sections complètes (mobile-sections)
         try:
             sections_data = self._get(f"page/mobile-sections/{title}")
         except RuntimeError as exc:
@@ -162,8 +166,6 @@ class WikipediaService:
                 sections_data = {}  # Fallback propre
             else:
                 raise
-
-
 
         summary = str(summary_data.get("extract") or "").strip()
         display_title = str(

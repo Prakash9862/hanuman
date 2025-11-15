@@ -1,6 +1,6 @@
-
 from __future__ import annotations
 
+import os
 from typing import Any, Dict, Iterable, List, Optional
 
 from hanuman.services.core.notion_service import NotionPageRef, NotionService
@@ -9,7 +9,6 @@ from hanuman.services.core.wikipedia_service import (
     WikipediaPage,
     WikipediaService,
 )
-import os
 
 MAX_RICH_TEXT = 2000
 
@@ -164,8 +163,6 @@ def publish_wikipedia_page_to_notion(
         parent_page_id=parent_page_id,
     )
 
-import os
-
 
 def main() -> None:
     """
@@ -183,9 +180,10 @@ def main() -> None:
     print("Press ENTER with empty input to quit.\n")
 
     # 2) On permet de changer de parent une fois au début
-    parent_id = input(
-        f"Parent Notion page id [default: {parent_default}]: "
-    ).strip() or parent_default
+    parent_id = (
+        input(f"Parent Notion page id [default: {parent_default}]: ").strip()
+        or parent_default
+    )
 
     if not parent_id:
         print("No parent id provided, aborting.")
