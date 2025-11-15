@@ -2,6 +2,7 @@
 
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse, RedirectResponse
+from datetime import datetime, UTC
 
 from hanuman.core.config import settings
 from hanuman.models.ping import PingResult
@@ -46,7 +47,14 @@ def calendar_callback(request: Request) -> JSONResponse:
         return JSONResponse({"ok": False, "error": "Échec de l’échange de code"})
 
 
-@router.get("/calendar/ping", response_model=PingResult)
+
+@router.get("/calendar/ping")
 @trace_endpoint("calendar", catch=True)
-def calendar_ping(request: Request) -> PingResult:
-    return PingResult(ok=True, source="calendar")
+def calendar_ping(request: Request) -> dict:
+    return {
+        "ok": True,
+        "source": "calendar",
+        "status": 200,
+        "timestamp": datetime.now(UTC).isoformat(),
+        "detail": {"info": "Calendar integration configured"},
+    }
