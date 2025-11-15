@@ -12,3 +12,9 @@ def test_status_endpoint() -> None:
     assert response.status_code == 200
     assert response.json()["status"] == "ok"
     assert "version" in response.json()
+
+
+def test_status_ping() -> None:
+    response = client.get("/status/ping")
+    assert response.status_code == 200
+    assert response.json() == {"ok": True}
