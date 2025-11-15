@@ -18,6 +18,7 @@ from textual.widgets import DataTable, Footer, Header, Static
 # -------------------------------------------------------------------
 
 API_BASE_URL = os.getenv("HANUMAN_API_URL", "http://127.0.0.1:8000")
+PROJECT_ROOT = os.path.abspath(os.getcwd())
 
 
 @dataclass
@@ -273,17 +274,27 @@ class OrchestrationView(Container):
         orch = ORCHESTRATIONS[row_index]
         cmd = orch.command
 
-        # On affiche quand même la commande dans le TUI pour trace
+        # On affiche la commande dans le TUI pour trace
         self._logs[row_index] = cmd
-        log_box.update(f"Ouveture d'un nouveau kitty avec :\n{cmd}")
+        log_box.update(f"Ouverture d'un nouveau kitty avec :\n{cmd}")
 
         # On prépare la commande shell pour bash + read -e -i
         quoted_cmd = shlex.quote(cmd)
+        project_dir = shlex.quote(PROJECT_ROOT)
+
         shell_snippet = (
-            f"read -e -p '$ ' -i {quoted_cmd} usercmd; eval \"$usercmd\"; exec bash"
+            # 1) On va dans le dossier Hanuman
+            f"cd {project_dir} && "
+            # 2) On charge les variables depuis .env si le fichier existe
+            "if [ -f .env ]; then "
+            "  set -a; source .env; set +a; "
+            "fi; "
+            # 3) On propose la commande pré-remplie
+            f"read -e -p '$ ' -i {quoted_cmd} usercmd; "
+            # 4) On l’exécute et on laisse le shell ouvert
+            'eval "$usercmd"; exec bash'
         )
 
-        # Lance un nouveau kitty détaché
         try:
             subprocess.Popen(
                 [
