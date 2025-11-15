@@ -17,6 +17,11 @@ def _set_default_env_if_missing(key: str, value: str) -> None:
 _DEFAULT_ENV_VARS: dict[str, str] = {
     "NOTION_TOKEN": "test-notion-token",
     "NOTION_VERSION": "2025-09-03",
+    "GITHUB_TOKEN": "test-github-token",
+    "OPENAI_API_KEY": "test-openai-key",
+    "GOOGLE_CLIENT_ID": "test-google-client-id",
+    "GOOGLE_CLIENT_SECRET": "test-google-client-secret",
+    "GOOGLE_REDIRECT_URI": "https://example.com/oauth",
 }
 
 for env_key, env_value in _DEFAULT_ENV_VARS.items():

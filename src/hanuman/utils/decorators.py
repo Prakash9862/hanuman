@@ -48,11 +48,10 @@ def trace_endpoint(source: str, catch: bool = True) -> Callable[[F], F]:
                 duration = int((time() - start) * 1000)
 
                 if isinstance(result, PingResult):
-                    return PingResult(
-                        **result.model_dump(),
-                        duration_ms=duration,
-                        timestamp=datetime.now(UTC),
-                    )
+                    data = result.model_dump()
+                    data["duration_ms"] = duration
+                    data["timestamp"] = datetime.now(UTC)
+                    return PingResult(**data)
 
                 logger.info(f"✅ Exécution réussie : {source} [{duration} ms]")
                 return result
@@ -91,11 +90,10 @@ def trace_endpoint(source: str, catch: bool = True) -> Callable[[F], F]:
                 duration = int((time() - start) * 1000)
 
                 if isinstance(result, PingResult):
-                    return PingResult(
-                        **result.model_dump(),
-                        duration_ms=duration,
-                        timestamp=datetime.now(UTC),
-                    )
+                    data = result.model_dump()
+                    data["duration_ms"] = duration
+                    data["timestamp"] = datetime.now(UTC)
+                    return PingResult(**data)
 
                 logger.info(f"✅ Exécution réussie : {source} [{duration} ms]")
                 return result
