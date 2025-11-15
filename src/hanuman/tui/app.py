@@ -5,6 +5,7 @@ import os
 import shlex
 import subprocess
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any, Dict, List
 
 import httpx
@@ -18,7 +19,12 @@ from textual.widgets import DataTable, Footer, Header, Static
 # -------------------------------------------------------------------
 
 API_BASE_URL = os.getenv("HANUMAN_API_URL", "http://127.0.0.1:8000")
-PROJECT_ROOT = os.path.abspath(os.getcwd())
+
+# Racine du projet Hanuman (…/local/hanuman)
+PROJECT_ROOT = Path(__file__).resolve().parents[3]
+
+# Dossier des orchestrations Python
+ORCHESTRATIONS_DIR = PROJECT_ROOT / "src" / "hanuman" / "orchestrations"
 
 
 @dataclass
@@ -39,6 +45,37 @@ class OrchestrationSpec:
     command: str  # commande shell suggérée pour la lancer
 
 
+def discover_orchestrations() -> list[OrchestrationSpec]:
+    """Scanne le dossier des orchestrations et crée une spec pour chaque .py trouvé."""
+    specs: list[OrchestrationSpec] = []
+
+    if not ORCHESTRATIONS_DIR.exists():
+        return specs
+
+    for path in sorted(ORCHESTRATIONS_DIR.iterdir()):
+        if not path.is_file():
+            continue
+        if not path.name.endswith(".py"):
+            continue
+        if path.name == "__init__.py":
+            continue
+        if path.name.startswith("_"):
+            continue
+
+        module_name = path.stem  # ex: "chess_to_obsidian"
+        label = module_name  # simple et explicite
+        slug = module_name
+        command = f"poetry run python -m hanuman.orchestrations.{module_name}"
+
+        specs.append(OrchestrationSpec(label=label, slug=slug, command=command))
+
+    return specs
+
+
+# Liste globale des orchestrations détectées au démarrage du TUI
+ORCHESTRATIONS: list[OrchestrationSpec] = discover_orchestrations()
+
+
 SERVICES: List[ServicePing] = [
     ServicePing("status", "/status/ping", expects_ok=False),
     ServicePing("calendar", "/calendar/ping"),
@@ -51,28 +88,7 @@ SERVICES: List[ServicePing] = [
 ]
 
 # NOTE : adapte les paths si tes routes réelles sont différentes.
-ORCHESTRATIONS: List[OrchestrationSpec] = [
-    OrchestrationSpec(
-        label="Github → Notion Sync",
-        slug="github_to_notion_sync",
-        command="poetry run python -m hanuman.orchestrations.github_to_notion_sync",
-    ),
-    OrchestrationSpec(
-        label="Obsidian → Notion",
-        slug="obsidian_to_notion",
-        command="poetry run python -m hanuman.orchestrations.obsidian_to_notion",
-    ),
-    OrchestrationSpec(
-        label="Chess → Obsidian (limit 500)",
-        slug="chess_to_obsidian",
-        command="poetry run python -m hanuman.orchestrations.chess_to_obsidian --limit 500",
-    ),
-]
 
-
-ORCHESTRATIONS_BY_SLUG: Dict[str, OrchestrationSpec] = {
-    o.slug: o for o in ORCHESTRATIONS
-}
 
 # -------------------------------------------------------------------
 # Widgets : Status
@@ -264,6 +280,7 @@ class OrchestrationView(Container):
         table = self.query_one(OrchestrationTable)
         log_box = self.query_one("#orch-log-box", Static)
 
+        # Pas de lignes ou pas de curseur → on ne fait rien
         if table.row_count == 0 or table.cursor_row is None:
             return
 
@@ -274,27 +291,27 @@ class OrchestrationView(Container):
         orch = ORCHESTRATIONS[row_index]
         cmd = orch.command
 
-        # On affiche la commande dans le TUI pour trace
+        # On logge la commande dans le TUI
         self._logs[row_index] = cmd
         log_box.update(f"Ouverture d'un nouveau kitty avec :\n{cmd}")
 
-        # On prépare la commande shell pour bash + read -e -i
+        # On prépare la commande shell :
+        # 1) cd vers la racine du projet
+        # 2) charger .env si présent
+        # 3) proposer la commande avec read -e -i
         quoted_cmd = shlex.quote(cmd)
-        project_dir = shlex.quote(PROJECT_ROOT)
+        project_dir = shlex.quote(str(PROJECT_ROOT))
 
         shell_snippet = (
-            # 1) On va dans le dossier Hanuman
             f"cd {project_dir} && "
-            # 2) On charge les variables depuis .env si le fichier existe
             "if [ -f .env ]; then "
             "  set -a; source .env; set +a; "
             "fi; "
-            # 3) On propose la commande pré-remplie
             f"read -e -p '$ ' -i {quoted_cmd} usercmd; "
-            # 4) On l’exécute et on laisse le shell ouvert
             'eval "$usercmd"; exec bash'
         )
 
+        # Lance un nouveau kitty détaché
         try:
             subprocess.Popen(
                 [
@@ -306,7 +323,6 @@ class OrchestrationView(Container):
                 ]
             )
         except FileNotFoundError:
-            # kitty pas trouvé : on le signale dans le TUI
             log_box.update(
                 "Erreur : impossible de lancer 'kitty'.\n"
                 "Vérifie que kitty est installé et accessible dans le PATH."
