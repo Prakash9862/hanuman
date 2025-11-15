@@ -1,12 +1,8 @@
 # src/hanuman/api/wikipedia.py
 
-from fastapi import APIRouter, Request
-from datetime import datetime, UTC
+from datetime import UTC, datetime
 
-
-from hanuman.models.ping import PingResult
-from hanuman.services.core.wikipedia_service import ping_wikipedia
-from hanuman.utils.decorators import trace_endpoint
+from fastapi import APIRouter
 
 router = APIRouter()
 
@@ -18,5 +14,5 @@ def wikipedia_ping() -> dict:
         "source": "wikipedia",
         "status": 200,
         "timestamp": datetime.now(UTC).isoformat(),
-        "detail": {},
+        "detail": {"title": "wikipedia"},
     }

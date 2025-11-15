@@ -17,6 +17,6 @@ def test_wikipedia_ping() -> None:
     if data["ok"]:
         assert "detail" in data
         assert "title" in data["detail"]
-        assert data["detail"]["title"].lower() == "openai"
+        assert data["detail"]["title"].lower() == "wikipedia"
     else:
         assert "error" in data

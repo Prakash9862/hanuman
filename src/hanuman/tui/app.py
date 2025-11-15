@@ -10,7 +10,7 @@ import httpx
 from textual.app import App, ComposeResult
 from textual.containers import Container
 from textual.reactive import reactive
-from textual.widgets import DataTable, Header, Footer, Static
+from textual.widgets import DataTable, Footer, Header, Static
 
 # -------------------------------------------------------------------
 # Configuration
@@ -21,10 +21,16 @@ API_BASE_URL = os.getenv("HANUMAN_API_URL", "http://127.0.0.1:8000")
 
 @dataclass
 class ServicePing:
-    name: str       # nom logique du service (status, github, notion, ...)
-    path: str       # chemin relatif pour le ping
+    name: str  # nom logique du service (status, github, notion, ...)
+    path: str  # chemin relatif pour le ping
     expects_ok: bool = True  # True si on s'attend à un champ "ok" dans la réponse JSON
 
+
+ORCHESTRATIONS = [
+    ("Github → Notion Sync", "github_to_notion_sync"),
+    ("Obsidian → Notion", "obsidian_to_notion"),
+    ("Chess → Obsidian", "chess_to_obsidian"),
+]
 
 SERVICES: List[ServicePing] = [
     ServicePing("status", "/status/ping", expects_ok=False),
@@ -84,7 +90,8 @@ class StatusView(Container):
         self._details.clear()
         detail_box.update("")
 
-        rows: List[tuple[str, str, str, str]] = []  # (key, name, ok_symbol, summary, detail_json)
+        # (key, name, ok_symbol, summary, detail_json)
+        rows: List[tuple[str, str, str, str, str]] = []
 
         async with httpx.AsyncClient(base_url=API_BASE_URL, timeout=5.0) as client:
             for svc in SERVICES:
@@ -122,15 +129,17 @@ class StatusView(Container):
                         elif "detail" in data and isinstance(data["detail"], dict):
                             # exemple: notion -> detail["user"]["object"]
                             detail_obj = data["detail"]
-                            maybe = detail_obj.get("object") or detail_obj.get("name") or ""
+                            maybe = (
+                                detail_obj.get("object") or detail_obj.get("name") or ""
+                            )
                             summary = str(maybe)
                         else:
                             summary = "OK"
 
                         # détail JSON pretty
-                        detail_json = json.dumps(
-                            data, indent=2, ensure_ascii=False
-                        )[:4000]
+                        detail_json = json.dumps(data, indent=2, ensure_ascii=False)[
+                            :4000
+                        ]
                     else:
                         ok_symbol = "❌"
                         summary = f"HTTP {resp.status_code}"

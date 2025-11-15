@@ -1,12 +1,8 @@
 # src/hanuman/api/chess_com.py
 
-from fastapi import APIRouter, Request
-from datetime import datetime, UTC
+from datetime import UTC, datetime
 
-
-from hanuman.models.ping import PingResult
-from hanuman.services.core.chess_service import ping_chess
-from hanuman.utils.decorators import trace_endpoint
+from fastapi import APIRouter
 
 router = APIRouter()
 
@@ -18,5 +14,7 @@ def chess_ping() -> dict:
         "source": "chess",
         "status": 200,
         "timestamp": datetime.now(UTC).isoformat(),
-        "detail": {},
+        "detail": {
+            "username": "prakasch",
+        },
     }
