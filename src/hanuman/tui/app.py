@@ -2,10 +2,11 @@ from __future__ import annotations
 
 import json
 import os
-from dataclasses import dataclass
-from typing import Any, Dict, List
 import shlex
 import subprocess
+from dataclasses import dataclass
+from typing import Any, Dict, List
+
 import httpx
 from textual.app import App, ComposeResult
 from textual.containers import Container
@@ -32,10 +33,9 @@ class ServicePing:
 class OrchestrationSpec:
     """Description d'une orchestration disponible dans Hanuman."""
 
-    label: str    # libellé affiché dans le TUI
-    slug: str     # identifiant interne
+    label: str  # libellé affiché dans le TUI
+    slug: str  # identifiant interne
     command: str  # commande shell suggérée pour la lancer
-
 
 
 SERVICES: List[ServicePing] = [
@@ -67,7 +67,6 @@ ORCHESTRATIONS: List[OrchestrationSpec] = [
         command="poetry run python -m hanuman.orchestrations.chess_to_obsidian --limit 500",
     ),
 ]
-
 
 
 ORCHESTRATIONS_BY_SLUG: Dict[str, OrchestrationSpec] = {
@@ -194,7 +193,6 @@ class StatusView(Container):
         help_box.update(f"API base URL: {API_BASE_URL}")
         self.loading = False
 
-
     def on_data_table_row_highlighted(self, event: DataTable.RowHighlighted) -> None:
         """Quand on change de ligne, on affiche le détail en bas."""
         key = str(event.row_key)
@@ -282,9 +280,7 @@ class OrchestrationView(Container):
         # On prépare la commande shell pour bash + read -e -i
         quoted_cmd = shlex.quote(cmd)
         shell_snippet = (
-            f"read -e -p '$ ' -i {quoted_cmd} usercmd; "
-            "eval \"$usercmd\"; "
-            "exec bash"
+            f"read -e -p '$ ' -i {quoted_cmd} usercmd; eval \"$usercmd\"; exec bash"
         )
 
         # Lance un nouveau kitty détaché
@@ -305,22 +301,21 @@ class OrchestrationView(Container):
                 "Vérifie que kitty est installé et accessible dans le PATH."
             )
 
-
     def on_data_table_row_highlighted(self, event: DataTable.RowHighlighted) -> None:
         """Quand on change de ligne, on affiche le dernier log en bas."""
-        try:
-            idx = int(event.row_key)
-        except Exception:
+        table = self.query_one(OrchestrationTable)
+        row_index = table.cursor_row
+        if row_index is None:
             return
-        detail = self._logs.get(idx, "")
+        detail = self._logs.get(row_index, "")
         log_box = self.query_one("#orch-log-box", Static)
         log_box.update(detail)
-
 
 
 # -------------------------------------------------------------------
 # Application principale
 # -------------------------------------------------------------------
+
 
 class HanumanTUI(App):
     """Cockpit TUI Hanuman : Status + Orchestrations."""
@@ -391,7 +386,7 @@ class HanumanTUI(App):
 
     # --- Navigation entre vues -------------------------------------------------
 
-    def watch_active_view(self, active_view: str) -> None:  # type: ignore[override]
+    def watch_active_view(self, active_view: str) -> None:
         """Réagit au changement de vue active."""
         self._update_views_and_tabs()
 
@@ -420,7 +415,6 @@ class HanumanTUI(App):
         tab_text = self._tab_bar_text()
         status_tab.update(tab_text)
         orch_tab.update(tab_text)
-
 
     def _tab_bar_text(self) -> str:
         """Construit le texte de la barre d'onglets."""
