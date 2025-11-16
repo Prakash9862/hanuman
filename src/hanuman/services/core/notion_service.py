@@ -12,7 +12,7 @@ from hanuman.config.env import (
     NOTION_VERSION,
 )
 
-API_BASE_URL = "https://api.notion.com/"
+API_BASE_URL = "https://api.notion.com"
 
 
 # ---------------------------------------------------------------------------
@@ -68,8 +68,10 @@ class NotionService:
         self._notion_version = (
             notion_version or NOTION_VERSION or ""
         ).strip() or "2025-09-03"
+        # Cache local: database_id -> data_source_id (pour l'API 2025-09-03)
+        self._data_source_cache: Dict[str, str] = {}
 
-    # ----------------- internes ----------------- #
+        # ----------------- internes ----------------- #
 
     def _headers(self) -> Dict[str, str]:
         return {
@@ -87,7 +89,7 @@ class NotionService:
         - `path` ne doit **pas** contenir /v1 au début.
         """
         cleaned = path.lstrip("/")  # "databases/xxx/query"
-        return f"{API_BASE_URL}/v1/{cleaned}"
+        return f"{self._api_base_url}/v1/{cleaned}"
 
     def _request(
         self,
@@ -123,6 +125,61 @@ class NotionService:
             raise NotionApiError(f"Erreur Notion {resp.status_code}: {resp.text}")
 
         return cast(Dict[str, Any], resp.json())
+
+        # ----------------- helpers internes data_sources (API 2025-09-03) ----------------- #
+
+    def _is_datasource_api(self) -> bool:
+        """Retourne True si on utilise une version de l'API basée sur les data sources."""
+        return self._notion_version.startswith("2025-")
+
+    def _get_data_source_id_for_database(self, db_id: str) -> str:
+        """
+        Pour l'API 2025-09-03 :
+        - On part d'un database_id
+        - On récupère la liste des data_sources associées
+        - On prend la première par défaut (cas classique: une seule)
+        """
+        db_id = db_id.strip()
+        if not db_id:
+            raise NotionApiError(
+                "database_id vide dans _get_data_source_id_for_database()."
+            )
+
+        # cache pour éviter un GET à chaque query
+        if db_id in self._data_source_cache:
+            return self._data_source_cache[db_id]
+
+        data = self._request("GET", f"databases/{db_id}")
+
+        data_sources = data.get("data_sources") or []
+        if not data_sources:
+            raise NotionApiError(
+                f"Aucune data_source trouvée pour la database {db_id} "
+                "(vérifie que tu utilises bien l'API 2025-09-03 et que la database a au moins une data source)."
+            )
+
+        first = data_sources[0]
+        raw_id = first.get("id", "")
+        ds_id = str(raw_id).strip()
+        if not ds_id:
+            raise NotionApiError(
+                f"Réponse Notion inattendue: data_source sans 'id' pour la database {db_id}."
+            )
+
+        self._data_source_cache[db_id] = ds_id
+        return ds_id
+
+    def _query_path_for_database(self, db_id: str) -> str:
+        """
+        Construit le path à utiliser pour une query selon la version de l'API :
+        - ≤ 2022-06-28 : /v1/databases/{db_id}/query
+        - 2025-09-03 :   /v1/data_sources/{data_source_id}/query
+        """
+        if self._is_datasource_api():
+            ds_id = self._get_data_source_id_for_database(db_id)
+            return f"data_sources/{ds_id}/query"
+
+        return f"databases/{db_id}/query"
 
     # ----------------- API publique : pages ----------------- #
 
@@ -222,10 +279,12 @@ class NotionService:
             if next_cursor is not None:
                 payload["start_cursor"] = next_cursor
 
-            # 🔴 C'est CETTE URL qui doit être parfaite
+            # Choix du bon endpoint selon la version (databases vs data_sources)
+            path = self._query_path_for_database(db_id)
+
             data = self._request(
                 "POST",
-                f"databases/{db_id}/query",
+                path,
                 payload=payload,
             )
 
