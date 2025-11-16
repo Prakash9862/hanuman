@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 from __future__ import annotations
 
-import json
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, cast
 
@@ -13,7 +12,7 @@ from hanuman.config.env import (
     NOTION_VERSION,
 )
 
-API_BASE_URL = "https://api.notion.com/v1"
+API_BASE_URL = "https://api.notion.com/"
 
 
 # ---------------------------------------------------------------------------
@@ -80,7 +79,15 @@ class NotionService:
         }
 
     def _url(self, path: str) -> str:
-        return f"{self._api_base_url}/{path.lstrip('/')}"
+        """
+        Construit l'URL complète pour l'API Notion.
+
+        - API_BASE_URL = "https://api.notion.com"
+        - Tous les endpoints passent par /v1/...
+        - `path` ne doit **pas** contenir /v1 au début.
+        """
+        cleaned = path.lstrip("/")  # "databases/xxx/query"
+        return f"{API_BASE_URL}/v1/{cleaned}"
 
     def _request(
         self,
@@ -90,17 +97,20 @@ class NotionService:
         payload: Optional[Dict[str, Any]] = None,
         timeout: float = 30.0,
     ) -> Dict[str, Any]:
-        """Enveloppe bas niveau autour de requests."""
-        data: Optional[str] = None
-        if payload is not None:
-            data = json.dumps(payload)
+        """
+        Enveloppe bas niveau autour de requests.
+
+        - `path` est un chemin relatif sans /v1 (ex: "databases/{id}/query").
+        - L'URL finale sera : https://api.notion.com/v1/<path>.
+        """
+        url = self._url(path)
 
         try:
             resp = requests.request(
                 method=method,
-                url=self._url(path),
+                url=url,
                 headers=self._headers(),
-                data=data,
+                json=payload if payload is not None else None,
                 timeout=timeout,
             )
         except requests.RequestException as exc:
@@ -137,7 +147,7 @@ class NotionService:
         if blocks:
             payload["children"] = blocks[:95]
 
-        data = self._request("POST", "/pages", payload=payload)
+        data = self._request("POST", "pages", payload=payload)
         page_id = data.get("id", "")
         url = data.get("url", "")
 
@@ -162,7 +172,7 @@ class NotionService:
         if children:
             payload["children"] = children[:95]
 
-        data = self._request("POST", "/pages", payload=payload)
+        data = self._request("POST", "pages", payload=payload)
         page_id = data.get("id", "")
         url = data.get("url", "")
 
@@ -185,7 +195,7 @@ class NotionService:
 
         return self._request(
             "PATCH",
-            f"/blocks/{page_id}/children",
+            f"blocks/{page_id}/children",
             payload=payload,
         )
 
@@ -215,7 +225,7 @@ class NotionService:
             # 🔴 C'est CETTE URL qui doit être parfaite
             data = self._request(
                 "POST",
-                f"/databases/{db_id}/query",
+                f"databases/{db_id}/query",
                 payload=payload,
             )
 
@@ -238,14 +248,14 @@ class NotionService:
             raise ValueError("page_id manquant pour update_page_properties().")
 
         payload = {"properties": properties}
-        return self._request("PATCH", f"/pages/{page_id}", payload=payload)
+        return self._request("PATCH", f"pages/{page_id}", payload=payload)
 
     def retrieve_page(self, page_id: str) -> Dict[str, Any]:
         """Récupère les métadonnées d'une page Notion."""
         if not page_id.strip():
             raise ValueError("page_id manquant pour retrieve_page().")
 
-        return self._request("GET", f"/pages/{page_id}")
+        return self._request("GET", f"pages/{page_id}")
 
     def search(
         self,
@@ -257,7 +267,7 @@ class NotionService:
             "query": query,
             "page_size": min(limit, 100),
         }
-        return self._request("POST", "/search", payload=payload)
+        return self._request("POST", "search", payload=payload)
 
 
 # ---------------------------------------------------------------------------

@@ -55,16 +55,6 @@ def test_ping_openai_returns_model_count(monkeypatch: pytest.MonkeyPatch) -> Non
 
 
 def test_ping_openai_handles_unauthorized(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(openai_service.httpx, "get", fake_get)
-
-    result = openai_service.ping_openai()
-
-    assert result.ok is True
-    assert result.source == "openai"
-    assert result.detail == {"model_count": 4}
-
-
-def test_ping_openai_handles_unauthorized(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
         openai_service.settings, "openai_api_key", SecretStr("unit-test-token")
     )
