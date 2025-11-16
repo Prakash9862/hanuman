@@ -17,6 +17,7 @@ from hanuman.api.routers import chess_to_obsidian as chess_to_obsidian_router
 from hanuman.api.routers.orchestrations import router as orchestrations_router
 from hanuman.core.logging import configure_logging, get_logger
 from hanuman.core.middleware import log_requests
+from hanuman.api.routers import dashboard
 
 # ---- config runtime
 load_dotenv(dotenv_path=".env", override=True)
@@ -49,7 +50,8 @@ for r in (
     chess_router,
     log_router,
     orchestrations_router,
-    chess_to_obsidian_router.router,  # ⬅️ ICI ON L’AJOUTE
+    chess_to_obsidian_router.router,
+    dashboard.router,
 ):
     app.include_router(r)
 
