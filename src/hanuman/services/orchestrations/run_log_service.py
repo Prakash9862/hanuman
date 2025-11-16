@@ -2,16 +2,15 @@ from __future__ import annotations
 
 import json
 from contextlib import contextmanager
-from dataclasses import dataclass, asdict
+from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, Generator, List, Optional
 
-
 # Chemins de base
 THIS_FILE = Path(__file__).resolve()
-HANUMAN_DIR = THIS_FILE.parents[2]            # .../src/hanuman
-PROJECT_ROOT = HANUMAN_DIR.parents[1]         # .../
+HANUMAN_DIR = THIS_FILE.parents[2]  # .../src/hanuman
+PROJECT_ROOT = HANUMAN_DIR.parents[1]  # .../
 ORCHESTRATIONS_DIR = HANUMAN_DIR / "orchestrations"
 
 LOG_PATH = PROJECT_ROOT / "data" / "orchestrations_runs.jsonl"
@@ -132,17 +131,16 @@ def make_summary(limit_per_orchestration: int = 5) -> Dict[str, Any]:
       "orchestrations": [
         {
           "name": "github_to_notion",
-          "runs": [ RunLogEntry... ]
+          "runs": [ { ...RunLogEntry... }, ... ]
         },
         ...
       ]
     }
     """
-    # logs triés récents → anciens
     entries = read_logs()
     entries.sort(key=lambda e: e.started_at, reverse=True)
 
-    # regroupement par orchestrations
+    # Regroupement par orchestration
     buckets: Dict[str, List[RunLogEntry]] = {}
     for entry in entries:
         bucket = buckets.setdefault(entry.orchestration, [])
@@ -150,19 +148,28 @@ def make_summary(limit_per_orchestration: int = 5) -> Dict[str, Any]:
             continue
         bucket.append(entry)
 
-    # on part des orchestrations détectées sur disque
     known = list_orchestrations()
-    payload: List[Dict[str, Any]] = []
+    orchestrations: List[Dict[str, Any]] = []
 
+    # D’abord les orchestrations détectées sur disque
     for name in known:
-        runs = [asdict(e) for e in buckets.get(name, [])]
-        payload.append({"name": name, "runs": runs})
+        run_entries = buckets.get(name, [])
+        orchestrations.append(
+            {
+                "name": name,
+                "runs": [asdict(e) for e in run_entries],
+            }
+        )
 
-    # Au cas où des logs existent pour une orchestration qui n'a plus de fichier
-    for name, runs in buckets.items():
-        if name not in known:
-            payload.append(
-                {"name": name, "runs": [asdict(e) for e in runs]}
-            )
+    # Puis celles qui ont des logs mais plus de fichier (au cas où)
+    for name, run_entries in buckets.items():
+        if name in known:
+            continue
+        orchestrations.append(
+            {
+                "name": name,
+                "runs": [asdict(e) for e in run_entries],
+            }
+        )
 
-    return {"orchestrations": payload}
+    return {"orchestrations": orchestrations}

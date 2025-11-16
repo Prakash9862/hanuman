@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Any, Dict, cast
+
 from fastapi import APIRouter
 from fastapi.responses import HTMLResponse
 
@@ -9,11 +11,13 @@ router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 
 
 @router.get("/summary")
-def get_dashboard_summary() -> dict:
+def get_dashboard_summary() -> Dict[str, Any]:
     """
     Résumé des orchestrations + leurs derniers runs.
     """
-    return make_summary()
+    data = make_summary()
+    return cast(Dict[str, Any], data)
+
 
 @router.get("", response_class=HTMLResponse)
 def dashboard_page() -> str:
