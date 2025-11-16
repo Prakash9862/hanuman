@@ -1,13 +1,22 @@
 from __future__ import annotations
 
+import subprocess
+import sys
+from pathlib import Path
 from typing import Any, Dict, cast
 
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 from fastapi.responses import HTMLResponse
 
-from hanuman.services.orchestrations.run_log_service import make_summary
+from hanuman.services.orchestrations.run_log_service import (
+    list_orchestrations,
+    make_summary,
+)
 
 router = APIRouter(prefix="/dashboard", tags=["dashboard"])
+
+# Racine du projet (dossier où se trouve pyproject.toml / Makefile)
+PROJECT_ROOT = Path(__file__).resolve().parents[5]
 
 
 @router.get("/summary")
@@ -17,6 +26,37 @@ def get_dashboard_summary() -> Dict[str, Any]:
     """
     data = make_summary()
     return cast(Dict[str, Any], data)
+
+
+@router.post("/run/{orchestration_name}")
+def run_orchestration(orchestration_name: str) -> Dict[str, Any]:
+    """
+    Lance une orchestration en arrière-plan via subprocess.
+
+    - Vérifie que l'orchestration existe (scan du dossier orchestrations)
+    - Lance: python -m hanuman.orchestrations.<name> depuis la racine du projet
+    - Ne bloque pas l'API (subprocess.Popen)
+    """
+    available = list_orchestrations()
+    if orchestration_name not in available:
+        raise HTTPException(
+            status_code=404, detail=f"Orchestration inconnue: {orchestration_name}"
+        )
+
+    cmd = [
+        sys.executable,
+        "-m",
+        f"hanuman.orchestrations.{orchestration_name}",
+    ]
+
+    # Lancement en arrière-plan depuis la racine du projet
+    subprocess.Popen(cmd, cwd=str(PROJECT_ROOT))
+
+    return {
+        "status": "started",
+        "orchestration": orchestration_name,
+        "command": cmd,
+    }
 
 
 @router.get("", response_class=HTMLResponse)
@@ -66,6 +106,37 @@ async function fetchJSON(url) {
   const resp = await fetch(url);
   if (!resp.ok) throw new Error("HTTP " + resp.status);
   return await resp.json();
+}
+async function runOrchestration(name) {
+  const statusEl = document.getElementById(`run-status-${name}`);
+  if (statusEl) {
+    statusEl.textContent = "Lancement...";
+  }
+
+  try {
+    const resp = await fetch(`/dashboard/run/${encodeURIComponent(name)}`, {
+      method: "POST"
+    });
+
+    if (!resp.ok) {
+      if (statusEl) {
+        statusEl.textContent = `Erreur (${resp.status})`;
+      }
+      return;
+    }
+
+    if (statusEl) {
+      statusEl.textContent = "Lancé ✔";
+    }
+
+    // On rafraîchit pour mettre à jour les résultats
+    refreshAll();
+  } catch (err) {
+    console.error(err);
+    if (statusEl) {
+      statusEl.textContent = "Erreur réseau";
+    }
+  }
 }
 
 function renderServicesStatus(data) {
@@ -128,6 +199,12 @@ function renderOrchestrations(data) {
     return `
       <div class="card">
         <h2>${name} <span class="tag ${statusCls}">${statusLabel}</span></h2>
+
+        <div class="small" style="margin-bottom: .4rem;">
+          <button onclick="runOrchestration('${name}')">Run</button>
+          <span id="run-status-${name}" style="margin-left: .5rem;"></span>
+        </div>
+
         ${runs.length === 0
           ? '<p class="small">Jamais lancée (aucun log pour l’instant).</p>'
           : `<table>
