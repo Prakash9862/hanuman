@@ -1,10 +1,9 @@
 from __future__ import annotations
 
-import html
 import re
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
-from urllib.parse import urlparse
+from urllib.parse import quote, urlparse
 
 import httpx
 
@@ -71,40 +70,46 @@ class WikipediaPage:
     url: str
 
 
-def _strip_html(text: str) -> str:
-    """Supprime les balises HTML de Wikipedia et normalise les espaces.
+@dataclass
+class WikipediaSearchResult:
+    """Résultat de recherche Wikipedia simplifié."""
 
-    - enlève les <script> et <style> *avec* leur contenu (JSON, CSS, etc.)
-    - enlève toutes les autres balises
-    - normalise les espaces
+    title: str
+    description: str
+    url: str
+
+
+def _strip_html(text: str) -> str:
     """
+    Supprime TOUT le HTML et extensions MediaWiki.
+    """
+    import re
+    from html import unescape
 
     if not text:
         return ""
 
-    # 1) Supprimer complètement les scripts / styles (souvent du JSON ou du CSS)
-    text = re.sub(
-        r"<(script|style)[^>]*>.*?</\1>",
-        " ",
-        text,
-        flags=re.IGNORECASE | re.DOTALL,
-    )
+    # Supprimer balises complexes MediaWiki (maplink, ref, table wiki)
+    text = re.sub(r"<maplink[\s\S]*?</maplink>", "", text, flags=re.IGNORECASE)
+    text = re.sub(r"<ref[\s\S]*?</ref>", "", text, flags=re.IGNORECASE)
+    text = re.sub(r"<ref[^/>]*/>", "", text, flags=re.IGNORECASE)
+    text = re.sub(r"{\|[\s\S]*?\|}", "", text, flags=re.MULTILINE)  # tables wiki
 
-    # 2) Remplacer certains <br>, </p>, </div> par des sauts de ligne
-    text = re.sub(r"<\s*br\s*/?>", "\n", text, flags=re.IGNORECASE)
-    text = re.sub(r"</(p|div)>", "\n", text, flags=re.IGNORECASE)
+    # Supprimer TOUTES les balises HTML
+    text = re.sub(r"</?[^>]+>", "", text)
 
-    # 3) Supprimer toutes les balises restantes
-    text = re.sub(r"<[^>]+>", "", text)
+    # Échapper les entités HTML résiduelles (&nbsp; etc.)
+    text = unescape(text)
 
-    # 4) Unescape HTML (&nbsp; etc.)
-    text = html.unescape(text)
-    text = text.replace("\xa0", " ")
+    # Nettoyage des codes MediaWiki ({{...}}, [[...]], etc.)
+    text = re.sub(r"\{\{[^}]+\}\}", "", text)  # templates
+    text = re.sub(r"\[\[[^\]]+\|([^\]]+)\]\]", r"\1", text)  # [[lien|texte]]
+    text = re.sub(r"\[\[([^\]]+)\]\]", r"\1", text)  # [[lien]]
+    text = re.sub(r"\[https?:\/\/[^\s]+\s([^\]]+)\]", r"\1", text)  # [url texte]
+    text = re.sub(r"\[https?:\/\/[^\]]+\]", "", text)  # [url]
 
-    # 5) Nettoyage des espaces
-    text = re.sub(r"[ \t\r\f\v]+", " ", text)
-    text = re.sub(r"\s*\n\s*", "\n", text)
-    text = re.sub(r"\n{3,}", "\n\n", text)
+    # Suppression espaces multiples
+    text = re.sub(r"\s+", " ", text)
 
     return text.strip()
 
@@ -240,7 +245,8 @@ def _split_sections_from_html(html_text: str) -> List[WikipediaSection]:
         body_html = html_text[start:end]
 
         title = _strip_html(heading_html)
-        content = _strip_html(body_html)
+        cleaned = _strip_html(body_html)
+        content = clean_wikipedia_text(cleaned)
 
         if title or content:
             sections.append(WikipediaSection(title=title, content=content))
@@ -412,7 +418,8 @@ class WikipediaService:
 
         # Résumé très complet (intro entière)
         long_summary = _build_long_summary(html_text)
-        summary = long_summary or str(summary_data.get("extract") or "").strip()
+        raw_summary = long_summary or str(summary_data.get("extract") or "").strip()
+        summary = clean_wikipedia_text(raw_summary)
 
         # Sections structurées
         sections = _split_sections_from_html(html_text)
@@ -429,3 +436,94 @@ class WikipediaService:
             images=images,
             url=url,
         )
+
+    def search_pages(
+        self, query: str, *, limit: int = 5
+    ) -> List[WikipediaSearchResult]:
+        """
+        Recherche des pages Wikipedia pertinentes pour une requête donnée.
+
+        Retourne une liste de WikipediaSearchResult (titre, description, url).
+        """
+        q = (query or "").strip()
+        if not q:
+            raise ValueError("query ne peut pas être vide pour search_pages().")
+
+        # Endpoint REST de recherche de titres
+        path = f"search/title?q={quote(q)}&limit={limit}"
+        data = self._get(path)
+
+        pages = data.get("pages") or []
+        results: List[WikipediaSearchResult] = []
+
+        for item in pages[:limit]:
+            if not isinstance(item, dict):
+                continue
+
+            title = str(item.get("title") or "").strip()
+            if not title:
+                continue
+
+            description = str(
+                item.get("description") or item.get("extract") or ""
+            ).strip()
+
+            url = (
+                item.get("content_urls", {})
+                .get("desktop", {})
+                .get("page", f"https://fr.wikipedia.org/wiki/{_extract_title(title)}")
+            )
+
+            results.append(
+                WikipediaSearchResult(
+                    title=title,
+                    description=description,
+                    url=url,
+                )
+            )
+
+        return results
+
+
+def clean_wikipedia_text(text: str) -> str:
+    """
+    Prend du texte Wikipédia (HTML / wikitexte / Parsoid),
+    retire le bruit technique et renvoie un paragraphe lisible pour Notion.
+    """
+    if not text:
+        return ""
+
+    # 1) Base : on enlève HTML + wikitexte "classique"
+    cleaned = _strip_html(text)
+
+    # 2) On vire les fragments JSON / Parsoid qui traînent parfois dans le flux
+    #    du style  "html":"<div ...>", data-mw=..., etc.
+    cleaned = re.sub(r'"html"\s*:\s*".*?"', "", cleaned)
+    cleaned = re.sub(r'"data-mw"\s*:\s*\{.*?\}', "", cleaned)
+    cleaned = re.sub(r"data-mw='.*?'", "", cleaned)
+
+    # 3) Tokens purement techniques (mw-*, noviewer, ids internes...)
+    tokens: list[str] = []
+    for token in cleaned.split():
+        lower = token.lower()
+        if "mw-" in lower or "noviewer" in lower:
+            continue
+        if lower.startswith('id="mw') or lower.startswith('id=\\"mw'):
+            continue
+        tokens.append(token)
+    cleaned = " ".join(tokens)
+
+    # 4) Ponctuation et références résiduelles
+    cleaned = cleaned.replace(" ,", ",")
+    cleaned = cleaned.replace(" .", ".")
+    cleaned = cleaned.replace(" ;", ";")
+    cleaned = cleaned.replace(" :", ":")
+    cleaned = cleaned.replace("( ", "(").replace(" )", ")")
+
+    # Numéros de notes [1], [12], [a]...
+    cleaned = re.sub(r"\[[^\]]+\]", "", cleaned)
+
+    # Espaces multiples
+    cleaned = re.sub(r"\s{2,}", " ", cleaned)
+
+    return cleaned.strip()
