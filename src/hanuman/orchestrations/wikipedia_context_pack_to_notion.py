@@ -123,6 +123,14 @@ def main(argv: Sequence[str] | None = None) -> None:
     parser = build_parser()
     args = parser.parse_args(list(argv) if argv is not None else None)
 
+    topic = args.topic
+    if not topic:
+        # Mode interactif si aucun --topic fourni
+        topic = input("Sujet Wikipedia (ENTER pour quitter) : ").strip()
+        if not topic:
+            print("Aucun sujet fourni, arrêt.")
+            return
+
     parent = (
         args.parent_page_id
         or os.getenv("NOTION_WIKIPEDIA_PARENT_ID")
@@ -130,7 +138,7 @@ def main(argv: Sequence[str] | None = None) -> None:
     )
 
     ref = publish_wikipedia_context_pack(
-        topic=args.topic,
+        topic=topic,
         max_pages=args.max_pages,
         parent_page_id=parent,
     )

@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import os
 from dataclasses import dataclass
+from datetime import date, timedelta
 from typing import Any, Dict, Iterable, List, Mapping, Sequence
 
 from hanuman.services.core.notion_service import NotionPageRef, NotionService
@@ -136,8 +137,20 @@ def _load_games_from_notion(
     opening_fields: Sequence[str],
     eco_fields: Sequence[str],
     time_control_fields: Sequence[str],
+    max_games: int | None = None,
+    filter_: Dict[str, Any] | None = None,
 ) -> List[ChessGameRow]:
-    pages = notion.query_database(database_id)
+    # On essaie de passer le filtre si le service le supporte (NotionService),
+    # sinon on retombe sur l'appel simple (DummyNotionService des tests).
+    try:
+        if filter_ is not None:
+            pages = notion.query_database(database_id, filter_=filter_)
+        else:
+            pages = notion.query_database(database_id)
+    except TypeError:
+        # Compatibilité avec les implémentations plus simples (DummyNotionService)
+        pages = notion.query_database(database_id)
+
     games: List[ChessGameRow] = []
 
     for page in pages:
@@ -169,6 +182,9 @@ def _load_games_from_notion(
                 time_control=time_control,
             )
         )
+
+        if max_games is not None and len(games) >= max_games:
+            break
 
     return games
 
@@ -253,6 +269,8 @@ def publish_chess_insights_from_notion(
     parent_page_id: str | None = None,
     notion_service: NotionService | None = None,
     top_openings: int = 5,
+    max_games: int | None = None,
+    since_days: int | None = None,
     color_fields: Sequence[str] = ("POV", "Color", "Side"),
     result_fields: Sequence[str] = ("Result", "Outcome"),
     opening_fields: Sequence[str] = ("Opening", "Opening Name"),
@@ -261,13 +279,24 @@ def publish_chess_insights_from_notion(
 ) -> NotionPageRef:
     notion = notion_service or NotionService()
 
+    # Ici, la fonction est volontairement stricte :
+    # elle exige un parent explicite (les env sont gérés dans main()).
     parent = parent_page_id
 
     if not isinstance(parent, str) or not parent:
         raise ValueError("Aucun parent Notion fourni pour publier les insights.")
 
-    if not parent:
-        raise ValueError("Aucun parent Notion fourni pour publier les insights.")
+    # --- filtre "pro" sur la date des parties ---
+    filter_: Dict[str, Any] | None = None
+    if since_days is not None and since_days > 0:
+        cutoff = date.today() - timedelta(days=since_days)
+        cutoff_iso = cutoff.isoformat()
+        filter_ = {
+            "property": "Date",
+            "date": {
+                "on_or_after": cutoff_iso,
+            },
+        }
 
     games = _load_games_from_notion(
         database_id,
@@ -277,6 +306,8 @@ def publish_chess_insights_from_notion(
         opening_fields=opening_fields,
         eco_fields=eco_fields,
         time_control_fields=time_control_fields,
+        max_games=max_games,
+        filter_=filter_,
     )
 
     stats = _aggregate_stats(games)
@@ -314,7 +345,8 @@ def build_parser() -> argparse.ArgumentParser:
         description="Synthétise les parties Chess.com stockées dans une base Notion.",
     )
     parser.add_argument(
-        "--database-id", required=True, help="ID de la database Notion."
+        "--database-id",
+        help="ID de la database Notion (sinon NOTION_CHESS_DB_ID).",
     )
     parser.add_argument(
         "--parent-page-id",
@@ -326,12 +358,31 @@ def build_parser() -> argparse.ArgumentParser:
         default=5,
         help="Nombre d'ouvertures à afficher dans le top (défaut: 5).",
     )
+    parser.add_argument(
+        "--max-games",
+        type=int,
+        default=None,
+        help="Nombre max de parties à analyser (limite côté Python).",
+    )
+    parser.add_argument(
+        "--since-days",
+        type=int,
+        default=None,
+        help="Ne considérer que les parties dont la date est dans les N derniers jours.",
+    )
+
     return parser
 
 
 def main(argv: Sequence[str] | None = None) -> None:
     parser = build_parser()
     args = parser.parse_args(list(argv) if argv is not None else None)
+
+    database_id = args.database_id or os.getenv("NOTION_CHESS_DB_ID")
+    if not database_id:
+        raise SystemExit(
+            "Veuillez fournir --database-id ou définir NOTION_CHESS_DB_ID dans le .env"
+        )
 
     parent = (
         args.parent_page_id
@@ -340,9 +391,12 @@ def main(argv: Sequence[str] | None = None) -> None:
     )
 
     ref = publish_chess_insights_from_notion(
-        database_id=args.database_id,
+        database_id=database_id,
         parent_page_id=parent,
+        notion_service=None,
         top_openings=args.top_openings,
+        max_games=args.max_games,
+        since_days=args.since_days,
     )
 
     print(f"[OK] Page d'insights créée: {ref.url} (id={ref.page_id})")
