@@ -52,9 +52,17 @@ def publish_wikipedia_context_pack(
     if not isinstance(parent, str) or not parent:
         raise ValueError("Aucun parent Notion fourni (NOTION_WIKIPEDIA_PARENT_ID).")
 
-    search_results: List[WikipediaSearchResult] = wiki.search_pages(
-        topic, limit=max_pages
-    )
+    try:
+        search_results: List[WikipediaSearchResult] = wiki.search_pages(
+            topic, limit=max_pages
+        )
+    except ValueError as exc:
+        # Par exemple : "Article Wikipedia introuvable" venant du client Wikipedia
+        raise ValueError(
+            f"Aucun résultat Wikipedia pour '{topic}' "
+            f"(vérifie l'orthographe ou essaie un autre mot-clé)."
+        ) from exc
+
     if not search_results:
         raise ValueError(f"Aucun résultat Wikipedia pour '{topic}'.")
 
@@ -105,7 +113,13 @@ def build_parser() -> argparse.ArgumentParser:
         prog="hanuman.orchestrations.wikipedia_context_pack_to_notion",
         description="Importe plusieurs pages Wikipedia pertinentes dans Notion.",
     )
-    parser.add_argument("--topic", required=True, help="Sujet ou requête de recherche.")
+    parser.add_argument(
+        "--topic",
+        required=False,
+        default=None,
+        help="Sujet ou requête de recherche (sinon demandé en mode interactif).",
+    )
+
     parser.add_argument(
         "--max-pages",
         type=int,
@@ -123,27 +137,54 @@ def main(argv: Sequence[str] | None = None) -> None:
     parser = build_parser()
     args = parser.parse_args(list(argv) if argv is not None else None)
 
+    # --- Sujet ---
     topic = args.topic
-    if not topic:
-        # Mode interactif si aucun --topic fourni
-        topic = input("Sujet Wikipedia (ENTER pour quitter) : ").strip()
-        if not topic:
-            print("Aucun sujet fourni, arrêt.")
-            return
+    if topic is None:
+        # Mode interactif (quand lancé depuis le terminal)
+        if argv is None:
+            topic = input("Sujet Wikipedia : ").strip()
+            if not topic:
+                print("Aucun sujet fourni, arrêt.")
+                return
+        else:
+            # En mode non-interactif (tests ou appels internes), on exige le topic
+            raise SystemExit("Argument --topic obligatoire en mode non interactif.")
 
+    # --- Nombre de pages ---
+    max_pages = args.max_pages
+    if argv is None:
+        raw = input(f"Nombre maximum de pages (ENTER pour {max_pages}) : ").strip()
+        if raw:
+            try:
+                max_pages = int(raw)
+            except ValueError:
+                print("Valeur invalide, on garde la valeur par défaut.")
+
+    # --- Parent Notion ---
     parent = (
         args.parent_page_id
         or os.getenv("NOTION_WIKIPEDIA_PARENT_ID")
         or os.getenv("NOTION_PARENT_PAGE_ID")
     )
 
-    ref = publish_wikipedia_context_pack(
-        topic=topic,
-        max_pages=args.max_pages,
-        parent_page_id=parent,
-    )
+    if not parent:
+        raise SystemExit(
+            "Impossible de trouver une page parent Notion. "
+            "Définis NOTION_WIKIPEDIA_PARENT_ID ou NOTION_PARENT_PAGE_ID dans ton .env."
+        )
 
-    print(f"[OK] Pack créé: {ref.url} (id={ref.page_id})")
+    # --- Exécution ---
+    try:
+        ref = publish_wikipedia_context_pack(
+            topic=topic,
+            max_pages=max_pages,
+            parent_page_id=parent,
+        )
+    except ValueError as exc:
+        print(f"[ERREUR] {exc}")
+        return
+
+    print(f"[OK] Pack Wikipedia créé : {ref.url} (id={ref.page_id})")
 
 
 if __name__ == "__main__":

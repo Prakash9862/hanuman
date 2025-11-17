@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 
 from fastapi.testclient import TestClient
 
+from hanuman.api.routers import dashboard
 from hanuman.main import app
 from hanuman.services.orchestrations import run_log_service
 
@@ -38,3 +40,32 @@ def test_dashboard_page_returns_html() -> None:
     text = resp.text
     assert "Hanuman Dashboard" in text
     assert "<html" in text.lower()
+
+
+def test_run_orchestration_starts_process(monkeypatch) -> None:
+    calls = []
+
+    def fake_popen(cmd, cwd):
+        calls.append((cmd, cwd))
+        return None
+
+    monkeypatch.setattr(
+        "hanuman.api.routers.dashboard.list_orchestrations", lambda: ["foo"]
+    )
+    monkeypatch.setattr("hanuman.api.routers.dashboard.subprocess.Popen", fake_popen)
+
+    resp = client.post("/dashboard/run/foo")
+    assert resp.status_code == 200
+    payload = resp.json()
+    assert payload["status"] == "started"
+    assert payload["orchestration"] == "foo"
+
+    assert calls, "Le processus devrait être lancé"
+    cmd, cwd = calls[0]
+    assert cmd[0] == sys.executable
+    assert cmd[1:] == ["-m", "hanuman.orchestrations.foo"]
+    assert Path(cwd).resolve() == dashboard.PROJECT_ROOT
+
+
+def test_run_orchestration_unknown_name(monkeypatch) -> None:
+    monkeypatch.setattr("hanuman.api.routers.dashboard.list_orchestrations", lambda: [])

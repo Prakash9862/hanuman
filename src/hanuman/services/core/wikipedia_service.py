@@ -3,7 +3,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
-from urllib.parse import quote, urlparse
+from urllib.parse import urlparse
 
 import httpx
 
@@ -437,47 +437,67 @@ class WikipediaService:
             url=url,
         )
 
-    def search_pages(
-        self, query: str, *, limit: int = 5
-    ) -> List[WikipediaSearchResult]:
+    def search_pages(self, query: str, limit: int = 5) -> List[WikipediaSearchResult]:
         """
-        Recherche des pages Wikipedia pertinentes pour une requête donnée.
+        Recherche des pages Wikipedia via l'API REST moderne.
 
-        Retourne une liste de WikipediaSearchResult (titre, description, url).
+        On utilise le endpoint /w/rest.php/v1/search/title côté fr.wikipedia.org,
+        qui renvoie une liste de pages avec titre, description et "key".
         """
-        q = (query or "").strip()
-        if not q:
-            raise ValueError("query ne peut pas être vide pour search_pages().")
+        search_base_url = "https://fr.wikipedia.org/w/rest.php/v1"
+        url = f"{search_base_url}/search/title"
 
-        # Endpoint REST de recherche de titres
-        path = f"search/title?q={quote(q)}&limit={limit}"
-        data = self._get(path)
+        params: dict[str, str] = {
+            "q": query,
+            "limit": str(limit),
+        }
 
+        headers = {
+            "User-Agent": USER_AGENT,
+            "Accept": "application/json",
+        }
+
+        http_client = self._client or httpx
+
+        try:
+            resp = http_client.get(
+                url,
+                headers=headers,
+                params=params,
+                timeout=self._timeout,
+            )
+        except httpx.HTTPError as exc:  # pragma: no cover - réseau imprévisible
+            logger.error("WikipediaService search HTTP error", exc_info=exc)
+            raise ValueError("Erreur réseau en interrogeant Wikipedia") from exc
+
+        if resp.status_code != 200:
+            logger.error(
+                "WikipediaService search error",
+                extra={"status": resp.status_code, "body": resp.text},
+            )
+            raise ValueError("Article Wikipedia introuvable")
+
+        data = resp.json()
         pages = data.get("pages") or []
-        results: List[WikipediaSearchResult] = []
 
-        for item in pages[:limit]:
-            if not isinstance(item, dict):
+        results: List[WikipediaSearchResult] = []
+        for page in pages:
+            if not isinstance(page, dict):
                 continue
 
-            title = str(item.get("title") or "").strip()
+            title = page.get("title") or ""
+            desc = page.get("description") or ""
+            key = page.get("key") or title
+
             if not title:
                 continue
 
-            description = str(
-                item.get("description") or item.get("extract") or ""
-            ).strip()
-
-            url = (
-                item.get("content_urls", {})
-                .get("desktop", {})
-                .get("page", f"https://fr.wikipedia.org/wiki/{_extract_title(title)}")
-            )
+            url = f"https://fr.wikipedia.org/wiki/{key}"
 
             results.append(
                 WikipediaSearchResult(
                     title=title,
-                    description=description,
+                    description=desc or "",
                     url=url,
                 )
             )
