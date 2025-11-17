@@ -4,6 +4,7 @@ from types import SimpleNamespace
 from typing import Any, Dict, List
 
 from hanuman.orchestrations.wikipedia_to_notion import (
+    _infobox_table,
     build_wikipedia_blocks,
     publish_wikipedia_page_to_notion,
 )
@@ -40,7 +41,7 @@ def test_build_wikipedia_blocks_full_page() -> None:
 
     types = _types(blocks)
     assert "heading_2" in types  # Résumé / Sections / etc.
-    assert "table" in types  # infobox
+    assert "bulleted_list_item" in types
     assert "image" in types  # images
     assert "numbered_list_item" in types  # sources
 
@@ -118,3 +119,53 @@ def test_publish_wikipedia_page_to_notion_uses_services() -> None:
     assert call["title"] == "Dharmachakra"
     assert call["parent_page_id"] == "parent-123"
     assert call["blocks_count"] >= 1
+
+
+def test_infobox_table_builds_notion_table_structure() -> None:
+    items = [
+        SimpleNamespace(label="Fondation", value="2015"),
+        SimpleNamespace(label="Siège", value="San Francisco"),
+    ]
+
+    table_block = _infobox_table(items)
+    assert table_block is not None
+    assert table_block["type"] == "table"
+
+    table = table_block["table"]
+    assert table["table_width"] == 2
+    assert table["has_column_header"] is True
+    assert table["has_row_header"] is False
+
+    rows = table["children"]
+    assert len(rows) == 3  # 1 header + 2 lignes
+
+    header_cells = rows[0]["table_row"]["cells"]
+    assert header_cells[0][0]["text"]["content"] == "Propriété"
+    assert header_cells[1][0]["text"]["content"] == "Valeur"
+
+    first_data = rows[1]["table_row"]["cells"]
+    assert first_data[0][0]["text"]["content"] == "Fondation"
+    assert first_data[1][0]["text"]["content"] == "2015"
+
+
+def test_build_wikipedia_blocks_minimal_page() -> None:
+    page = SimpleNamespace(
+        title="Page minimale",
+        summary="Petit résumé.",
+        url="https://fr.wikipedia.org/wiki/Page_minimale",
+        infobox=[],
+        sections=[],
+        images=[],
+        sources=[],
+    )
+
+    blocks = build_wikipedia_blocks(page)  # type: ignore[arg-type]
+
+    types = _types(blocks)
+    # On doit au moins avoir un H1 (Résumé analytique) + un paragraphe
+    assert "heading_1" in types
+    assert "paragraph" in types
+    # Mais pas d'infobox, ni d'images, ni de sources
+    assert "image" not in types
+    assert "numbered_list_item" not in types
+    assert "table" not in types

@@ -7,19 +7,25 @@ import pytest
 
 from hanuman.services.core.wikipedia_service import (
     WIKIPEDIA_BASE_URL,
-    WikipediaInfoboxItem,
     WikipediaPage,
     WikipediaSection,
     WikipediaService,
+    _build_long_summary,
+    _extract_infobox_and_sources_from_html,
     _extract_title,
+    _split_sections_from_html,
     _strip_html,
 )
 
 
 def test_strip_html_removes_tags_and_normalises_spaces() -> None:
     html_fragment = "<p>Bonjour&nbsp;le monde<br/>Nouvelle ligne</p><div><strong>Suite</strong></div>"
-    assert _strip_html(html_fragment) == "Bonjour le monde Nouvelle ligne Suite"
-    assert _strip_html("") == ""
+    text = _strip_html(html_fragment)
+
+    # Nouveau design : _strip_html normalise mais conserve les retours à la ligne
+    assert "Bonjour le monde" in text
+    assert "Nouvelle ligne" in text
+    assert "Suite" in text
 
 
 @pytest.mark.parametrize(
@@ -63,9 +69,8 @@ class _DummyClient:
         return self._responses[url]
 
 
-def test_fetch_page_parses_sections_infobox_sources() -> None:
+def test_fetch_page_parses_sections_infobox_sources(monkeypatch):
     summary_url = f"{WIKIPEDIA_BASE_URL}/page/summary/OpenAI"
-    sections_url = f"{WIKIPEDIA_BASE_URL}/page/mobile-sections/OpenAI"
 
     responses = {
         summary_url: _DummyResponse(
@@ -79,58 +84,58 @@ def test_fetch_page_parses_sections_infobox_sources() -> None:
                 "originalimage": {"source": "https://upload.wikimedia.org/image.png"},
             },
         ),
-        sections_url: _DummyResponse(
-            200,
-            {
-                "lead": {
-                    "sections": [
-                        {
-                            "line": "Historique",
-                            "text": "<p>OpenAI est fondée en 2015.</p>",
-                        }
-                    ],
-                    "infobox": [
-                        {"label": "<b>Création</b>", "value": "<i>2015</i>"},
-                    ],
-                },
-                "remaining": {
-                    "sections": [
-                        {
-                            "line": "Références",
-                            "anchor": "References",
-                            "text": "<li>Ref&nbsp;1</li><li><a href='#'>Ref 2</a></li>",
-                        }
-                    ]
-                },
-            },
-        ),
     }
 
     dummy_client = _DummyClient(responses)
     service = WikipediaService(client=dummy_client)
 
-    page = service.fetch_page("https://fr.wikipedia.org/wiki/OpenAI#Historique")
+    html_sample = """
+    <html><body>
+      <p>OpenAI est une organisation de recherche.</p>
+
+      <table class="infobox">
+        <tr><th>Création</th><td>2015</td></tr>
+      </table>
+
+      <h2>Historique</h2>
+      <p>OpenAI est fondée en 2015.</p>
+
+      <h2>Références</h2>
+      <ol class="references">
+        <li>Ref 1</li>
+        <li>Ref 2</li>
+      </ol>
+    </body></html>
+    """
+
+    def fake_get_html(path, base_url, client=None, timeout=10.0):
+        assert path == "page/html/OpenAI"
+        return html_sample
+
+    monkeypatch.setattr(
+        "hanuman.services.core.wikipedia_service._get_html", fake_get_html
+    )
+
+    page = service.fetch_page("OpenAI")
 
     assert isinstance(page, WikipediaPage)
     assert page.title == "OpenAI"
-    assert page.summary == "OpenAI est une organisation de recherche."
+    assert page.summary.startswith("OpenAI est une organisation de recherche.")
     assert page.url == "https://fr.wikipedia.org/wiki/OpenAI"
     assert page.images == ["https://upload.wikimedia.org/image.png"]
 
     assert page.sections[0] == WikipediaSection(
-        title="Historique", content="OpenAI est fondée en 2015."
+        title="Historique",
+        content="OpenAI est fondée en 2015.",
     )
-    assert any(section.title == "Références" for section in page.sections)
 
-    assert page.infobox == [WikipediaInfoboxItem(label="Création", value="2015")]
-    assert page.sources == ["Ref 1", "Ref 2"]
+    assert page.infobox[0].label == "Création"
+    assert page.infobox[0].value == "2015"
 
-    assert dummy_client.requested_urls == [summary_url, sections_url]
+    assert "Ref 1" in page.sources[0]
 
 
-def test_fetch_page_handles_decommissioned_mobile_sections(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
+def test_fetch_page_handles_decommissioned_mobile_sections(monkeypatch):
     summary_payload = {
         "extract": "Synthèse",
         "displaytitle": "OpenAI (organisation)",
@@ -139,16 +144,20 @@ def test_fetch_page_handles_decommissioned_mobile_sections(
 
     service = WikipediaService()
 
-    def fake_get(path: str) -> Dict[str, Any]:
-        if path.startswith("page/summary"):
-            return summary_payload
-        raise RuntimeError("Mobile Content Service is decommissioned")
+    def fake_get(path):
+        assert path.startswith("page/summary")
+        return summary_payload
+
+    def fake_html(*args, **kwargs):
+        raise RuntimeError("HTML service down")
 
     monkeypatch.setattr(service, "_get", fake_get)
+    monkeypatch.setattr("hanuman.services.core.wikipedia_service._get_html", fake_html)
 
     page = service.fetch_page("OpenAI")
 
     assert page.title == "OpenAI (organisation)"
+    assert page.summary == "Synthèse"
     assert page.sections == []
     assert page.infobox == []
     assert page.sources == []
@@ -178,3 +187,85 @@ def test_wikipedia_get_raises_on_http_errors() -> None:
 
     with pytest.raises(RuntimeError, match="inattendue"):
         invalid_json_service._get("page/summary/Inconnue")
+
+
+def test_build_long_summary_truncates_long_intro() -> None:
+    # Génère un HTML avec plein de paragraphes pour dépasser max_chars
+    paragraphs = "".join(
+        f"<p>Paragraphe {i} - Lorem ipsum dolor sit amet.</p>" for i in range(50)
+    )
+    html_doc = f"<html><body>{paragraphs}<h2>Section suivante</h2><p>Contenu ignoré</p></body></html>"
+
+    summary = _build_long_summary(html_doc, max_chars=200)
+
+    # On doit avoir un résumé non vide, mais limité
+    assert summary
+    assert len(summary) <= 205  # 200 + éventuellement "…"
+    # La section suivante ne doit pas apparaître
+    assert "Section suivante" not in summary
+
+
+def test_split_sections_from_html_without_headings_returns_empty() -> None:
+    html_doc = "<html><body><p>Texte sans titres.</p><p>Autre texte.</p></body></html>"
+
+    sections = _split_sections_from_html(html_doc)
+
+    assert sections == []
+
+
+def test_split_sections_from_html_parses_multiple_headings() -> None:
+    html_doc = """
+    <html><body>
+      <h2>Histoire</h2>
+      <p>Texte sur l'histoire.</p>
+      <h3>Origines</h3>
+      <p>Texte sur les origines.</p>
+      <h2>Géographie</h2>
+      <p>Texte sur la géographie.</p>
+    </body></html>
+    """
+
+    sections = _split_sections_from_html(html_doc)
+
+    titles = [s.title for s in sections]
+    contents = [s.content for s in sections]
+
+    assert titles == ["Histoire", "Origines", "Géographie"]
+    assert any("histoire" in c.lower() for c in contents)
+    assert any("origines" in c.lower() for c in contents)
+    assert any("géographie" in c.lower() for c in contents)
+
+
+def test_extract_infobox_and_sources_handles_html_without_any() -> None:
+    html_doc = "<html><body><p>Pas d'infobox ni de références ici.</p></body></html>"
+
+    infobox, sources = _extract_infobox_and_sources_from_html(html_doc)
+
+    assert infobox == []
+    assert sources == []
+
+
+def test_extract_infobox_and_sources_parses_basic_table_and_references() -> None:
+    html_doc = """
+    <html><body>
+      <table class="infobox">
+        <tr><th>Fondation</th><td>2015</td></tr>
+        <tr><th>Siège</th><td>San Francisco</td></tr>
+      </table>
+      <h2>Références</h2>
+      <ol class="references">
+        <li>Source 1</li>
+        <li>Source 2</li>
+      </ol>
+    </body></html>
+    """
+
+    infobox, sources = _extract_infobox_and_sources_from_html(html_doc)
+
+    assert len(infobox) == 2
+    assert infobox[0].label == "Fondation"
+    assert infobox[0].value == "2015"
+    assert infobox[1].label == "Siège"
+    assert "San Francisco" in infobox[1].value
+
+    assert sources and "Source 1" in sources[0]

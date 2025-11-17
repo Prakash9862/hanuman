@@ -84,9 +84,20 @@ def test_build_wikipedia_blocks_structure() -> None:
         if block.get("type") == "heading_2"
     ]
 
-    assert "Résumé" in headings
+    # Nouveau design : le résumé est en heading_1, pas 2
+    heading1 = [
+        block.get("heading_1", {})
+        .get("rich_text", [{}])[0]
+        .get("text", {})
+        .get("content")
+        for block in blocks
+        if block.get("type") == "heading_1"
+    ]
+
+    assert "Résumé analytique" in heading1
+
     assert "Infobox" in headings
-    assert "Sections" in headings
+    assert "Sections détaillées" in headings
     assert "Images" in headings
     assert "Sources" in headings
 
@@ -125,7 +136,19 @@ def test_publish_wikipedia_page_to_notion_calls_notion(
     assert notion.last_call["title"] == "OpenAI"
     assert notion.last_call["parent_page_id"] == "parent-123"
     blocks = notion.last_call["blocks"]
-    assert any(block.get("type") == "table" for block in blocks)
+    # Nouveau design : infobox = heading_2 + bulleted_list_item
+    assert any(
+        block.get("type") == "heading_2"
+        and block.get("heading_2", {})
+        .get("rich_text", [{}])[0]
+        .get("text", {})
+        .get("content")
+        == "Infobox"
+        for block in blocks
+    )
+
+    assert any(block.get("type") == "bulleted_list_item" for block in blocks)
+
     assert any(block.get("type") == "image" for block in blocks)
 
 
