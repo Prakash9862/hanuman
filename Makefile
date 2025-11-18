@@ -69,6 +69,15 @@ check: fmt lint typecheck test  ## Tout-en-un
 .PHONY: stop
 stop:
 	@pkill -f "uvicorn .*hanuman\.main:app" || true
+
 .PHONY: typecheck
 typecheck:  ## mypy
 	$(RUN) mypy src/hanuman tests
+
+semgrep:
+	@echo "🔍 Running Semgrep analysis..."
+	@semgrep --config p/ci .
+
+security-audit:
+	@echo "🧪 Auditing Python dependencies (pip-audit)..."
+	@poetry run pip-audit

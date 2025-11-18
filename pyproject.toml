@@ -36,6 +36,7 @@ python-dotenv = "^1.1.0"
 types-requests = "^2.32.4.20250913"
 pre-commit = "^4.4.0"
 textual = "^0.70.0"
+pip-audit = "^2.9.0"
 
 
 [build-system]
