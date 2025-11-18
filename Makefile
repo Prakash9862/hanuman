@@ -81,3 +81,12 @@ semgrep:
 security-audit:
 	@echo "🧪 Auditing Python dependencies (pip-audit)..."
 	@poetry run pip-audit
+
+all-check:
+	@echo "🔐 Full Security Check"
+	@poetry run ruff check .
+	@poetry run mypy src/hanuman tests
+	@poetry run pytest -q
+	@poetry run semgrep --config p/ci .
+	@poetry run pip-audit
+	@echo "✅ Security suite complete."
