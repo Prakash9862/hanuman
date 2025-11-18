@@ -4,6 +4,7 @@ from typing import Iterable, List
 
 import pytest
 
+import hanuman.orchestrations.wikipedia_context_pack_to_notion as wc2n
 from hanuman.orchestrations.wikipedia_context_pack_to_notion import (
     publish_wikipedia_context_pack,
 )
@@ -138,3 +139,131 @@ def test_publish_wikipedia_context_pack_requires_parent() -> None:
         publish_wikipedia_context_pack(
             "OpenAI", wikipedia_service=wiki, notion_service=notion
         )
+
+
+def test_bulleted_links_builds_expected_structure() -> None:
+    block = wc2n._bulleted_links(
+        [
+            ("One", "https://one"),
+            ("Two", None),
+        ]
+    )
+
+    assert block["type"] == "bulleted_list_item"
+    rich = block["bulleted_list_item"]["rich_text"]
+
+    contents = [span["text"]["content"] for span in rich if span["type"] == "text"]
+    assert "One" in contents
+    assert "Two" in contents
+    # On veut bien le séparateur "•" entre les items
+    assert any("•" in span["text"]["content"] for span in rich)
+
+
+def test_publish_wikipedia_context_pack_no_results_raises() -> None:
+    class EmptyWiki(DummyWikipediaService):
+        def search_pages(self, query: str, *, limit: int = 5):  # type: ignore[override]
+            return []
+
+    wiki = EmptyWiki([], _sample_page())
+    notion = DummyNotionService()
+
+    with pytest.raises(ValueError, match="Aucun résultat Wikipedia"):
+        publish_wikipedia_context_pack(
+            "sujet-introuvable",
+            parent_page_id="parent-xyz",
+            wikipedia_service=wiki,
+            notion_service=notion,
+        )
+
+
+def test_publish_wikipedia_context_pack_wraps_value_error_message() -> None:
+    class FailingWiki(DummyWikipediaService):
+        def search_pages(self, query: str, *, limit: int = 5):  # type: ignore[override]
+            raise ValueError("boom")
+
+    wiki = FailingWiki([], _sample_page())
+    notion = DummyNotionService()
+
+    with pytest.raises(ValueError, match="vérifie l'orthographe"):
+        publish_wikipedia_context_pack(
+            "OpenAI",
+            parent_page_id="parent-xyz",
+            wikipedia_service=wiki,
+            notion_service=notion,
+        )
+
+
+def test_main_non_interactive_uses_arguments_and_env(monkeypatch, capsys) -> None:
+    """
+    Couvre la CLI main() en mode non-interactif, avec publish patché.
+    """
+    called: dict[str, object] = {}
+
+    def fake_publish(
+        topic: str,
+        *,
+        max_pages: int,
+        parent_page_id: str | None = None,
+        wikipedia_service=None,
+        notion_service=None,
+    ):
+        called["topic"] = topic
+        called["max_pages"] = max_pages
+        called["parent_page_id"] = parent_page_id
+        return NotionPageRef(page_id="page-123", url="https://notion.so/page-123")
+
+    monkeypatch.setattr(
+        wc2n,
+        "publish_wikipedia_context_pack",
+        fake_publish,
+    )
+    # Pas de parent passé en CLI → on utilise l'env
+    monkeypatch.setenv("NOTION_WIKIPEDIA_PARENT_ID", "env-parent")
+
+    wc2n.main(["--topic", "IA", "--max-pages", "3"])
+    out = capsys.readouterr().out
+
+    assert "Pack Wikipedia créé" in out
+    assert called == {
+        "topic": "IA",
+        "max_pages": 3,
+        "parent_page_id": "env-parent",
+    }
+
+
+def test_main_requires_parent_page(monkeypatch) -> None:
+    """
+    Couvre la SystemExit quand aucun parent n'est dispo.
+    """
+    monkeypatch.delenv("NOTION_WIKIPEDIA_PARENT_ID", raising=False)
+    monkeypatch.delenv("NOTION_PARENT_PAGE_ID", raising=False)
+
+    with pytest.raises(SystemExit):
+        wc2n.main(["--topic", "IA"])
+
+
+def test_main_interactive_empty_topic_aborts(monkeypatch, capsys) -> None:
+    """
+    Mode interactif (argv=None) + input vide → sortie propre sans exception.
+    """
+    monkeypatch.setenv("NOTION_WIKIPEDIA_PARENT_ID", "parent-xyz")
+
+    # On force input() à renvoyer vide → cas "aucun sujet"
+    monkeypatch.setattr(
+        "builtins.input",
+        lambda _prompt: "",
+    )
+
+    # On neutralise le -q de pytest dans sys.argv
+    import sys
+
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["hanuman.orchestrations.wikipedia_context_pack_to_notion"],
+    )
+
+    wc2n.main(None)
+    out = capsys.readouterr().out
+
+    assert "Aucun sujet fourni" in out

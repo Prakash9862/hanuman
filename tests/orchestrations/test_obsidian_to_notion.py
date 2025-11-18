@@ -1,10 +1,13 @@
 from __future__ import annotations
 
 import io
+import sys
 import textwrap
 import urllib.error
 from pathlib import Path
 from typing import Any, Dict, List
+
+import pytest
 
 from hanuman.orchestrations import obsidian_to_notion as o2n
 from hanuman.orchestrations.obsidian_to_notion import FrontMatter
@@ -204,6 +207,31 @@ def test_build_notion_body_for_page_parent() -> None:
     assert any(b["type"] == "paragraph" for b in children[1:])
 
 
+def test_build_notion_body_numeric_and_list_extra_props() -> None:
+    front = FrontMatter(
+        title="Note extras",
+        summary=None,
+        tags=[],
+        date=None,
+        extra_props={
+            "score": 42,
+            "labels": ["x", "y"],
+        },
+    )
+
+    body = o2n.build_notion_body(
+        markdown_path="note.md",
+        parent_id="db-1",
+        parent_is_db=True,
+        front=front,
+        body_md="Texte.",
+    )
+
+    props = body["properties"]
+    assert props["score"]["number"] == 42
+    assert {opt["name"] for opt in props["labels"]["multi_select"]} == {"x", "y"}
+
+
 # ---------------------------------------------------------------------------
 # send_markdown_to_notion
 # ---------------------------------------------------------------------------
@@ -294,3 +322,172 @@ def test_send_markdown_to_notion_fallback_page_parent_on_validation_error(
     assert "database_id" in calls[0]["parent"]
     assert "page_id" in calls[1]["parent"]
     assert result["id"] == "ok-page"
+
+
+def test_split_frontmatter_invalid_yaml_falls_back(monkeypatch) -> None:
+    """
+    On force yaml.safe_load à lever une exception pour couvrir la branche except.
+    """
+    md = textwrap.dedent(
+        """\
+        ---
+        title: "Note cassée
+        tags: [a, b
+        ---
+
+        Corps.
+        """
+    )
+
+    # Force une erreur de parsing YAML
+    monkeypatch.setattr(
+        o2n.yaml,
+        "safe_load",
+        lambda _raw: (_ for _ in ()).throw(Exception("bad yaml")),
+    )
+
+    fm, body = o2n.split_frontmatter(md)
+
+    assert isinstance(fm, FrontMatter)
+    # Pas de données récupérées → tout vide
+    assert fm.title is None
+    assert fm.tags == []
+    assert "Corps." in body
+
+
+def test_chunks_and_rich_split_long_text() -> None:
+    long_text = "x" * (o2n.MAX_CHUNK + 10)
+
+    parts = o2n._chunks(long_text)
+    assert len(parts) == 2
+
+    rich = o2n._rich(long_text)
+    assert len(rich) == 2
+    total_len = sum(len(span["text"]["content"]) for span in rich)
+    assert total_len == len(long_text)
+
+
+def test_md_to_blocks_ordered_and_quote() -> None:
+    md = textwrap.dedent(
+        """\
+        1. premier
+        2. second
+
+        > citation
+        """
+    )
+
+    blocks = o2n.md_to_blocks(md)
+    types = [b["type"] for b in blocks]
+
+    assert "numbered_list_item" in types
+    assert "quote" in types
+
+
+def test_notion_headers_requires_token(monkeypatch) -> None:
+    monkeypatch.delenv("NOTION_TOKEN", raising=False)
+
+    with pytest.raises(RuntimeError, match="NOTION_TOKEN manquant"):
+        o2n._notion_headers()
+
+
+def test_notion_headers_success(monkeypatch) -> None:
+    monkeypatch.setenv("NOTION_TOKEN", "secret-token")
+    monkeypatch.setenv("NOTION_VERSION", "2025-09-03")
+
+    headers = o2n._notion_headers()
+    assert headers["Authorization"] == "Bearer secret-token"
+    assert headers["Notion-Version"] == "2025-09-03"
+    assert headers["Content-Type"] == "application/json"
+
+
+def test_send_markdown_to_notion_missing_file_raises() -> None:
+    with pytest.raises(FileNotFoundError):
+        o2n.send_markdown_to_notion(
+            markdown_path="__does_not_exist__.md",
+            parent_id="db-1",
+            parent_is_db=True,
+        )
+
+
+def test_send_markdown_to_notion_non_validation_http_error(
+    monkeypatch, tmp_path
+) -> None:
+    md_path = _mk_markdown_file(tmp_path, "Contenu sans frontmatter")
+
+    def fake_post(body: Dict[str, Any]) -> Dict[str, Any]:
+        fp = io.BytesIO(b"internal error")
+        raise urllib.error.HTTPError(
+            url="https://api.notion.com/v1/pages",
+            code=500,
+            msg="Server error",
+            hdrs=None,
+            fp=fp,
+        )
+
+    monkeypatch.setattr(o2n, "_post_create_page", fake_post)
+    monkeypatch.setenv("NOTION_TOKEN", "token")  # pour _notion_headers si besoin
+
+    with pytest.raises(RuntimeError, match="Notion API error 500"):
+        o2n.send_markdown_to_notion(
+            markdown_path=str(md_path),
+            parent_id="db-1",
+            parent_is_db=True,
+        )
+
+
+def test_main_cli_success(monkeypatch, tmp_path, capsys) -> None:
+    md_path = _mk_markdown_file(
+        tmp_path,
+        "---\ntitle: Via CLI\n---\nCorps.",
+    )
+
+    called: Dict[str, Any] = {}
+
+    def fake_send_markdown_to_notion(**kwargs: Any) -> Dict[str, Any]:
+        called.update(kwargs)
+        return {"id": "cli-page"}
+
+    monkeypatch.setattr(o2n, "send_markdown_to_notion", fake_send_markdown_to_notion)
+
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "obsidian_to_notion",
+            "--path",
+            str(md_path),
+            "--parent-id",
+            "parent-123",
+            "--parent-is-db",
+        ],
+    )
+
+    o2n.main()
+    out = capsys.readouterr().out
+
+    assert '"id": "cli-page"' in out
+    assert called["markdown_path"] == str(md_path)
+    assert called["parent_id"] == "parent-123"
+    assert called["parent_is_db"] is True
+
+
+def test_main_cli_requires_parent(monkeypatch, tmp_path) -> None:
+    md_path = _mk_markdown_file(tmp_path, "Corps.")
+
+    # Aucun parent ni en CLI, ni en env
+    monkeypatch.delenv("NOTION_PARENT_PAGE_ID", raising=False)
+    monkeypatch.delenv("NOTION_PARENT_ID", raising=False)
+
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "obsidian_to_notion",
+            "--path",
+            str(md_path),
+        ],
+    )
+
+    with pytest.raises(SystemExit):
+        o2n.main()
