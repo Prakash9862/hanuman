@@ -149,6 +149,38 @@ class GithubService:
 
         return cleaned
 
+    def list_repos(
+        self,
+        visibility: str = "all",
+        limit: int = 50,
+    ) -> List[Dict[str, Any]]:
+        """Liste les repositories accessibles au token."""
+        params = {
+            "visibility": visibility,
+            "per_page": min(limit, 100),
+            "sort": "updated",
+        }
+
+        data = self._request("GET", "/user/repos", params=params)
+        repos = cast(List[Dict[str, Any]], data)
+
+        cleaned: List[Dict[str, Any]] = []
+        for repo in repos:
+            cleaned.append(
+                {
+                    "id": repo.get("id"),
+                    "full_name": repo.get("full_name"),
+                    "description": repo.get("description") or "",
+                    "html_url": repo.get("html_url"),
+                    "stars": repo.get("stargazers_count", 0),
+                    "forks": repo.get("forks_count", 0),
+                    "private": repo.get("private", False),
+                    "updated_at": repo.get("updated_at"),
+                }
+            )
+
+        return cleaned
+
 
 # ---------------------------------------------------------------------- #
 #  Ping de santé pour l'API (compatible avec ton système existant)

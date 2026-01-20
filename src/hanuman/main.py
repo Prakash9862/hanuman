@@ -13,6 +13,7 @@ from hanuman.api.core.obsidian import router as obsidian_router
 from hanuman.api.core.openai import router as openai_router
 from hanuman.api.core.status import router as status_router
 from hanuman.api.core.wikipedia import router as wikipedia_router
+from hanuman.api.routers import brain
 from hanuman.api.routers import chess_to_obsidian as chess_to_obsidian_router
 from hanuman.api.routers import dashboard
 from hanuman.api.routers.orchestrations import router as orchestrations_router
@@ -52,6 +53,7 @@ for r in (
     orchestrations_router,
     chess_to_obsidian_router.router,
     dashboard.router,
+    brain.router,
 ):
     app.include_router(r)
 
