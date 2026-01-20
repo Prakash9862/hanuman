@@ -4,6 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.routing import APIRoute
 
+from hanuman.api.core.brain import router as brain_router
 from hanuman.api.core.calendar import router as calendar_router
 from hanuman.api.core.chess_com import router as chess_router
 from hanuman.api.core.github import router as github_router
@@ -44,6 +45,7 @@ for r in (
     obsidian_router,
     notion_router,
     openai_router,
+    brain_router,
     github_router,
     wikipedia_router,
     calendar_router,

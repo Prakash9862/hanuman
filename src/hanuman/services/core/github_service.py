@@ -30,6 +30,20 @@ class GithubRepo:
     default_branch: str
 
 
+@dataclass
+class GithubRepoSummary:
+    full_name: str
+    description: str
+    stars: int
+    forks: int
+    html_url: str
+    default_branch: str
+    private: bool
+    open_issues: int
+    language: str
+    updated_at: str
+
+
 class GithubService:
     """Client GitHub centralisé pour Hanuman.
 
@@ -145,6 +159,41 @@ class GithubService:
                     "url": issue.get("html_url"),
                     "labels": [label.get("name") for label in issue.get("labels", [])],
                 }
+            )
+
+        return cleaned
+
+    def list_repos(
+        self,
+        visibility: str = "all",
+        sort: str = "updated",
+        limit: int = 50,
+    ) -> List[GithubRepoSummary]:
+        """Liste les repos accessibles par le token."""
+        params = {
+            "visibility": visibility,
+            "sort": sort,
+            "per_page": min(limit, 100),
+        }
+
+        data = self._request("GET", "/user/repos", params=params)
+        repos = cast(List[Dict[str, Any]], data)
+
+        cleaned: List[GithubRepoSummary] = []
+        for repo in repos:
+            cleaned.append(
+                GithubRepoSummary(
+                    full_name=repo.get("full_name", ""),
+                    description=repo.get("description") or "",
+                    stars=int(repo.get("stargazers_count", 0)),
+                    forks=int(repo.get("forks_count", 0)),
+                    html_url=repo.get("html_url", ""),
+                    default_branch=repo.get("default_branch", "main"),
+                    private=bool(repo.get("private", False)),
+                    open_issues=int(repo.get("open_issues_count", 0)),
+                    language=repo.get("language") or "",
+                    updated_at=repo.get("updated_at", ""),
+                )
             )
 
         return cleaned
