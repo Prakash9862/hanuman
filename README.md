@@ -3,7 +3,7 @@
 # Hanuman
 
 <p align="center">
-  <img src="docs/assets/ChatGPT Image 23 juil. 2026, 23_45_45.png" alt="Hanuman Architecture">
+  <img src="docs/assets/hanuman_architecture.png" alt="Hanuman Architecture">
 </p>
 
 > *Celui qui relie les mondes.*
