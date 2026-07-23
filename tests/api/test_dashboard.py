@@ -49,9 +49,7 @@ def test_run_orchestration_starts_process(monkeypatch) -> None:
         calls.append((cmd, cwd))
         return None
 
-    monkeypatch.setattr(
-        "hanuman.api.routers.dashboard.list_orchestrations", lambda: ["foo"]
-    )
+    monkeypatch.setattr("hanuman.api.routers.dashboard.list_orchestrations", lambda: ["foo"])
     monkeypatch.setattr("hanuman.api.routers.dashboard.subprocess.Popen", fake_popen)
 
     resp = client.post("/dashboard/run/foo")

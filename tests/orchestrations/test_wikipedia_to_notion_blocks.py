@@ -67,9 +67,7 @@ class DummyWiki(WikipediaService):
 class DummyNotion(NotionService):
     def __init__(self) -> None:  # type: ignore[override]
         # Token factice pour satisfaire le constructeur
-        super().__init__(
-            token="dummy", api_base_url="http://dummy", notion_version="2025-09-03"
-        )
+        super().__init__(token="dummy", api_base_url="http://dummy", notion_version="2025-09-03")
         self.calls: List[Dict[str, Any]] = []
 
     def create_page_under_parent(  # type: ignore[override]

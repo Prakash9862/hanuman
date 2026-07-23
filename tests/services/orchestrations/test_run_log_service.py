@@ -39,9 +39,7 @@ def test_list_orchestrations_detects_py_files(
     assert names == ["chess_to_obsidian", "github_to_notion"]
 
 
-def test_log_run_success_writes_entry(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_log_run_success_writes_entry(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     log_path = tmp_path / "runs.jsonl"
     monkeypatch.setattr(run_log_service, "LOG_PATH", log_path)
 
@@ -58,9 +56,7 @@ def test_log_run_success_writes_entry(
     assert entry["duration_seconds"] >= 0.0
 
 
-def test_log_run_error_writes_error_entry(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_log_run_error_writes_error_entry(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     log_path = tmp_path / "runs_error.jsonl"
     monkeypatch.setattr(run_log_service, "LOG_PATH", log_path)
 
@@ -104,9 +100,7 @@ def test_make_summary_groups_logs_by_orchestration(
     assert "chess_to_obsidian" in names
     assert "github_to_notion" in names
 
-    github_entry = next(
-        item for item in orchestrations if item["name"] == "github_to_notion"
-    )
+    github_entry = next(item for item in orchestrations if item["name"] == "github_to_notion")
     runs = github_entry["runs"]
     assert len(runs) == 1
     assert runs[0]["items_processed"] == 10

@@ -176,17 +176,13 @@ class StatusView(Container):
                         elif "detail" in data and isinstance(data["detail"], dict):
                             # exemple: notion -> detail["user"]["object"]
                             detail_obj = data["detail"]
-                            maybe = (
-                                detail_obj.get("object") or detail_obj.get("name") or ""
-                            )
+                            maybe = detail_obj.get("object") or detail_obj.get("name") or ""
                             summary = str(maybe)
                         else:
                             summary = "OK"
 
                         # détail JSON pretty
-                        detail_json = json.dumps(data, indent=2, ensure_ascii=False)[
-                            :4000
-                        ]
+                        detail_json = json.dumps(data, indent=2, ensure_ascii=False)[:4000]
                     else:
                         ok_symbol = "❌"
                         summary = f"HTTP {resp.status_code}"

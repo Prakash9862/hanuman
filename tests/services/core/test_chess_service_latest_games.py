@@ -27,11 +27,7 @@ class FakeClient:
         # 1) archives
         if "games/archives" in url:
             return FakeResponse(
-                {
-                    "archives": [
-                        "https://api.chess.com/pub/player/prakasch/games/2025/10"
-                    ]
-                }
+                {"archives": ["https://api.chess.com/pub/player/prakasch/games/2025/10"]}
             )
 
         # 2) données du mois

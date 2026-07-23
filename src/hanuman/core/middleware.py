@@ -13,9 +13,7 @@ async def log_requests(
     # Libellé exact attendu par le test
     logger.info("Requête reçue")
     # Log d'entrée structuré
-    logger.info(
-        {"method": request.method, "url": str(request.url), "event": "Requête entrante"}
-    )
+    logger.info({"method": request.method, "url": str(request.url), "event": "Requête entrante"})
     response: Response = await call_next(request)
     # Log de sortie structuré
     logger.info({"status_code": response.status_code, "event": "Réponse sortante"})

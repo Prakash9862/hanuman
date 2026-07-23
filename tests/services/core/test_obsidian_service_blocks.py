@@ -26,23 +26,16 @@ Un premier paragraphe.
 
     # Le H1 est ignoré (sert de titre ailleurs), mais le H2 est bien présent
     headings2 = _collect(blocks, "heading_2")
-    assert any(
-        h["heading_2"]["rich_text"][0]["text"]["content"] == "Section 1"
-        for h in headings2
-    )
+    assert any(h["heading_2"]["rich_text"][0]["text"]["content"] == "Section 1" for h in headings2)
 
     # Les items à puces
     bullets = _collect(blocks, "bulleted_list_item")
-    bullet_texts = [
-        b["bulleted_list_item"]["rich_text"][0]["text"]["content"] for b in bullets
-    ]
+    bullet_texts = [b["bulleted_list_item"]["rich_text"][0]["text"]["content"] for b in bullets]
     assert bullet_texts == ["Item 1", "Item 2"]
 
     # Les listes numérotées
     ordered = _collect(blocks, "numbered_list_item")
-    ordered_texts = [
-        b["numbered_list_item"]["rich_text"][0]["text"]["content"] for b in ordered
-    ]
+    ordered_texts = [b["numbered_list_item"]["rich_text"][0]["text"]["content"] for b in ordered]
     assert ordered_texts == ["Premier", "Deuxième"]
 
     # Un paragraphe simple doit exister (avec du texte)
@@ -50,8 +43,7 @@ Un premier paragraphe.
     non_empty_paragraphs = [p for p in paragraphs if p["paragraph"].get("rich_text")]
 
     assert any(
-        "premier paragraphe"
-        in p["paragraph"]["rich_text"][0]["text"]["content"].lower()
+        "premier paragraphe" in p["paragraph"]["rich_text"][0]["text"]["content"].lower()
         for p in non_empty_paragraphs
     )
 
@@ -66,9 +58,7 @@ def test_md_to_blocks_long_line_is_chunked() -> None:
     # Chaque chunk donne un paragraphe, donc ≥ 2
     assert len(paragraphs) >= 2
 
-    total_len = sum(
-        len(p["paragraph"]["rich_text"][0]["text"]["content"]) for p in paragraphs
-    )
+    total_len = sum(len(p["paragraph"]["rich_text"][0]["text"]["content"]) for p in paragraphs)
     assert total_len == len(long_text)
 
 

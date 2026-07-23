@@ -101,10 +101,7 @@ def test_md_to_blocks_heading_and_paragraph() -> None:
 
     para = blocks[1]
     assert para["type"] == "paragraph"
-    assert (
-        para["paragraph"]["rich_text"][0]["text"]["content"]
-        == "Paragraphe de texte normal."
-    )
+    assert para["paragraph"]["rich_text"][0]["text"]["content"] == "Paragraphe de texte normal."
 
 
 def test_md_to_blocks_list_and_code_block() -> None:
@@ -198,10 +195,7 @@ def test_build_notion_body_for_page_parent() -> None:
     # Premier block = heading avec le titre
     heading = children[0]
     assert heading["type"] == "heading_1"
-    assert (
-        heading["heading_1"]["rich_text"][0]["text"]["content"]
-        == "Titre en page enfant"
-    )
+    assert heading["heading_1"]["rich_text"][0]["text"]["content"] == "Titre en page enfant"
 
     # Le reste vient du markdown
     assert any(b["type"] == "paragraph" for b in children[1:])
@@ -410,9 +404,7 @@ def test_send_markdown_to_notion_missing_file_raises() -> None:
         )
 
 
-def test_send_markdown_to_notion_non_validation_http_error(
-    monkeypatch, tmp_path
-) -> None:
+def test_send_markdown_to_notion_non_validation_http_error(monkeypatch, tmp_path) -> None:
     md_path = _mk_markdown_file(tmp_path, "Contenu sans frontmatter")
 
     def fake_post(body: Dict[str, Any]) -> Dict[str, Any]:

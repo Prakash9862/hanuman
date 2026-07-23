@@ -8,9 +8,7 @@ from hanuman.main import app
 client = TestClient(app)
 
 
-def _mock_response(
-    status_code: int, json_data: dict | None = None, text: str = ""
-) -> object:
+def _mock_response(status_code: int, json_data: dict | None = None, text: str = "") -> object:
     return SimpleNamespace(
         status_code=status_code,
         text=text,

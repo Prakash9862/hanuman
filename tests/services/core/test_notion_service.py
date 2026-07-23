@@ -30,9 +30,7 @@ class DummyResponse:
 
 
 def test_url_building() -> None:
-    svc = NotionService(
-        token="tok", api_base_url=API_BASE_URL, notion_version="2022-06-28"
-    )
+    svc = NotionService(token="tok", api_base_url=API_BASE_URL, notion_version="2022-06-28")
     assert svc._url("pages") == f"{API_BASE_URL}/v1/pages"
     assert svc._url("/databases/123/query") == f"{API_BASE_URL}/v1/databases/123/query"
 
@@ -50,9 +48,7 @@ def test_request_success(monkeypatch: pytest.MonkeyPatch) -> None:
         captured["timeout"] = timeout
         return DummyResponse(200, json_data={"ok": True})
 
-    monkeypatch.setattr(
-        "hanuman.services.core.notion_service.requests.request", fake_request
-    )
+    monkeypatch.setattr("hanuman.services.core.notion_service.requests.request", fake_request)
 
     svc = NotionService(token="tok", notion_version="2025-09-03")
     data = svc._request("POST", "pages", payload={"foo": "bar"})
@@ -69,9 +65,7 @@ def test_request_unauthorized(monkeypatch: pytest.MonkeyPatch) -> None:
     ) -> DummyResponse:
         return DummyResponse(401, text="unauthorized")
 
-    monkeypatch.setattr(
-        "hanuman.services.core.notion_service.requests.request", fake_request
-    )
+    monkeypatch.setattr("hanuman.services.core.notion_service.requests.request", fake_request)
 
     svc = NotionService(token="bad")
     with pytest.raises(NotionAuthError):
@@ -84,9 +78,7 @@ def test_request_api_error(monkeypatch: pytest.MonkeyPatch) -> None:
     ) -> DummyResponse:
         return DummyResponse(404, text="not found")
 
-    monkeypatch.setattr(
-        "hanuman.services.core.notion_service.requests.request", fake_request
-    )
+    monkeypatch.setattr("hanuman.services.core.notion_service.requests.request", fake_request)
 
     svc = NotionService(token="tok")
     with pytest.raises(NotionApiError):
@@ -99,9 +91,7 @@ def test_request_network_error(monkeypatch: pytest.MonkeyPatch) -> None:
     ) -> DummyResponse:
         raise requests.RequestException("boom")
 
-    monkeypatch.setattr(
-        "hanuman.services.core.notion_service.requests.request", fake_request
-    )
+    monkeypatch.setattr("hanuman.services.core.notion_service.requests.request", fake_request)
 
     svc = NotionService(token="tok")
     with pytest.raises(NotionApiError):
@@ -169,9 +159,7 @@ def test_query_path_for_database_datasource_vs_legacy(
     svc_new = NotionService(token="tok", notion_version="2025-09-03")
     svc_old = NotionService(token="tok", notion_version="2022-06-28")
 
-    monkeypatch.setattr(
-        svc_new, "_get_data_source_id_for_database", lambda db: "ds_999"
-    )
+    monkeypatch.setattr(svc_new, "_get_data_source_id_for_database", lambda db: "ds_999")
 
     assert svc_new._query_path_for_database("db123") == "data_sources/ds_999/query"
     assert svc_old._query_path_for_database("db123") == "databases/db123/query"
@@ -211,10 +199,7 @@ def test_create_page_under_parent_success(monkeypatch: pytest.MonkeyPatch) -> No
     assert captured["method"] == "POST"
     assert captured["path"] == "pages"
     assert captured["payload"]["parent"]["page_id"] == "parent123"
-    assert (
-        captured["payload"]["properties"]["title"]["title"][0]["text"]["content"]
-        == "Titre"
-    )
+    assert captured["payload"]["properties"]["title"]["title"][0]["text"]["content"] == "Titre"
     assert captured["payload"]["children"] == [{"type": "paragraph"}]
 
 
@@ -342,9 +327,7 @@ def test_query_database_pagination(monkeypatch: pytest.MonkeyPatch) -> None:
         }
 
     svc = NotionService(token="tok", notion_version="2025-09-03")
-    monkeypatch.setattr(
-        svc, "_query_path_for_database", lambda db_id: "data_sources/ds/query"
-    )
+    monkeypatch.setattr(svc, "_query_path_for_database", lambda db_id: "data_sources/ds/query")
     monkeypatch.setattr(svc, "_request", fake_request.__get__(svc, NotionService))
 
     rows = svc.query_database("db123")

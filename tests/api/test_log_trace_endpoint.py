@@ -9,9 +9,7 @@ def client() -> TestClient:
     return TestClient(app)
 
 
-def test_log_trace_endpoint(
-    client: TestClient, caplog: pytest.LogCaptureFixture
-) -> None:
+def test_log_trace_endpoint(client: TestClient, caplog: pytest.LogCaptureFixture) -> None:
     # Active les logs au niveau INFO
     caplog.set_level("INFO")
 

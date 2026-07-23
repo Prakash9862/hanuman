@@ -29,9 +29,7 @@ def test_on_row_highlighted_updates_log_box(monkeypatch: pytest.MonkeyPatch) -> 
     view = OrchestrationView()
 
     # On prépare un log pour la ligne 0
-    view._logs = {
-        0: "poetry run python -m hanuman.orchestrations.github_to_notion_sync"
-    }
+    view._logs = {0: "poetry run python -m hanuman.orchestrations.github_to_notion_sync"}
 
     dummy_table = DummyOrchestrationTable(cursor_row=0)
     log_box = Static("initial")
@@ -44,9 +42,7 @@ def test_on_row_highlighted_updates_log_box(monkeypatch: pytest.MonkeyPatch) -> 
             return dummy_table
         if selector == "#orch-log-box":
             return log_box
-        raise AssertionError(
-            f"query_one appelé avec un sélecteur inattendu: {selector!r}"
-        )
+        raise AssertionError(f"query_one appelé avec un sélecteur inattendu: {selector!r}")
 
     # On remplace la méthode query_one de cette instance de vue
     monkeypatch.setattr(view, "query_one", fake_query_one)
@@ -79,9 +75,7 @@ def test_on_row_highlighted_with_no_cursor_does_nothing(
             return dummy_table
         if selector == "#orch-log-box":
             return log_box
-        raise AssertionError(
-            f"query_one appelé avec un sélecteur inattendu: {selector!r}"
-        )
+        raise AssertionError(f"query_one appelé avec un sélecteur inattendu: {selector!r}")
 
     monkeypatch.setattr(view, "query_one", fake_query_one)
 

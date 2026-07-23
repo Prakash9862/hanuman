@@ -95,9 +95,7 @@ def test_trace_endpoint_sync_error_caught(monkeypatch: pytest.MonkeyPatch) -> No
     assert response.source == "sync-error"
     assert response.error == "boom"
     assert response.duration_ms is not None
-    assert dummy_logger.error_messages[0].startswith(
-        "❌ Erreur ValueError dans sync-error"
-    )
+    assert dummy_logger.error_messages[0].startswith("❌ Erreur ValueError dans sync-error")
 
 
 def test_trace_endpoint_sync_non_ping_logs_success(
@@ -112,9 +110,7 @@ def test_trace_endpoint_sync_non_ping_logs_success(
 
     assert sample_endpoint(_make_request()) == "ok"
     assert dummy_logger.info_messages[0] == "📥 Requête reçue"
-    assert dummy_logger.info_messages[1].startswith(
-        "✅ Exécution réussie : sync-success"
-    )
+    assert dummy_logger.info_messages[1].startswith("✅ Exécution réussie : sync-success")
 
 
 def test_trace_endpoint_async_respects_catch_false(
@@ -139,6 +135,4 @@ def test_trace_endpoint_async_respects_catch_false(
         "debug_mode": decorators.settings.debug,
     }
     assert dummy_logger.info_messages == ["📥 Requête reçue"]
-    assert dummy_logger.error_messages[0].startswith(
-        "❌ Erreur RuntimeError dans async-error"
-    )
+    assert dummy_logger.error_messages[0].startswith("❌ Erreur RuntimeError dans async-error")

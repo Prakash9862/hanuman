@@ -15,9 +15,7 @@ logger = get_logger(__name__)
 
 WIKIPEDIA_BASE_URL = "https://fr.wikipedia.org/api/rest_v1"
 WIKIPEDIA_URL = f"{WIKIPEDIA_BASE_URL}/page/summary/OpenAI"
-USER_AGENT = (
-    "HanumanBot/1.0 (+https://github.com/prakasch; contact: prakash@example.com)"
-)
+USER_AGENT = "HanumanBot/1.0 (+https://github.com/prakasch; contact: prakash@example.com)"
 
 
 @trace_endpoint("wikipedia", catch=True)
@@ -31,9 +29,7 @@ def ping_wikipedia() -> PingResult:
 
     if resp.status_code == 200:
         data = resp.json()
-        return PingResult(
-            ok=True, source="wikipedia", detail={"title": data.get("title")}
-        )
+        return PingResult(ok=True, source="wikipedia", detail={"title": data.get("title")})
 
     if resp.status_code == 404:
         raise ValueError("Article non trouvé")
@@ -173,9 +169,7 @@ def _get_html(
         raise ValueError("Article Wikipedia introuvable (HTML)")
 
     if response.status_code >= 400:
-        raise RuntimeError(
-            f"Wikipedia HTML a renvoyé {response.status_code}: {response.text}"
-        )
+        raise RuntimeError(f"Wikipedia HTML a renvoyé {response.status_code}: {response.text}")
 
     return response.text
 
@@ -354,9 +348,7 @@ class WikipediaService:
             raise ValueError("Article Wikipedia introuvable")
 
         if response.status_code >= 400:
-            raise RuntimeError(
-                f"Wikipedia a renvoyé {response.status_code}: {response.text}"
-            )
+            raise RuntimeError(f"Wikipedia a renvoyé {response.status_code}: {response.text}")
 
         data = response.json()
         if not isinstance(data, dict):
@@ -372,9 +364,7 @@ class WikipediaService:
         # 1) Résumé / métadonnées simples
         summary_data = self._get(f"page/summary/{title}")
 
-        display_title = str(
-            summary_data.get("title") or summary_data.get("displaytitle") or title
-        )
+        display_title = str(summary_data.get("title") or summary_data.get("displaytitle") or title)
 
         url = (
             summary_data.get("content_urls", {})

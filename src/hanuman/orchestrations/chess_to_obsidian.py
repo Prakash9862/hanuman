@@ -36,13 +36,7 @@ class ChessGame:
 
 def _slugify(value: str) -> str:
     """Transforme une chaîne en nom de fichier safe."""
-    return (
-        value.lower()
-        .replace(" ", "_")
-        .replace("/", "_")
-        .replace("–", "-")
-        .replace("—", "-")
-    )
+    return value.lower().replace(" ", "_").replace("/", "_").replace("–", "-").replace("—", "-")
 
 
 def _build_opening_key(game: ChessGame) -> str:
@@ -216,9 +210,7 @@ def _build_overview_note(groups: Mapping[str, List[ChessGame]]) -> str:
     ]
 
     # Tri par nombre de parties décroissant
-    for opening_key, games in sorted(
-        groups.items(), key=lambda item: len(item[1]), reverse=True
-    ):
+    for opening_key, games in sorted(groups.items(), key=lambda item: len(item[1]), reverse=True):
         eco, name = _split_opening_key(opening_key)
         last_game = max(games, key=lambda g: g.end_time)
         date_str = last_game.end_time.strftime("%Y-%m-%d")

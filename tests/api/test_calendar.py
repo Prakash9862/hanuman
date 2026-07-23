@@ -46,9 +46,7 @@ def test_calendar_callback_success(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def test_calendar_callback_failure(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(
-        "hanuman.api.core.calendar.exchange_code_for_token", lambda code: False
-    )
+    monkeypatch.setattr("hanuman.api.core.calendar.exchange_code_for_token", lambda code: False)
 
     response = client.get("/calendar/callback", params={"code": "invalid"})
 

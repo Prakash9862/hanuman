@@ -47,9 +47,7 @@ class DummyNotionService(NotionService):
             page_id=f"page-{len(self.created)}",
             url=f"https://notion.so/{len(self.created)}",
         )
-        self.created.append(
-            {"title": title, "blocks": blocks, "parent": parent_page_id}
-        )
+        self.created.append({"title": title, "blocks": blocks, "parent": parent_page_id})
         return ref
 
     def append_blocks(self, page_id: str, blocks: List[dict]):  # type: ignore[override]
@@ -113,10 +111,7 @@ def test_publish_wikipedia_context_pack_creates_overview_and_children(
 
     overview = notion.created[0]
     assert overview["parent"] == "parent-xyz"
-    assert (
-        "Pack Wikipedia"
-        in overview["blocks"][0]["heading_2"]["rich_text"][0]["text"]["content"]
-    )
+    assert "Pack Wikipedia" in overview["blocks"][0]["heading_2"]["rich_text"][0]["text"]["content"]
 
     child_parents = {child["parent"] for child in notion.created[1:]}
     assert child_parents == {"page-0"}
@@ -136,9 +131,7 @@ def test_publish_wikipedia_context_pack_requires_parent() -> None:
     notion = DummyNotionService()
 
     with pytest.raises(ValueError, match="parent Notion"):
-        publish_wikipedia_context_pack(
-            "OpenAI", wikipedia_service=wiki, notion_service=notion
-        )
+        publish_wikipedia_context_pack("OpenAI", wikipedia_service=wiki, notion_service=notion)
 
 
 def test_bulleted_links_builds_expected_structure() -> None:

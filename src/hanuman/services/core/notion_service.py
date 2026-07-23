@@ -65,9 +65,7 @@ class NotionService:
             )
 
         self._api_base_url = api_base_url.rstrip("/")
-        self._notion_version = (
-            notion_version or NOTION_VERSION or ""
-        ).strip() or "2025-09-03"
+        self._notion_version = (notion_version or NOTION_VERSION or "").strip() or "2025-09-03"
         # Cache local: database_id -> data_source_id (pour l'API 2025-09-03)
         self._data_source_cache: Dict[str, str] = {}
 
@@ -141,9 +139,7 @@ class NotionService:
         """
         db_id = db_id.strip()
         if not db_id:
-            raise NotionApiError(
-                "database_id vide dans _get_data_source_id_for_database()."
-            )
+            raise NotionApiError("database_id vide dans _get_data_source_id_for_database().")
 
         # cache pour éviter un GET à chaque query
         if db_id in self._data_source_cache:
@@ -196,9 +192,7 @@ class NotionService:
 
         payload: Dict[str, Any] = {
             "parent": {"page_id": parent},
-            "properties": {
-                "title": {"title": [{"type": "text", "text": {"content": title}}]}
-            },
+            "properties": {"title": {"title": [{"type": "text", "text": {"content": title}}]}},
         }
 
         if blocks:

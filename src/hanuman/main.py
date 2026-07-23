@@ -57,8 +57,4 @@ for r in (
 
 
 def list_routes() -> list[str]:
-    return [
-        f"{route.name}: {route.path}"
-        for route in app.routes
-        if isinstance(route, APIRoute)
-    ]
+    return [f"{route.name}: {route.path}" for route in app.routes if isinstance(route, APIRoute)]

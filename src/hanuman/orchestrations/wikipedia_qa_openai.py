@@ -55,10 +55,7 @@ def build_wikipedia_context(page: WikipediaPage, max_chars: int = 8000) -> str:
     context = "\n".join(parts).strip()
 
     if len(context) > max_chars:
-        return (
-            context[:max_chars]
-            + "\n\n[Contexte tronqué pour respecter la limite max_chars]"
-        )
+        return context[:max_chars] + "\n\n[Contexte tronqué pour respecter la limite max_chars]"
     return context
 
 
@@ -220,9 +217,7 @@ def answer_from_keywords(
             continue
 
     if not pages:
-        raise RuntimeError(
-            "Impossible de récupérer les pages Wikipédia correspondantes."
-        )
+        raise RuntimeError("Impossible de récupérer les pages Wikipédia correspondantes.")
 
     # Répartition grossière de la taille max par article
     per_page_limit = max(2000, max_context_chars // max(len(pages), 1))
@@ -336,9 +331,7 @@ def run_interactive() -> None:
             for idx, r in enumerate(results, start=1):
                 print(f"{idx}. {r['title']} — {r['url']}")
 
-            choice_raw = input(
-                "\nChoisis un article [numéro, ENTER pour annuler] : "
-            ).strip()
+            choice_raw = input("\nChoisis un article [numéro, ENTER pour annuler] : ").strip()
             if not choice_raw:
                 print("Annulé.\n")
                 continue
@@ -377,9 +370,7 @@ def run_interactive() -> None:
 
         else:
             # mode == "2" : mots-clés + question, multi-articles
-            keywords = input(
-                "Mots-clés (séparés par des espaces, ENTER pour quitter) : "
-            ).strip()
+            keywords = input("Mots-clés (séparés par des espaces, ENTER pour quitter) : ").strip()
             if not keywords:
                 print("Bye 👋")
                 return

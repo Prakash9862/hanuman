@@ -42,9 +42,7 @@ class DummyNotionService(NotionService):
             "blocks": blocks,
             "parent_page_id": parent_page_id,
         }
-        return NotionPageRef(
-            page_id="notion-page-id", url="https://notion.so/notion-page-id"
-        )
+        return NotionPageRef(page_id="notion-page-id", url="https://notion.so/notion-page-id")
 
 
 def _sample_page() -> WikipediaPage:
@@ -53,9 +51,7 @@ def _sample_page() -> WikipediaPage:
         summary="Laboratoire de recherche en intelligence artificielle.",
         url="https://fr.wikipedia.org/wiki/OpenAI",
         sections=[
-            WikipediaSection(
-                title="Historique", content="Fondé en 2015 à San Francisco."
-            ),
+            WikipediaSection(title="Historique", content="Fondé en 2015 à San Francisco."),
             WikipediaSection(title="Produits", content="ChatGPT est lancé en 2022."),
         ],
         infobox=[
@@ -76,20 +72,14 @@ def test_build_wikipedia_blocks_structure() -> None:
 
     # Vérifie la présence des sections principales
     headings = [
-        block.get("heading_2", {})
-        .get("rich_text", [{}])[0]
-        .get("text", {})
-        .get("content")
+        block.get("heading_2", {}).get("rich_text", [{}])[0].get("text", {}).get("content")
         for block in blocks
         if block.get("type") == "heading_2"
     ]
 
     # Nouveau design : le résumé est en heading_1, pas 2
     heading1 = [
-        block.get("heading_1", {})
-        .get("rich_text", [{}])[0]
-        .get("text", {})
-        .get("content")
+        block.get("heading_1", {}).get("rich_text", [{}])[0].get("text", {}).get("content")
         for block in blocks
         if block.get("type") == "heading_1"
     ]
@@ -139,10 +129,7 @@ def test_publish_wikipedia_page_to_notion_calls_notion(
     # Nouveau design : infobox = heading_2 + bulleted_list_item
     assert any(
         block.get("type") == "heading_2"
-        and block.get("heading_2", {})
-        .get("rich_text", [{}])[0]
-        .get("text", {})
-        .get("content")
+        and block.get("heading_2", {}).get("rich_text", [{}])[0].get("text", {}).get("content")
         == "Infobox"
         for block in blocks
     )
@@ -160,9 +147,7 @@ def test_wikipedia_endpoint(monkeypatch: pytest.MonkeyPatch, client) -> None:
         called["parent"] = parent_page_id
         return NotionPageRef(page_id="123", url="https://notion.so/123")
 
-    monkeypatch.setattr(
-        orchestrations_router, "publish_wikipedia_page_to_notion", fake_publish
-    )
+    monkeypatch.setattr(orchestrations_router, "publish_wikipedia_page_to_notion", fake_publish)
 
     response = client.post(
         "/orchestrations/wikipedia-to-notion",

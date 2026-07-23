@@ -17,12 +17,8 @@ def _fake_abs_path(stem_value: str) -> SimpleNamespace:
 def test_obsidian_sync_one_success(monkeypatch) -> None:
     monkeypatch.setattr(obsidian_api, "read_markdown", lambda path: "# Title")
     monkeypatch.setattr(obsidian_api, "md_title", lambda md, fallback: "Computed Title")
-    monkeypatch.setattr(
-        obsidian_api, "md_to_blocks", lambda md: [{"type": "paragraph"}]
-    )
-    monkeypatch.setattr(
-        obsidian_api, "abs_path", lambda path: _fake_abs_path("fallback")
-    )
+    monkeypatch.setattr(obsidian_api, "md_to_blocks", lambda md: [{"type": "paragraph"}])
+    monkeypatch.setattr(obsidian_api, "abs_path", lambda path: _fake_abs_path("fallback"))
     monkeypatch.setattr(
         obsidian_api,
         "create_page_under_parent",
@@ -44,15 +40,9 @@ def test_obsidian_sync_one_success(monkeypatch) -> None:
 
 def test_obsidian_sync_one_custom_title(monkeypatch) -> None:
     monkeypatch.setattr(obsidian_api, "read_markdown", lambda path: "# Title")
-    monkeypatch.setattr(
-        obsidian_api, "md_title", lambda md, fallback: "Should not be used"
-    )
-    monkeypatch.setattr(
-        obsidian_api, "md_to_blocks", lambda md: [{"type": "paragraph"}]
-    )
-    monkeypatch.setattr(
-        obsidian_api, "abs_path", lambda path: _fake_abs_path("fallback")
-    )
+    monkeypatch.setattr(obsidian_api, "md_title", lambda md, fallback: "Should not be used")
+    monkeypatch.setattr(obsidian_api, "md_to_blocks", lambda md: [{"type": "paragraph"}])
+    monkeypatch.setattr(obsidian_api, "abs_path", lambda path: _fake_abs_path("fallback"))
     monkeypatch.setattr(
         obsidian_api,
         "create_page_under_parent",
@@ -102,9 +92,7 @@ def test_obsidian_sync_many(monkeypatch) -> None:
     monkeypatch.setattr(obsidian_api, "read_markdown", fake_read)
     monkeypatch.setattr(obsidian_api, "md_title", fake_md_title)
     monkeypatch.setattr(obsidian_api, "md_to_blocks", fake_md_to_blocks)
-    monkeypatch.setattr(
-        obsidian_api, "abs_path", lambda path: _fake_abs_path(path.split(".")[0])
-    )
+    monkeypatch.setattr(obsidian_api, "abs_path", lambda path: _fake_abs_path(path.split(".")[0]))
     monkeypatch.setattr(obsidian_api, "create_page_under_parent", fake_create_page)
 
     response = client.post(

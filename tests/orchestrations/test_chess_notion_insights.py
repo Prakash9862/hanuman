@@ -28,12 +28,8 @@ class DummyNotionService(NotionService):
     def create_page_under_parent(
         self, title: str, blocks: List[dict], parent_page_id: str | None = None
     ):  # type: ignore[override]
-        ref = NotionPageRef(
-            page_id=f"page-{len(self.created)}", url="https://notion.so/page"
-        )
-        self.created.append(
-            {"title": title, "blocks": blocks, "parent": parent_page_id}
-        )
+        ref = NotionPageRef(page_id=f"page-{len(self.created)}", url="https://notion.so/page")
+        self.created.append({"title": title, "blocks": blocks, "parent": parent_page_id})
         return ref
 
 
@@ -146,9 +142,7 @@ def test_aggregate_stats_groups_by_color_time_and_opening() -> None:
     assert pytest.approx(stats["winrate"], rel=1e-4) == (1 + 0.5) / 3
 
     assert stats["by_color"]["white"]["count"] == 2
-    assert (
-        pytest.approx(stats["by_color"]["white"]["winrate"], rel=1e-4) == (1 + 0.5) / 2
-    )
+    assert pytest.approx(stats["by_color"]["white"]["winrate"], rel=1e-4) == (1 + 0.5) / 2
     assert stats["by_time"]["blitz"]["count"] == 2
     assert stats["by_opening"]["Sicilian"]["count"] == 2
 
@@ -182,19 +176,13 @@ def test_publish_chess_insights_from_notion_creates_summary_page(
     assert created["title"] == "Chess.com – Insights"
     paragraphs = [b for b in created["blocks"] if b.get("type") == "paragraph"]
     assert paragraphs, "Un paragraphe de résumé doit être présent"
-    bullet_sections = [
-        b for b in created["blocks"] if b.get("type") == "bulleted_list_item"
-    ]
+    bullet_sections = [b for b in created["blocks"] if b.get("type") == "bulleted_list_item"]
     assert bullet_sections, "Les stats agrégées doivent être formatées en liste"
 
 
 def test_publish_chess_insights_from_notion_requires_parent() -> None:
     notion = DummyNotionService(
-        [
-            _notion_page(
-                {"Result": {"type": "rich_text", "rich_text": [{"plain_text": "Win"}]}}
-            )
-        ]
+        [_notion_page({"Result": {"type": "rich_text", "rich_text": [{"plain_text": "Win"}]}})]
     )
 
     with pytest.raises(ValueError, match="parent Notion"):

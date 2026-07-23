@@ -52,8 +52,7 @@ def obsidian_to_notion(body: ObsidianToNotionIn):
             path=body.path,
             parent_id=parent,
             parent_is_db=body.parent_is_db,
-            db_title_name=body.db_title_name
-            or os.environ.get("NOTION_DB_TITLE_NAME", "Name"),
+            db_title_name=body.db_title_name or os.environ.get("NOTION_DB_TITLE_NAME", "Name"),
         )
         return {"ok": True, "notion": out}
 

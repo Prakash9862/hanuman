@@ -90,8 +90,7 @@ def normalize_frontmatter(fm: Dict[str, Any]) -> FrontMatter:
     extra_props = {
         k: v
         for k, v in fm.items()
-        if k
-        not in {"title", "name", "summary", "description", "tags", "date", "created"}
+        if k not in {"title", "name", "summary", "description", "tags", "date", "created"}
     }
 
     return FrontMatter(
@@ -145,9 +144,7 @@ def _chunks(s: str, n: int = MAX_CHUNK) -> list[str]:
 
 def _rich(text: str) -> list[dict]:
     """Découpe le texte long en morceaux de ≤2000 caractères."""
-    return [
-        {"type": "text", "text": {"content": part}} for part in _chunks(text, MAX_CHUNK)
-    ]
+    return [{"type": "text", "text": {"content": part}} for part in _chunks(text, MAX_CHUNK)]
 
 
 def _code_block(code: str, language: str = "") -> dict:
@@ -240,9 +237,7 @@ def md_to_blocks(md: str) -> List[Dict[str, Any]]:
             level = len(m_h.group(1))
             text = m_h.group(2).strip()
             hkey = {1: "heading_1", 2: "heading_2", 3: "heading_3"}[min(level, 3)]
-            blocks.append(
-                {"object": "block", "type": hkey, hkey: {"rich_text": _rich(text)}}
-            )
+            blocks.append({"object": "block", "type": hkey, hkey: {"rich_text": _rich(text)}})
             continue
 
         # lists
@@ -354,9 +349,7 @@ def build_notion_body(
             children = [callout_block, *children]
 
         body = {
-            "parent": {
-                "database_id": parent_id
-            },  # ⚠️ sans "type" -> comme dans les tests
+            "parent": {"database_id": parent_id},  # ⚠️ sans "type" -> comme dans les tests
             "properties": props,
             "children": children,
         }
@@ -474,9 +467,7 @@ def main() -> None:
     parser.add_argument("--path", required=True, help="Chemin du fichier .md")
     parser.add_argument(
         "--parent-id",
-        default=os.environ.get("NOTION_PARENT_PAGE_ID")
-        or os.environ.get("NOTION_PARENT_ID")
-        or "",
+        default=os.environ.get("NOTION_PARENT_PAGE_ID") or os.environ.get("NOTION_PARENT_ID") or "",
         help="ID de la page ou base Notion parent",
     )
     parser.add_argument(
@@ -484,18 +475,12 @@ def main() -> None:
         action="store_true",
         help="Indique que le parent est une **base** Notion",
     )
-    parser.add_argument(
-        "--db-title-name", default=os.environ.get("NOTION_DB_TITLE_NAME", "Name")
-    )
-    parser.add_argument(
-        "--db-tags-name", default=os.environ.get("NOTION_DB_TAGS_NAME", "Tags")
-    )
+    parser.add_argument("--db-title-name", default=os.environ.get("NOTION_DB_TITLE_NAME", "Name"))
+    parser.add_argument("--db-tags-name", default=os.environ.get("NOTION_DB_TAGS_NAME", "Tags"))
     parser.add_argument(
         "--db-summary-name", default=os.environ.get("NOTION_DB_SUMMARY_NAME", "Summary")
     )
-    parser.add_argument(
-        "--db-date-name", default=os.environ.get("NOTION_DB_DATE_NAME", "Date")
-    )
+    parser.add_argument("--db-date-name", default=os.environ.get("NOTION_DB_DATE_NAME", "Date"))
     args = parser.parse_args()
 
     if not args.parent_id:

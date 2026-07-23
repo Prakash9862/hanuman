@@ -75,9 +75,7 @@ class GithubService:
             raise GithubAuthError("Token GitHub invalide ou expiré.")
 
         if response.status_code >= 400:
-            raise GithubApiError(
-                f"Erreur GitHub {response.status_code}: {response.text}"
-            )
+            raise GithubApiError(f"Erreur GitHub {response.status_code}: {response.text}")
 
         return response.json()
 

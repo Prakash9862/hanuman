@@ -53,9 +53,7 @@ def publish_wikipedia_context_pack(
         raise ValueError("Aucun parent Notion fourni (NOTION_WIKIPEDIA_PARENT_ID).")
 
     try:
-        search_results: List[WikipediaSearchResult] = wiki.search_pages(
-            topic, limit=max_pages
-        )
+        search_results: List[WikipediaSearchResult] = wiki.search_pages(topic, limit=max_pages)
     except ValueError as exc:
         # Par exemple : "Article Wikipedia introuvable" venant du client Wikipedia
         raise ValueError(

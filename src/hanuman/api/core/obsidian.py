@@ -31,9 +31,7 @@ def ping() -> dict[str, Any]:
 
 @router.post("/sync_one")
 def sync_one(
-    path: str = Body(
-        ..., embed=True, description="Chemin (absolu ou relatif au vault)"
-    ),
+    path: str = Body(..., embed=True, description="Chemin (absolu ou relatif au vault)"),
     title: Optional[str] = Body(None),
     parent_page_id: Optional[str] = Body(None),
 ) -> Dict[str, Any]:
@@ -61,9 +59,7 @@ def sync_many(
             page = create_page_under_parent(t, blocks, parent_page_id=parent_page_id)
             results.append({"path": p, "title": t, "url": page.get("url"), "ok": True})
         except Exception as e:
-            results.append(
-                {"path": p, "title": None, "url": None, "ok": False, "err": str(e)}
-            )
+            results.append({"path": p, "title": None, "url": None, "ok": False, "err": str(e)})
     return {
         "status": "ok" if all(r["ok"] for r in results) else "partial",
         "results": results,

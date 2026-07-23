@@ -53,9 +53,7 @@ def _plain_text_property(prop: Mapping[str, Any] | None) -> str:
     if prop_type == "multi_select":
         options = prop.get("multi_select") or []
         if isinstance(options, list):
-            return ", ".join(
-                str(opt.get("name", "")) for opt in options if isinstance(opt, dict)
-            )
+            return ", ".join(str(opt.get("name", "")) for opt in options if isinstance(opt, dict))
 
     if prop_type == "url":
         return str(prop.get("url") or "")
@@ -327,9 +325,7 @@ def publish_chess_insights_from_notion(
         _format_bucket("Par cadence", stats["by_time"]),
     )
     blocks.extend(
-        _format_bucket(
-            "Ouvertures les plus jouées", stats["by_opening"], limit=top_openings
-        ),
+        _format_bucket("Ouvertures les plus jouées", stats["by_opening"], limit=top_openings),
     )
 
     return notion.create_page_under_parent(

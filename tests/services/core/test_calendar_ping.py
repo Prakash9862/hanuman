@@ -49,9 +49,7 @@ def test_exchange_code_for_token_success(monkeypatch: pytest.MonkeyPatch) -> Non
         assert name == "google_calendar"
         saved.update(token_data)
 
-    monkeypatch.setattr(
-        calendar_service, "httpx", types.SimpleNamespace(post=fake_post)
-    )
+    monkeypatch.setattr(calendar_service, "httpx", types.SimpleNamespace(post=fake_post))
     monkeypatch.setattr(calendar_service, "save_token_json", fake_save_token_json)
 
     result = calendar_service.exchange_code_for_token("dummy-code")
@@ -73,9 +71,7 @@ def test_exchange_code_for_token_invalid_code(monkeypatch: pytest.MonkeyPatch) -
     def fake_post(url: str, data: dict, timeout: int) -> DummyResponse:
         return DummyResponse(400, text="invalid_grant")
 
-    monkeypatch.setattr(
-        calendar_service, "httpx", types.SimpleNamespace(post=fake_post)
-    )
+    monkeypatch.setattr(calendar_service, "httpx", types.SimpleNamespace(post=fake_post))
 
     try:
         result = calendar_service.exchange_code_for_token("bad-code")
@@ -99,9 +95,7 @@ def test_exchange_code_for_token_server_error(monkeypatch: pytest.MonkeyPatch) -
     def fake_post(url: str, data: dict, timeout: int) -> DummyResponse:
         return DummyResponse(503, text="backend down")
 
-    monkeypatch.setattr(
-        calendar_service, "httpx", types.SimpleNamespace(post=fake_post)
-    )
+    monkeypatch.setattr(calendar_service, "httpx", types.SimpleNamespace(post=fake_post))
 
     try:
         result = calendar_service.exchange_code_for_token("any")

@@ -19,7 +19,9 @@ from hanuman.services.core.wikipedia_service import (
 
 
 def test_strip_html_removes_tags_and_normalises_spaces() -> None:
-    html_fragment = "<p>Bonjour&nbsp;le monde<br/>Nouvelle ligne</p><div><strong>Suite</strong></div>"
+    html_fragment = (
+        "<p>Bonjour&nbsp;le monde<br/>Nouvelle ligne</p><div><strong>Suite</strong></div>"
+    )
     text = _strip_html(html_fragment)
 
     # Nouveau design : _strip_html normalise mais conserve les retours à la ligne
@@ -78,9 +80,7 @@ def test_fetch_page_parses_sections_infobox_sources(monkeypatch):
             {
                 "extract": "OpenAI est une organisation de recherche.",
                 "title": "OpenAI",
-                "content_urls": {
-                    "desktop": {"page": "https://fr.wikipedia.org/wiki/OpenAI"}
-                },
+                "content_urls": {"desktop": {"page": "https://fr.wikipedia.org/wiki/OpenAI"}},
                 "originalimage": {"source": "https://upload.wikimedia.org/image.png"},
             },
         ),
@@ -112,9 +112,7 @@ def test_fetch_page_parses_sections_infobox_sources(monkeypatch):
         assert path == "page/html/OpenAI"
         return html_sample
 
-    monkeypatch.setattr(
-        "hanuman.services.core.wikipedia_service._get_html", fake_get_html
-    )
+    monkeypatch.setattr("hanuman.services.core.wikipedia_service._get_html", fake_get_html)
 
     page = service.fetch_page("OpenAI")
 
@@ -173,9 +171,7 @@ def test_wikipedia_get_raises_on_http_errors() -> None:
         service._get("page/summary/Inconnue")
 
     service_error = WikipediaService(
-        client=_DummyClient(
-            {url: _DummyResponse(500, {"error": "server"}, text="server")}
-        )
+        client=_DummyClient({url: _DummyResponse(500, {"error": "server"}, text="server")})
     )
 
     with pytest.raises(RuntimeError, match="500"):
@@ -191,10 +187,10 @@ def test_wikipedia_get_raises_on_http_errors() -> None:
 
 def test_build_long_summary_truncates_long_intro() -> None:
     # Génère un HTML avec plein de paragraphes pour dépasser max_chars
-    paragraphs = "".join(
-        f"<p>Paragraphe {i} - Lorem ipsum dolor sit amet.</p>" for i in range(50)
+    paragraphs = "".join(f"<p>Paragraphe {i} - Lorem ipsum dolor sit amet.</p>" for i in range(50))
+    html_doc = (
+        f"<html><body>{paragraphs}<h2>Section suivante</h2><p>Contenu ignoré</p></body></html>"
     )
-    html_doc = f"<html><body>{paragraphs}<h2>Section suivante</h2><p>Contenu ignoré</p></body></html>"
 
     summary = _build_long_summary(html_doc, max_chars=200)
 

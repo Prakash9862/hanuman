@@ -35,9 +35,7 @@ def test_openai_ping() -> None:
 
 
 def test_ping_openai_returns_model_count(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(
-        openai_service.settings, "openai_api_key", SecretStr("unit-test-token")
-    )
+    monkeypatch.setattr(openai_service.settings, "openai_api_key", SecretStr("unit-test-token"))
 
     def fake_get(url: str, headers: dict, timeout: int) -> DummyResponse:
         assert url == openai_service.OPENAI_API_URL
@@ -55,9 +53,7 @@ def test_ping_openai_returns_model_count(monkeypatch: pytest.MonkeyPatch) -> Non
 
 
 def test_ping_openai_handles_unauthorized(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(
-        openai_service.settings, "openai_api_key", SecretStr("unit-test-token")
-    )
+    monkeypatch.setattr(openai_service.settings, "openai_api_key", SecretStr("unit-test-token"))
     monkeypatch.setattr(
         openai_service.httpx,
         "get",
@@ -84,9 +80,7 @@ def test_ping_openai_handles_missing_token(monkeypatch: pytest.MonkeyPatch) -> N
 
 
 def test_ping_openai_handles_unexpected_status(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(
-        openai_service.settings, "openai_api_key", SecretStr("unit-test-token")
-    )
+    monkeypatch.setattr(openai_service.settings, "openai_api_key", SecretStr("unit-test-token"))
     monkeypatch.setattr(
         openai_service.httpx,
         "get",

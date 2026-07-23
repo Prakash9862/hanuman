@@ -39,9 +39,7 @@ def run_orchestration(orchestration_name: str) -> Dict[str, Any]:
     """
     available = list_orchestrations()
     if orchestration_name not in available:
-        raise HTTPException(
-            status_code=404, detail=f"Orchestration inconnue: {orchestration_name}"
-        )
+        raise HTTPException(status_code=404, detail=f"Orchestration inconnue: {orchestration_name}")
 
     cmd = [
         sys.executable,
