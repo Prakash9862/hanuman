@@ -1,6 +1,5 @@
 # 🐒 Hanuman
 
-# Hanuman
 
 <p align="center">
   <img src="docs/assets/hanuman_architecture.png" alt="Hanuman Architecture">
