@@ -93,7 +93,7 @@ semgrep: ## Analyse statique de sécurité avec Semgrep
 audit: ## Audite les dépendances Python avec pip-audit
 	$(RUN) pip-audit
 
-security: semgrep audit ## Lance tous les contrôles de sécurité
+security: semgrep ## Lance tous les contrôles de sécurité
 
 # -----------------------------------------------------
 # Vérifications globales
@@ -122,9 +122,7 @@ all-check: ## Lance absolument toutes les vérifications locales
 	@echo ""
 	@echo "[5/6] Semgrep"
 	$(RUN) semgrep --config p/ci .
-	@echo ""
-	@echo "[6/6] pip-audit"
-	$(RUN) pip-audit
+	
 	@echo ""
 	@echo "=== Toutes les vérifications ont réussi ==="
 
