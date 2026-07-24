@@ -15,6 +15,7 @@ from hanuman.api.core.status import router as status_router
 from hanuman.api.core.wikipedia import router as wikipedia_router
 from hanuman.api.routers import chess_to_obsidian as chess_to_obsidian_router
 from hanuman.api.routers import dashboard
+from hanuman.api.routers.gmail import router as gmail_router
 from hanuman.api.routers.orchestrations import router as orchestrations_router
 from hanuman.core.logging import configure_logging, get_logger
 from hanuman.core.middleware import log_requests
@@ -50,6 +51,7 @@ for r in (
     chess_router,
     log_router,
     orchestrations_router,
+    gmail_router,
     chess_to_obsidian_router.router,
     dashboard.router,
 ):
