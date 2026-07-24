@@ -1,17 +1,28 @@
 import {
+  Activity,
   ArrowDownLeft,
+  ArrowRight,
   ArrowUpRight,
   BarChart3,
   BookOpen,
   Boxes,
+  CalendarDays,
+  ChevronRight,
+  CircleGauge,
   ExternalLink,
   FileText,
+  GitBranch,
   GitCompareArrows,
+  HeartPulse,
+  Library,
+  Network,
   RefreshCw,
   Search,
   Sparkles,
+  TerminalSquare,
 } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
+import { BrowserRouter, NavLink, Route, Routes, useNavigate } from 'react-router-dom'
 
 type SyncStatus =
   | 'synced'
@@ -65,6 +76,41 @@ const emptyStats: Stats = {
   conflicts: 0,
 }
 
+const orchestrationCards = [
+  {
+    title: 'Obsidian ↔ Notion',
+    description: 'Explorer le vault, publier, importer, comparer et suivre les échanges.',
+    path: '/orchestrations/obsidian-notion',
+    tone: 'violet',
+    status: 'Opérationnelle',
+    icon: GitCompareArrows,
+  },
+  {
+    title: 'Wikipédia → Notion',
+    description: 'Transformer une recherche encyclopédique en page Notion structurée.',
+    path: '/orchestrations',
+    tone: 'ivory',
+    status: 'Disponible',
+    icon: BookOpen,
+  },
+  {
+    title: 'Chess.com → Obsidian',
+    description: 'Importer et organiser les parties pour l’analyse et l’apprentissage.',
+    path: '/orchestrations',
+    tone: 'green',
+    status: 'Partiellement branchée',
+    icon: CircleGauge,
+  },
+  {
+    title: 'GitHub → Notion',
+    description: 'Faire remonter projets, issues et activité technique dans Notion.',
+    path: '/orchestrations',
+    tone: 'graphite',
+    status: 'À consolider',
+    icon: GitBranch,
+  },
+]
+
 const statusCopy: Record<SyncStatus, { label: string; hint: string }> = {
   synced: { label: 'Synchronisé', hint: 'Les deux versions sont alignées.' },
   obsidian_only: { label: 'Obsidian uniquement', hint: 'Cette note peut être publiée dans Notion.' },
@@ -75,14 +121,6 @@ const statusCopy: Record<SyncStatus, { label: string; hint: string }> = {
   unknown: { label: 'État inconnu', hint: 'La liaison existe mais manque d’historique.' },
 }
 
-const filters: Array<{ value: 'all' | SyncStatus; label: string }> = [
-  { value: 'all', label: 'Tout' },
-  { value: 'synced', label: 'Synchronisés' },
-  { value: 'obsidian_only', label: 'À publier' },
-  { value: 'notion_only', label: 'À importer' },
-  { value: 'conflict', label: 'Conflits' },
-]
-
 function formatDate(value?: string | null) {
   if (!value) return '—'
   return new Intl.DateTimeFormat('fr-FR', {
@@ -91,11 +129,154 @@ function formatDate(value?: string | null) {
   }).format(new Date(value))
 }
 
-export default function App() {
+function AppShell() {
+  return (
+    <div className="app-shell">
+      <aside className="sidebar">
+        <NavLink to="/" className="brand">
+          <div className="brand__mark"><Sparkles size={21} /></div>
+          <div>
+            <strong>Hanuman</strong>
+            <span>Orchestration system</span>
+          </div>
+        </NavLink>
+
+        <nav className="nav">
+          <NavLink to="/" end><CircleGauge size={18} /> Vue d’ensemble</NavLink>
+          <NavLink to="/orchestrations"><Boxes size={18} /> Orchestrations</NavLink>
+          <NavLink to="/library"><Library size={18} /> Bibliothèque</NavLink>
+          <NavLink to="/constellation"><Network size={18} /> Constellation</NavLink>
+          <NavLink to="/health"><HeartPulse size={18} /> Santé</NavLink>
+        </nav>
+
+        <div className="sidebar__footer">
+          <span className="engine-dot" />
+          Moteur connecté
+        </div>
+      </aside>
+
+      <main className="app-content">
+        <Routes>
+          <Route path="/" element={<OverviewPage />} />
+          <Route path="/orchestrations" element={<OrchestrationsPage />} />
+          <Route path="/orchestrations/obsidian-notion" element={<ObsidianNotionPage />} />
+          <Route path="/library" element={<PlaceholderPage title="Bibliothèque" text="La couche transversale des contenus de Hanuman." />} />
+          <Route path="/constellation" element={<PlaceholderPage title="Constellation" text="La vue relationnelle de l’écosystème de connaissance." />} />
+          <Route path="/health" element={<PlaceholderPage title="Santé du système" text="Diagnostic des connecteurs, services et outils locaux." />} />
+        </Routes>
+      </main>
+    </div>
+  )
+}
+
+function OverviewPage() {
+  const navigate = useNavigate()
+  return (
+    <div className="page overview-page">
+      <header className="overview-hero">
+        <div>
+          <p className="eyebrow">Centre de commandement</p>
+          <h1>Un seul espace pour faire travailler tes outils ensemble.</h1>
+          <p>Hanuman observe les systèmes, orchestre les échanges et garde une vue claire sur ce qui fonctionne, ce qui attend et ce qui mérite ton attention.</p>
+        </div>
+        <button className="primary-button" onClick={() => navigate('/orchestrations')}>
+          Explorer les orchestrations <ArrowRight size={17} />
+        </button>
+      </header>
+
+      <section className="overview-grid">
+        <article className="overview-card overview-card--health">
+          <div className="card-heading"><HeartPulse size={18} /><span>Santé du système</span></div>
+          <strong>92%</strong>
+          <p>API, vault et Notion répondent. Deux services secondaires restent à vérifier.</p>
+          <div className="health-lines">
+            <span><i className="health-ok" /> FastAPI</span>
+            <span><i className="health-ok" /> Vault Obsidian</span>
+            <span><i className="health-ok" /> Notion</span>
+            <span><i className="health-warn" /> PostgreSQL</span>
+          </div>
+        </article>
+
+        <article className="overview-card overview-card--activity">
+          <div className="card-heading"><Activity size={18} /><span>Activité récente</span></div>
+          <div className="activity-list">
+            <span><b>Obsidian ↔ Notion</b><small>90 notes analysées</small></span>
+            <span><b>Wikipédia → Notion</b><small>Dernière exécution réussie</small></span>
+            <span><b>GitHub → Notion</b><small>Connexion à consolider</small></span>
+          </div>
+        </article>
+
+        <article className="overview-card overview-card--stats">
+          <div className="card-heading"><BarChart3 size={18} /><span>Vue générale</span></div>
+          <div className="mini-stats">
+            <span><strong>7</strong><small>orchestrations</small></span>
+            <span><strong>4</strong><small>connecteurs actifs</small></span>
+            <span><strong>149</strong><small>tests verts</small></span>
+            <span><strong>0</strong><small>incidents critiques</small></span>
+          </div>
+        </article>
+
+        <article className="overview-card overview-card--logs">
+          <div className="card-heading"><TerminalSquare size={18} /><span>Journal système</span></div>
+          <div className="log-lines">
+            <code>16:41 scan.obsidian completed</code>
+            <code>16:41 notion.children fetched</code>
+            <code>16:42 inventory merged</code>
+            <code>16:42 frontend ready</code>
+          </div>
+        </article>
+      </section>
+
+      <section className="overview-section">
+        <div className="section-heading">
+          <div><p className="eyebrow">Espaces actifs</p><h2>Orchestrations</h2></div>
+          <button className="text-button" onClick={() => navigate('/orchestrations')}>Tout voir <ChevronRight size={16} /></button>
+        </div>
+        <div className="featured-orchestrations">
+          {orchestrationCards.slice(0, 3).map(({ title, description, path, tone, status, icon: Icon }) => (
+            <button key={title} className={`orchestration-card tone-${tone}`} onClick={() => navigate(path)}>
+              <span className="orchestration-card__icon"><Icon size={20} /></span>
+              <span className="orchestration-card__copy"><b>{title}</b><small>{description}</small></span>
+              <span className="orchestration-card__status">{status}</span>
+              <ChevronRight size={18} />
+            </button>
+          ))}
+        </div>
+      </section>
+    </div>
+  )
+}
+
+function OrchestrationsPage() {
+  const navigate = useNavigate()
+  return (
+    <div className="page">
+      <header className="page-header">
+        <p className="eyebrow">Hanuman / Orchestrations</p>
+        <h1>Les espaces où les outils coopèrent.</h1>
+        <p>Chaque orchestration possède sa propre logique et son ambiance, mais reste intégrée au même système Hanuman.</p>
+      </header>
+      <section className="catalog-grid">
+        {orchestrationCards.map(({ title, description, path, tone, status, icon: Icon }) => (
+          <button key={title} className={`catalog-card tone-${tone}`} onClick={() => navigate(path)}>
+            <span className="catalog-card__top"><span className="orchestration-card__icon"><Icon size={21} /></span><span className="catalog-status">{status}</span></span>
+            <b>{title}</b>
+            <p>{description}</p>
+            <span className="catalog-card__footer">Entrer dans l’espace <ArrowRight size={16} /></span>
+          </button>
+        ))}
+      </section>
+    </div>
+  )
+}
+
+function ObsidianNotionPage() {
+  const navigate = useNavigate()
   const [items, setItems] = useState<Item[]>([])
   const [stats, setStats] = useState<Stats>(emptyStats)
   const [query, setQuery] = useState('')
   const [status, setStatus] = useState<'all' | SyncStatus>('all')
+  const [selectedId, setSelectedId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -108,12 +289,11 @@ export default function App() {
         fetch(`/orchestrations/obsidian-notion/items${suffix}`),
         fetch('/orchestrations/obsidian-notion/stats'),
       ])
-      if (!itemsResponse.ok || !statsResponse.ok) {
-        throw new Error('Le moteur Hanuman ne répond pas correctement.')
-      }
+      if (!itemsResponse.ok || !statsResponse.ok) throw new Error('Le moteur Hanuman ne répond pas correctement.')
       const itemData = (await itemsResponse.json()) as { items: Item[] }
       setItems(itemData.items)
       setStats((await statsResponse.json()) as Stats)
+      setSelectedId((current) => current && itemData.items.some((item) => item.id === current) ? current : itemData.items[0]?.id ?? null)
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'Impossible de charger les données.')
     } finally {
@@ -121,150 +301,103 @@ export default function App() {
     }
   }
 
-  useEffect(() => {
-    void load()
-  }, [])
+  useEffect(() => { void load() }, [])
 
-  const visibleItems = useMemo(
-    () => items.filter((item) => status === 'all' || item.status === status),
-    [items, status],
-  )
-
-  function submitSearch(event: React.FormEvent) {
-    event.preventDefault()
-    void load()
-  }
+  const visibleItems = useMemo(() => items.filter((item) => status === 'all' || item.status === status), [items, status])
+  const selected = items.find((item) => item.id === selectedId) ?? null
+  const folders = useMemo(() => {
+    const counts = new Map<string, number>()
+    items.forEach((item) => {
+      const folder = item.obsidian?.path.includes('/') ? item.obsidian.path.split('/')[0] : 'Racine'
+      counts.set(folder, (counts.get(folder) ?? 0) + 1)
+    })
+    return [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 10)
+  }, [items])
 
   return (
-    <div className="app-shell">
-      <aside className="sidebar">
-        <div className="brand">
-          <div className="brand__mark"><Sparkles size={21} /></div>
-          <div>
-            <strong>Hanuman</strong>
-            <span>Orchestration system</span>
-          </div>
+    <div className="page obsidian-space">
+      <header className="obsidian-header">
+        <div>
+          <button className="breadcrumb-button" onClick={() => navigate('/orchestrations')}>← Orchestrations</button>
+          <p className="eyebrow">Espace spécialisé</p>
+          <h1>Obsidian <span>↔</span> Notion</h1>
+          <p>Explorer, publier, importer, comparer et suivre les échanges sans quitter Hanuman.</p>
         </div>
+        <button className="refresh-button" onClick={() => void load()} disabled={loading}><RefreshCw size={17} className={loading ? 'spin' : ''} /> Actualiser</button>
+      </header>
 
-        <nav className="nav">
-          <button><BarChart3 size={18} /> Vue d’ensemble</button>
-          <button className="nav__active"><Boxes size={18} /> Orchestrations</button>
-          <button><BookOpen size={18} /> Bibliothèque</button>
-        </nav>
+      <section className="compact-stats">
+        <span><b>{stats.vault_notes}</b><small>notes du vault</small></span>
+        <span><b>{stats.notion_pages}</b><small>pages Notion</small></span>
+        <span><b>{stats.linked}</b><small>liaisons</small></span>
+        <span><b>{stats.conflicts}</b><small>conflits</small></span>
+        <span><b>{stats.obsidian_only}</b><small>à publier</small></span>
+      </section>
 
-        <div className="sidebar__footer">
-          <span className="engine-dot" />
-          Moteur connecté
-        </div>
-      </aside>
-
-      <main>
-        <header className="hero">
-          <div>
-            <p className="eyebrow">Orchestration active</p>
-            <h1>Obsidian <span>↔</span> Notion</h1>
-            <p>Un seul espace pour explorer, publier, importer et comprendre les échanges entre ton vault et ta page Notion dédiée.</p>
+      <section className="orchestration-workbench">
+        <aside className="vault-panel">
+          <div className="panel-title"><span>Vault</span><small>{stats.vault_notes}</small></div>
+          <form className="search-box" onSubmit={(event) => { event.preventDefault(); void load() }}>
+            <Search size={16} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Rechercher…" />
+          </form>
+          <div className="folder-list">
+            <button className="folder-active"><Library size={15} /> Toutes les notes <small>{stats.vault_notes}</small></button>
+            {folders.map(([folder, count]) => <button key={folder}><FileText size={15} /> {folder}<small>{count}</small></button>)}
           </div>
-          <button className="refresh-button" onClick={() => void load()} disabled={loading}>
-            <RefreshCw size={17} className={loading ? 'spin' : ''} /> Actualiser
-          </button>
-        </header>
-
-        <section className="stats-grid" aria-label="Statistiques">
-          <article><span>Vault</span><strong>{stats.vault_notes}</strong><small>notes Markdown</small></article>
-          <article><span>Notion</span><strong>{stats.notion_pages}</strong><small>pages dédiées</small></article>
-          <article><span>Synchronisées</span><strong>{stats.synced}</strong><small>{stats.linked} liaisons</small></article>
-          <article className={stats.conflicts ? 'stat-alert' : ''}><span>Conflits</span><strong>{stats.conflicts}</strong><small>à examiner</small></article>
-        </section>
-
-        <section className="workspace">
-          <div className="workspace__toolbar">
-            <form className="search-box" onSubmit={submitSearch}>
-              <Search size={18} />
-              <input
-                value={query}
-                onChange={(event) => setQuery(event.target.value)}
-                placeholder="Rechercher une note, un chemin ou un tag…"
-                aria-label="Recherche"
-              />
-            </form>
-            <div className="filters">
-              {filters.map((filter) => (
-                <button
-                  key={filter.value}
-                  className={status === filter.value ? 'filter-active' : ''}
-                  onClick={() => setStatus(filter.value)}
-                >
-                  {filter.label}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {error && (
-            <div className="error-panel">
-              <strong>Hanuman attend son moteur.</strong>
-              <span>{error} Lance FastAPI sur le port 8000 puis actualise.</span>
-            </div>
-          )}
-
-          {!error && !loading && visibleItems.length === 0 && (
-            <div className="empty-panel">
-              <GitCompareArrows size={28} />
-              <strong>Aucun élément dans cette vue.</strong>
-              <span>Modifie la recherche ou le filtre.</span>
-            </div>
-          )}
-
-          <div className="items-list">
-            {visibleItems.map((item) => (
-              <article className="item-card" key={item.id}>
-                <div className="item-card__identity">
-                  <div className="file-icon"><FileText size={20} /></div>
-                  <div>
-                    <h2>{item.title}</h2>
-                    <p>{item.obsidian?.path ?? 'Page Notion sans fichier local'}</p>
-                    {!!item.obsidian?.tags.length && (
-                      <div className="tags">{item.obsidian.tags.map((tag) => <span key={tag}>#{tag}</span>)}</div>
-                    )}
-                  </div>
-                </div>
-
-                <div className="resource-pair">
-                  <div className={item.obsidian ? 'resource resource--ready' : 'resource'}>
-                    <span>Obsidian</span>
-                    <strong>{item.obsidian ? formatDate(item.obsidian.modified_at) : 'Absent'}</strong>
-                  </div>
-                  <GitCompareArrows size={17} />
-                  <div className={item.notion ? 'resource resource--ready' : 'resource'}>
-                    <span>Notion</span>
-                    <strong>{item.notion ? formatDate(item.notion.modified_at) : 'Absent'}</strong>
-                  </div>
-                </div>
-
-                <div className={`status status--${item.status}`}>
-                  <span>{statusCopy[item.status].label}</span>
-                  <small>{statusCopy[item.status].hint}</small>
-                </div>
-
-                <div className="actions">
-                  {item.obsidian && (
-                    <a href={item.obsidian.open_url}><ExternalLink size={15} /> Obsidian</a>
-                  )}
-                  {item.notion && (
-                    <a href={item.notion.url} target="_blank" rel="noreferrer"><ExternalLink size={15} /> Notion</a>
-                  )}
-                  {item.status === 'obsidian_only' && <button><ArrowUpRight size={15} /> Publier</button>}
-                  {item.status === 'notion_only' && <button><ArrowDownLeft size={15} /> Importer</button>}
-                  {['conflict', 'obsidian_newer', 'notion_newer'].includes(item.status) && (
-                    <button><GitCompareArrows size={15} /> Comparer</button>
-                  )}
-                </div>
-              </article>
+          <div className="panel-section-label">Filtres</div>
+          <div className="vertical-filters">
+            {([
+              ['all', 'Tout'], ['synced', 'Synchronisés'], ['obsidian_only', 'À publier'], ['notion_only', 'À importer'], ['conflict', 'Conflits'],
+            ] as Array<['all' | SyncStatus, string]>).map(([value, label]) => (
+              <button key={value} className={status === value ? 'filter-active' : ''} onClick={() => setStatus(value)}>{label}</button>
             ))}
           </div>
-        </section>
-      </main>
+        </aside>
+
+        <div className="inventory-panel">
+          <div className="panel-title"><span>Inventaire</span><small>{visibleItems.length} éléments</small></div>
+          {error && <div className="error-panel"><b>Hanuman attend son moteur.</b><span>{error}</span></div>}
+          {!error && !loading && visibleItems.length === 0 && <div className="empty-panel"><GitCompareArrows size={26} /><b>Aucun élément</b></div>}
+          <div className="inventory-list">
+            {visibleItems.map((item) => (
+              <button key={item.id} className={`inventory-row${selectedId === item.id ? ' inventory-row--selected' : ''}`} onClick={() => setSelectedId(item.id)}>
+                <span className="file-icon"><FileText size={17} /></span>
+                <span className="inventory-copy"><b>{item.title}</b><small>{item.obsidian?.path ?? 'Page Notion sans fichier local'}</small></span>
+                <span className={`status-dot status-dot--${item.status}`} />
+                <span className="inventory-date">{formatDate(item.obsidian?.modified_at ?? item.notion?.modified_at)}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <aside className="detail-panel">
+          {selected ? (
+            <>
+              <div className="detail-heading"><span className="file-icon"><FileText size={18} /></span><div><h2>{selected.title}</h2><p>{selected.obsidian?.path ?? 'Page Notion'}</p></div></div>
+              <div className={`detail-status status--${selected.status}`}><span>{statusCopy[selected.status].label}</span><small>{statusCopy[selected.status].hint}</small></div>
+              <div className="detail-section"><h3>Présence</h3><div className="presence-grid"><span className={selected.obsidian ? 'presence-ok' : ''}>Obsidian<b>{selected.obsidian ? 'Disponible' : 'Absent'}</b></span><span className={selected.notion ? 'presence-ok' : ''}>Notion<b>{selected.notion ? 'Disponible' : 'Absent'}</b></span></div></div>
+              <div className="detail-section"><h3>Dernière activité</h3><p>{formatDate(selected.obsidian?.modified_at ?? selected.notion?.modified_at)}</p></div>
+              {!!selected.obsidian?.tags.length && <div className="detail-section"><h3>Tags</h3><div className="tags">{selected.obsidian.tags.map((tag) => <span key={tag}>#{tag}</span>)}</div></div>}
+              <div className="detail-actions">
+                {selected.obsidian && <a href={selected.obsidian.open_url}><ExternalLink size={15} /> Ouvrir dans Obsidian</a>}
+                {selected.notion && <a href={selected.notion.url} target="_blank" rel="noreferrer"><ExternalLink size={15} /> Ouvrir dans Notion</a>}
+                {selected.status === 'obsidian_only' && <button><ArrowUpRight size={15} /> Publier vers Notion</button>}
+                {selected.status === 'notion_only' && <button><ArrowDownLeft size={15} /> Importer dans le vault</button>}
+                {['conflict', 'obsidian_newer', 'notion_newer'].includes(selected.status) && <button><GitCompareArrows size={15} /> Comparer les versions</button>}
+              </div>
+              <div className="detail-section detail-future"><h3>Historique & diff</h3><p>Le panneau est réservé dès maintenant pour l’historique des échanges, le diff et la résolution des conflits.</p></div>
+            </>
+          ) : <div className="empty-detail">Sélectionne un élément.</div>}
+        </aside>
+      </section>
     </div>
   )
+}
+
+function PlaceholderPage({ title, text }: { title: string; text: string }) {
+  return <div className="page"><header className="page-header"><p className="eyebrow">Hanuman</p><h1>{title}</h1><p>{text}</p></header><div className="placeholder-panel"><CalendarDays size={28} /><b>Espace réservé</b><span>La structure existe déjà pour permettre une construction progressive sans refonte.</span></div></div>
+}
+
+export default function App() {
+  return <BrowserRouter><AppShell /></BrowserRouter>
 }
