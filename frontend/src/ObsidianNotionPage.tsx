@@ -1,10 +1,13 @@
 import {
+  AlertTriangle,
   ArrowDownLeft,
   ArrowUpRight,
+  CheckCircle2,
   ExternalLink,
   FileText,
   GitCompareArrows,
   Library,
+  LoaderCircle,
   RefreshCw,
   Search,
 } from 'lucide-react'
@@ -23,6 +26,9 @@ type Stats = {
   vault_notes: number; notion_pages: number; linked: number; synced: number; obsidian_only: number
   notion_only: number; obsidian_newer: number; notion_newer: number; conflicts: number
 }
+type PublishResponse = { ok: boolean; notion?: { id?: string; url?: string }; error?: string }
+type PublishState = 'idle' | 'loading' | 'success' | 'error'
+
 const emptyStats: Stats = { vault_notes: 0, notion_pages: 0, linked: 0, synced: 0, obsidian_only: 0, notion_only: 0, obsidian_newer: 0, notion_newer: 0, conflicts: 0 }
 const statusCopy: Record<SyncStatus, { label: string; hint: string }> = {
   synced: { label: 'Synchronisé', hint: 'Les deux versions sont alignées.' },
@@ -47,6 +53,9 @@ export default function ObsidianNotionPage() {
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [publishState, setPublishState] = useState<PublishState>('idle')
+  const [publishMessage, setPublishMessage] = useState('')
+  const [publishedUrl, setPublishedUrl] = useState<string | null>(null)
 
   async function load() {
     setLoading(true); setError(null)
@@ -66,7 +75,33 @@ export default function ObsidianNotionPage() {
     } finally { setLoading(false) }
   }
 
+  async function publishToNotion(item: Item) {
+    if (!item.obsidian) return
+    setPublishState('loading')
+    setPublishMessage('Hanuman lit la note et construit la page Notion…')
+    setPublishedUrl(null)
+    try {
+      const response = await fetch('/api/orchestrations/obsidian-to-notion', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ path: item.obsidian.path }),
+      })
+      const data = (await response.json()) as PublishResponse
+      if (!response.ok || !data.ok) throw new Error(data.error || `Erreur HTTP ${response.status}`)
+      setPublishState('success')
+      setPublishMessage('La note a été publiée dans Notion.')
+      setPublishedUrl(data.notion?.url || null)
+    } catch (caught) {
+      setPublishState('error')
+      setPublishMessage(caught instanceof Error ? caught.message : 'Échec de la publication vers Notion.')
+    }
+  }
+
   useEffect(() => { void load() }, [])
+  useEffect(() => {
+    setPublishState('idle'); setPublishMessage(''); setPublishedUrl(null)
+  }, [selectedId])
+
   const visibleItems = useMemo(() => items.filter((item) => status === 'all' || item.status === status), [items, status])
   const selected = items.find((item) => item.id === selectedId) ?? null
   const folders = useMemo(() => {
@@ -107,7 +142,18 @@ export default function ObsidianNotionPage() {
         <div className="detail-section"><h3>Présence</h3><div className="presence-grid"><span className={selected.obsidian ? 'presence-ok' : ''}>Obsidian<b>{selected.obsidian ? 'Disponible' : 'Absent'}</b></span><span className={selected.notion ? 'presence-ok' : ''}>Notion<b>{selected.notion ? 'Disponible' : 'Absent'}</b></span></div></div>
         <div className="detail-section"><h3>Dernière activité</h3><p>{formatDate(selected.obsidian?.modified_at ?? selected.notion?.modified_at)}</p></div>
         {!!selected.obsidian?.tags.length && <div className="detail-section"><h3>Tags</h3><div className="tags">{selected.obsidian.tags.map((tag) => <span key={tag}>#{tag}</span>)}</div></div>}
-        <div className="detail-actions">{selected.obsidian && <a href={selected.obsidian.open_url}><ExternalLink size={15} /> Ouvrir dans Obsidian</a>}{selected.notion && <a href={selected.notion.url} target="_blank" rel="noreferrer"><ExternalLink size={15} /> Ouvrir dans Notion</a>}{selected.status === 'obsidian_only' && <button><ArrowUpRight size={15} /> Publier vers Notion</button>}{selected.status === 'notion_only' && <button><ArrowDownLeft size={15} /> Importer dans le vault</button>}{['conflict','obsidian_newer','notion_newer'].includes(selected.status) && <button><GitCompareArrows size={15} /> Comparer les versions</button>}</div>
+        <div className="detail-actions">
+          {selected.obsidian && <a href={selected.obsidian.open_url}><ExternalLink size={15} /> Ouvrir dans Obsidian</a>}
+          {selected.notion && <a href={selected.notion.url} target="_blank" rel="noreferrer"><ExternalLink size={15} /> Ouvrir dans Notion</a>}
+          {selected.status === 'obsidian_only' && <button onClick={() => void publishToNotion(selected)} disabled={publishState === 'loading'}>{publishState === 'loading' ? <LoaderCircle size={15} className="spin" /> : <ArrowUpRight size={15} />} {publishState === 'loading' ? 'Publication…' : 'Publier vers Notion'}</button>}
+          {selected.status === 'notion_only' && <button><ArrowDownLeft size={15} /> Importer dans le vault</button>}
+          {['conflict','obsidian_newer','notion_newer'].includes(selected.status) && <button><GitCompareArrows size={15} /> Comparer les versions</button>}
+        </div>
+        {publishState !== 'idle' && <div className={`detail-status publish-feedback publish-feedback--${publishState}`}>
+          <span>{publishState === 'loading' ? <LoaderCircle size={13} className="spin" /> : publishState === 'success' ? <CheckCircle2 size={13} /> : <AlertTriangle size={13} />} {publishState === 'loading' ? 'En cours' : publishState === 'success' ? 'Publié' : 'Erreur'}</span>
+          <small>{publishMessage}</small>
+          {publishedUrl && <a href={publishedUrl} target="_blank" rel="noreferrer"><ExternalLink size={14} /> Ouvrir la page créée</a>}
+        </div>}
         <div className="detail-section detail-future"><h3>Historique & diff</h3><p>Le panneau est réservé dès maintenant pour l’historique des échanges, le diff et la résolution des conflits.</p></div>
       </> : <div className="empty-detail">Sélectionne un élément.</div>}</aside>
     </section>
