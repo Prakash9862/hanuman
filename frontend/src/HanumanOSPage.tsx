@@ -8,6 +8,7 @@ import {
   Network,
   NotebookPen,
   Swords,
+  X,
 } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
@@ -61,8 +62,8 @@ function statusLabel(status: NodeStatus) {
 
 export default function HanumanOSPage() {
   const navigate = useNavigate()
-  const [selectedId, setSelectedId] = useState<NodeId>('hanuman')
-  const selected = useMemo(() => nodes.find((node) => node.id === selectedId) ?? nodes[0], [selectedId])
+  const [selectedId, setSelectedId] = useState<NodeId | null>(null)
+  const selected = useMemo(() => nodes.find((node) => node.id === selectedId) ?? null, [selectedId])
 
   return <section className="hanuman-os">
     <div className="hanuman-os__atmosphere" />
@@ -89,19 +90,20 @@ export default function HanumanOSPage() {
         onClick={() => setSelectedId(id)}
         onDoubleClick={() => route && navigate(route)}
       >
-        <span className="hanuman-os__orb"><Icon size={id === 'hanuman' ? 30 : 20} /></span>
-        <span><b>{label}</b><small>{subtitle}</small></span>
+        <span className="hanuman-os__orb"><Icon size={id === 'hanuman' ? 22 : 15} /></span>
+        <span className="hanuman-os__label"><b>{label}</b><small>{subtitle}</small></span>
       </button>)}
     </div>
 
-    <aside className="hanuman-os__inspector">
+    {selected && <aside className="hanuman-os__inspector">
+      <button className="hanuman-os__inspector-close" onClick={() => setSelectedId(null)} aria-label="Fermer l’inspecteur"><X size={15} /></button>
       <p>CONSTELLATION / NŒUD</p>
       <h1>{selected.label}</h1>
       <span className={`hanuman-os__status hanuman-os__status--${selected.status}`}>{statusLabel(selected.status)}</span>
-      <div className="hanuman-os__meta"><Network size={15} /> {links.filter(([from, to]) => from === selected.id || to === selected.id).length} connexions visibles</div>
-      <p className="hanuman-os__description">{selected.subtitle}. Hanuman conserve cet outil à sa juste place et orchestre ses échanges avec le reste de l’écosystème.</p>
-      {selected.route ? <button onClick={() => navigate(selected.route)}>Entrer dans l’espace <ChevronRight size={17} /></button> : <small>Cette étoile sera activée lorsqu’une orchestration stable lui sera associée.</small>}
-    </aside>
+      <div className="hanuman-os__meta"><Network size={14} /> {links.filter(([from, to]) => from === selected.id || to === selected.id).length} connexions</div>
+      <p className="hanuman-os__description">{selected.subtitle}. Hanuman orchestre ses échanges avec le reste de l’écosystème.</p>
+      {selected.route ? <button className="hanuman-os__inspector-action" onClick={() => navigate(selected.route)}>Entrer dans l’espace <ChevronRight size={16} /></button> : <small>Aucune orchestration dédiée stabilisée.</small>}
+    </aside>}
 
     <footer className="hanuman-os__dock">
       <span>1 clic : inspecter</span><i /> <span>Double-clic : ouvrir</span><i /> <span>3 flux opérationnels</span>
