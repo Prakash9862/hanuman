@@ -53,8 +53,8 @@ export default function ObsidianNotionPage() {
     try {
       const suffix = query.trim() ? `?query=${encodeURIComponent(query.trim())}` : ''
       const [itemsResponse, statsResponse] = await Promise.all([
-        fetch(`/orchestrations/obsidian-notion/items${suffix}`),
-        fetch('/orchestrations/obsidian-notion/stats'),
+        fetch(`/api/orchestrations/obsidian-notion/items${suffix}`),
+        fetch('/api/orchestrations/obsidian-notion/stats'),
       ])
       if (!itemsResponse.ok || !statsResponse.ok) throw new Error('Le moteur Hanuman ne répond pas correctement.')
       const itemData = (await itemsResponse.json()) as { items: Item[] }
