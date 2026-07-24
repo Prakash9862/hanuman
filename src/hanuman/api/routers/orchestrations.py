@@ -92,10 +92,23 @@ def obsidian_to_notion(body: ObsidianToNotionIn):
 
 @router.post("/wikipedia-to-notion")
 def wikipedia_to_notion(body: WikipediaToNotionIn):
+    parent = (
+        body.parent_id
+        or os.environ.get("NOTION_WIKIPEDIA_PARENT_ID")
+        or os.environ.get("NOTION_PARENT_PAGE_ID")
+        or os.environ.get("NOTION_PARENT_ID")
+    )
+
+    if not parent:
+        return {
+            "ok": False,
+            "error": "Parent Notion manquant (NOTION_WIKIPEDIA_PARENT_ID/NOTION_PARENT_PAGE_ID/NOTION_PARENT_ID)",
+        }
+
     try:
         ref = publish_wikipedia_page_to_notion(
             body.query,
-            parent_page_id=body.parent_id,
+            parent_page_id=parent,
         )
         return {"ok": True, "notion": {"id": ref.page_id, "url": ref.url}}
     except Exception as exc:  # pragma: no cover - renvoyé comme erreur HTTP
