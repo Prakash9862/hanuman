@@ -26,7 +26,7 @@ type Stats = {
   vault_notes: number; notion_pages: number; linked: number; synced: number; obsidian_only: number
   notion_only: number; obsidian_newer: number; notion_newer: number; conflicts: number
 }
-type PublishResponse = { ok: boolean; notion?: { id?: string; url?: string }; error?: string }
+type PublishResponse = { ok?: boolean; notion?: { id?: string; url?: string }; error?: string; detail?: string }
 type PublishState = 'idle' | 'loading' | 'success' | 'error'
 
 const emptyStats: Stats = { vault_notes: 0, notion_pages: 0, linked: 0, synced: 0, obsidian_only: 0, notion_only: 0, obsidian_newer: 0, notion_newer: 0, conflicts: 0 }
@@ -43,6 +43,13 @@ function formatDate(value?: string | null) {
   if (!value) return '—'
   return new Intl.DateTimeFormat('fr-FR', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value))
 }
+async function readPayload(response: Response): Promise<PublishResponse> {
+  try {
+    return await response.json() as PublishResponse
+  } catch {
+    return { detail: await response.text() }
+  }
+}
 
 export default function ObsidianNotionPage() {
   const navigate = useNavigate()
@@ -57,7 +64,7 @@ export default function ObsidianNotionPage() {
   const [publishMessage, setPublishMessage] = useState('')
   const [publishedUrl, setPublishedUrl] = useState<string | null>(null)
 
-  async function load() {
+  async function load(preferredTitle?: string) {
     setLoading(true); setError(null)
     try {
       const suffix = query.trim() ? `?query=${encodeURIComponent(query.trim())}` : ''
@@ -66,10 +73,13 @@ export default function ObsidianNotionPage() {
         fetch('/api/orchestrations/obsidian-notion/stats'),
       ])
       if (!itemsResponse.ok || !statsResponse.ok) throw new Error('Le moteur Hanuman ne répond pas correctement.')
-      const itemData = (await itemsResponse.json()) as { items: Item[] }
+      const itemData = await itemsResponse.json() as { items: Item[] }
       setItems(itemData.items)
-      setStats((await statsResponse.json()) as Stats)
-      setSelectedId((current) => current && itemData.items.some((item) => item.id === current) ? current : itemData.items[0]?.id ?? null)
+      setStats(await statsResponse.json() as Stats)
+      setSelectedId((current) => {
+        if (preferredTitle) return itemData.items.find((item) => item.title === preferredTitle)?.id ?? current
+        return current && itemData.items.some((item) => item.id === current) ? current : itemData.items[0]?.id ?? null
+      })
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'Impossible de charger les données.')
     } finally { setLoading(false) }
@@ -86,11 +96,14 @@ export default function ObsidianNotionPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ path: item.obsidian.path }),
       })
-      const data = (await response.json()) as PublishResponse
-      if (!response.ok || !data.ok) throw new Error(data.error || `Erreur HTTP ${response.status}`)
+      const data = await readPayload(response)
+      if (!response.ok || data.ok === false) {
+        throw new Error(data.detail || data.error || `Erreur HTTP ${response.status}`)
+      }
       setPublishState('success')
-      setPublishMessage('La note a été publiée dans Notion.')
+      setPublishMessage('La note a été publiée dans Notion. Inventaire actualisé.')
       setPublishedUrl(data.notion?.url || null)
+      await load(item.title)
     } catch (caught) {
       setPublishState('error')
       setPublishMessage(caught instanceof Error ? caught.message : 'Échec de la publication vers Notion.')
