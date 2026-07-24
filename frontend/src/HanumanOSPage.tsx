@@ -65,6 +65,10 @@ export default function HanumanOSPage() {
   const [selectedId, setSelectedId] = useState<NodeId | null>(null)
   const selected = useMemo(() => nodes.find((node) => node.id === selectedId) ?? null, [selectedId])
 
+  function openRoute(route?: string) {
+    if (route) navigate(route)
+  }
+
   return <section className="hanuman-os">
     <div className="hanuman-os__atmosphere" />
     <header className="hanuman-os__topline">
@@ -88,7 +92,7 @@ export default function HanumanOSPage() {
         className={`hanuman-os__node hanuman-os__node--${status} ${selectedId === id ? 'is-selected' : ''}`}
         style={{ left: `${x}%`, top: `${y}%` }}
         onClick={() => setSelectedId(id)}
-        onDoubleClick={() => route && navigate(route)}
+        onDoubleClick={() => openRoute(route)}
       >
         <span className="hanuman-os__orb"><Icon size={id === 'hanuman' ? 22 : 15} /></span>
         <span className="hanuman-os__label"><b>{label}</b><small>{subtitle}</small></span>
@@ -102,7 +106,7 @@ export default function HanumanOSPage() {
       <span className={`hanuman-os__status hanuman-os__status--${selected.status}`}>{statusLabel(selected.status)}</span>
       <div className="hanuman-os__meta"><Network size={14} /> {links.filter(([from, to]) => from === selected.id || to === selected.id).length} connexions</div>
       <p className="hanuman-os__description">{selected.subtitle}. Hanuman orchestre ses échanges avec le reste de l’écosystème.</p>
-      {selected.route ? <button className="hanuman-os__inspector-action" onClick={() => navigate(selected.route)}>Entrer dans l’espace <ChevronRight size={16} /></button> : <small>Aucune orchestration dédiée stabilisée.</small>}
+      {selected.route ? <button className="hanuman-os__inspector-action" onClick={() => openRoute(selected.route)}>Entrer dans l’espace <ChevronRight size={16} /></button> : <small>Aucune orchestration dédiée stabilisée.</small>}
     </aside>}
 
     <footer className="hanuman-os__dock">
