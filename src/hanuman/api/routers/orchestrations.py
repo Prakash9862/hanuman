@@ -9,15 +9,12 @@ from hanuman.models.obsidian_notion import (
     ObsidianNotionStats,
 )
 from hanuman.orchestrations.obsidian_notion_dashboard import build_items, build_stats
-from hanuman.orchestrations.obsidian_to_notion import send_markdown_to_notion
+from hanuman.orchestrations.obsidian_to_notion_safe import send_markdown_to_notion_safe
 from hanuman.orchestrations.wikipedia_to_notion import (
     publish_wikipedia_page_to_notion,
 )
 
-router = APIRouter(
-    prefix="/orchestrations",
-    tags=["orchestrations"],
-)
+router = APIRouter(prefix="/orchestrations", tags=["orchestrations"])
 
 
 class ObsidianToNotionIn(BaseModel):
@@ -33,7 +30,6 @@ class WikipediaToNotionIn(BaseModel):
 
 
 def _resolve_obsidian_markdown_path(raw_path: str) -> Path:
-    """Résout un chemin de l'inventaire relativement au vault configuré."""
     requested = Path(raw_path).expanduser()
     if requested.is_absolute():
         resolved = requested.resolve()
@@ -55,14 +51,10 @@ def _resolve_obsidian_markdown_path(raw_path: str) -> Path:
     return resolved
 
 
-@router.get(
-    "/obsidian-notion/items",
-    response_model=ObsidianNotionItemsResponse,
-)
+@router.get("/obsidian-notion/items", response_model=ObsidianNotionItemsResponse)
 def obsidian_notion_items(
     query: str | None = Query(default=None, description="Recherche par titre, chemin ou tag"),
 ) -> ObsidianNotionItemsResponse:
-    """Fusionne l'inventaire du vault et des pages Notion dédiées."""
     try:
         items = build_items(query)
     except Exception as exc:
@@ -70,12 +62,8 @@ def obsidian_notion_items(
     return ObsidianNotionItemsResponse(items=items, total=len(items))
 
 
-@router.get(
-    "/obsidian-notion/stats",
-    response_model=ObsidianNotionStats,
-)
+@router.get("/obsidian-notion/stats", response_model=ObsidianNotionStats)
 def obsidian_notion_stats() -> ObsidianNotionStats:
-    """Retourne les statistiques d'état de l'orchestration."""
     try:
         return build_stats(build_items())
     except Exception as exc:
@@ -84,31 +72,31 @@ def obsidian_notion_stats() -> ObsidianNotionStats:
 
 @router.post("/obsidian-to-notion")
 def obsidian_to_notion(body: ObsidianToNotionIn):
-    """Envoie un fichier Markdown du vault vers une page ou base Notion."""
     parent = (
         body.parent_id
         or os.environ.get("NOTION_OBSIDIAN_PARENT_ID")
         or os.environ.get("NOTION_PARENT_PAGE_ID")
         or os.environ.get("NOTION_PARENT_ID")
     )
-
     if not parent:
-        return {
-            "ok": False,
-            "error": "Parent Notion manquant (NOTION_OBSIDIAN_PARENT_ID/NOTION_PARENT_PAGE_ID/NOTION_PARENT_ID)",
-        }
+        raise HTTPException(
+            status_code=400,
+            detail="Parent Notion manquant (NOTION_OBSIDIAN_PARENT_ID/NOTION_PARENT_PAGE_ID/NOTION_PARENT_ID)",
+        )
 
     try:
         markdown_path = _resolve_obsidian_markdown_path(body.path)
-        out = send_markdown_to_notion(
+        out = send_markdown_to_notion_safe(
             markdown_path=str(markdown_path),
             parent_id=parent,
             parent_is_db=body.parent_is_db,
             db_title_name=body.db_title_name or os.environ.get("NOTION_DB_TITLE_NAME", "Name"),
         )
         return {"ok": True, "notion": out}
+    except (FileNotFoundError, ValueError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     except Exception as exc:
-        return {"ok": False, "error": str(exc)}
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
 
 
 @router.post("/wikipedia-to-notion")
@@ -119,24 +107,18 @@ def wikipedia_to_notion(body: WikipediaToNotionIn):
         or os.environ.get("NOTION_PARENT_PAGE_ID")
         or os.environ.get("NOTION_PARENT_ID")
     )
-
     if not parent:
         return {
             "ok": False,
             "error": "Parent Notion manquant (NOTION_WIKIPEDIA_PARENT_ID/NOTION_PARENT_PAGE_ID/NOTION_PARENT_ID)",
         }
-
     try:
-        ref = publish_wikipedia_page_to_notion(
-            body.query,
-            parent_page_id=parent,
-        )
+        ref = publish_wikipedia_page_to_notion(body.query, parent_page_id=parent)
         return {"ok": True, "notion": {"id": ref.page_id, "url": ref.url}}
-    except Exception as exc:  # pragma: no cover - renvoyé comme erreur HTTP
+    except Exception as exc:
         return {"ok": False, "error": str(exc)}
 
 
 @router.get("/ping")
 def orchestration_ping():
-    """Test rapide que la route /orchestrations est bien active."""
     return {"status": "ok", "module": "orchestrations"}
