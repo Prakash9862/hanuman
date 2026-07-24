@@ -6,6 +6,7 @@ import urllib.request
 from pathlib import Path
 from typing import Any, Dict, Iterable
 
+from hanuman.orchestrations.notion_markdown_sanitizer import sanitize_markdown_for_notion
 from hanuman.orchestrations.obsidian_to_notion import (
     _notion_headers,
     build_notion_body,
@@ -87,7 +88,7 @@ def send_markdown_to_notion_safe(
     db_title_name: str = "Name",
 ) -> Dict[str, Any]:
     path = Path(markdown_path).expanduser().resolve()
-    markdown = path.read_text(encoding="utf-8")
+    markdown = sanitize_markdown_for_notion(path.read_text(encoding="utf-8"))
     front, body_md = split_frontmatter(markdown)
 
     if parent_is_db is None:
