@@ -5,12 +5,15 @@ import {
   ChevronRight,
   Github,
   Mail,
+  Minus,
   Network,
   NotebookPen,
+  Plus,
+  RotateCcw,
   Swords,
   X,
 } from 'lucide-react'
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 
 type NodeStatus = 'active' | 'partial' | 'planned' | 'core'
@@ -26,6 +29,8 @@ type Node = {
   icon: typeof Network
   route?: string
 }
+
+type Viewport = { x: number; y: number; scale: number }
 
 const nodes: Node[] = [
   { id: 'hanuman', label: 'Hanuman', subtitle: 'Centre de gravité', x: 50, y: 50, status: 'core', icon: BrainCircuit },
@@ -60,13 +65,21 @@ function statusLabel(status: NodeStatus) {
   return 'Cœur du système'
 }
 
+const initialViewport: Viewport = { x: 0, y: 0, scale: 1 }
+
 export default function HanumanOSPage() {
   const navigate = useNavigate()
   const [selectedId, setSelectedId] = useState<NodeId | null>(null)
+  const [viewport, setViewport] = useState<Viewport>(initialViewport)
+  const dragStart = useRef<{ pointerX: number; pointerY: number; x: number; y: number } | null>(null)
   const selected = useMemo(() => nodes.find((node) => node.id === selectedId) ?? null, [selectedId])
 
   function openRoute(route?: string) {
     if (route) navigate(route)
+  }
+
+  function zoomBy(delta: number) {
+    setViewport((current) => ({ ...current, scale: Math.min(1.6, Math.max(.72, current.scale + delta)) }))
   }
 
   return <section className="hanuman-os">
@@ -76,27 +89,52 @@ export default function HanumanOSPage() {
       <span className="hanuman-os__health"><i /> Système opérationnel</span>
     </header>
 
-    <div className="hanuman-os__map" aria-label="Constellation Hanuman">
+    <div
+      className={`hanuman-os__map${dragStart.current ? ' is-dragging' : ''}`}
+      aria-label="Constellation Hanuman"
+      onWheel={(event) => { event.preventDefault(); zoomBy(event.deltaY > 0 ? -.08 : .08) }}
+      onPointerDown={(event) => {
+        if ((event.target as HTMLElement).closest('button')) return
+        event.currentTarget.setPointerCapture(event.pointerId)
+        dragStart.current = { pointerX: event.clientX, pointerY: event.clientY, x: viewport.x, y: viewport.y }
+      }}
+      onPointerMove={(event) => {
+        const start = dragStart.current
+        if (!start) return
+        setViewport((current) => ({ ...current, x: start.x + event.clientX - start.pointerX, y: start.y + event.clientY - start.pointerY }))
+      }}
+      onPointerUp={() => { dragStart.current = null }}
+      onPointerCancel={() => { dragStart.current = null }}
+    >
       <div className="hanuman-os__stars" />
-      <svg viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
-        {links.map(([fromId, toId, status]) => {
-          const from = nodes.find((node) => node.id === fromId)!
-          const to = nodes.find((node) => node.id === toId)!
-          const selectedLink = selectedId === fromId || selectedId === toId
-          return <line key={`${fromId}-${toId}`} x1={from.x} y1={from.y} x2={to.x} y2={to.y} className={`hanuman-os__link hanuman-os__link--${status} ${selectedLink ? 'is-selected' : ''}`} vectorEffect="non-scaling-stroke" />
-        })}
-      </svg>
+      <div className="hanuman-os__world" style={{ transform: `translate(${viewport.x}px, ${viewport.y}px) scale(${viewport.scale})` }}>
+        <svg viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+          {links.map(([fromId, toId, status]) => {
+            const from = nodes.find((node) => node.id === fromId)!
+            const to = nodes.find((node) => node.id === toId)!
+            const selectedLink = selectedId === fromId || selectedId === toId
+            return <line key={`${fromId}-${toId}`} x1={from.x} y1={from.y} x2={to.x} y2={to.y} className={`hanuman-os__link hanuman-os__link--${status} ${selectedLink ? 'is-selected' : ''}`} vectorEffect="non-scaling-stroke" />
+          })}
+        </svg>
 
-      {nodes.map(({ id, label, subtitle, x, y, status, icon: Icon, route }) => <button
-        key={id}
-        className={`hanuman-os__node hanuman-os__node--${status} ${selectedId === id ? 'is-selected' : ''}`}
-        style={{ left: `${x}%`, top: `${y}%` }}
-        onClick={() => setSelectedId(id)}
-        onDoubleClick={() => openRoute(route)}
-      >
-        <span className="hanuman-os__orb"><Icon size={id === 'hanuman' ? 22 : 15} /></span>
-        <span className="hanuman-os__label"><b>{label}</b><small>{subtitle}</small></span>
-      </button>)}
+        {nodes.map(({ id, label, subtitle, x, y, status, icon: Icon, route }) => <button
+          key={id}
+          className={`hanuman-os__node hanuman-os__node--${id} hanuman-os__node--${status} ${selectedId === id ? 'is-selected' : ''}`}
+          style={{ left: `${x}%`, top: `${y}%` }}
+          onClick={() => setSelectedId(id)}
+          onDoubleClick={() => openRoute(route)}
+        >
+          <span className="hanuman-os__orb"><Icon size={id === 'hanuman' ? 22 : 15} /></span>
+          <span className="hanuman-os__label"><b>{label}</b><small>{subtitle}</small></span>
+        </button>)}
+      </div>
+    </div>
+
+    <div className="hanuman-os__zoom" aria-label="Contrôles de la constellation">
+      <button onClick={() => zoomBy(-.12)} aria-label="Dézoomer"><Minus size={15} /></button>
+      <span>{Math.round(viewport.scale * 100)}%</span>
+      <button onClick={() => zoomBy(.12)} aria-label="Zoomer"><Plus size={15} /></button>
+      <button onClick={() => setViewport(initialViewport)} aria-label="Recentrer"><RotateCcw size={14} /></button>
     </div>
 
     {selected && <aside className="hanuman-os__inspector">
@@ -110,7 +148,7 @@ export default function HanumanOSPage() {
     </aside>}
 
     <footer className="hanuman-os__dock">
-      <span>1 clic : inspecter</span><i /> <span>Double-clic : ouvrir</span><i /> <span>3 flux opérationnels</span>
+      <span>Glisser : déplacer</span><i /> <span>Molette : zoomer</span><i /> <span>Double-clic : ouvrir</span>
     </footer>
   </section>
 }
