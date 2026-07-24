@@ -105,22 +105,22 @@ all-check: ## Lance absolument toutes les vérifications locales
 	@echo ""
 	@echo "=== Hanuman : vérification complète ==="
 	@echo ""
-	@echo "[1/6] Black"
+	@echo "[1/5] Black"
 	$(RUN) black --check .
 	@echo ""
-	@echo "[2/6] Ruff"
+	@echo "[2/5] Ruff"
 	$(RUN) ruff check .
 	@echo ""
-	@echo "[3/6] mypy"
+	@echo "[3/5] mypy"
 	$(RUN) mypy src/hanuman tests
 	@echo ""
-	@echo "[4/6] Tests + couverture"
+	@echo "[4/5] Tests + couverture"
 	$(RUN) coverage erase
 	$(RUN) coverage run -m pytest -q
 	$(RUN) coverage report -m --fail-under=$(COVERAGE_MIN)
 	$(RUN) coverage xml
 	@echo ""
-	@echo "[5/6] Semgrep"
+	@echo "[5/5] Semgrep"
 	$(RUN) semgrep --config p/ci .
 	
 	@echo ""
