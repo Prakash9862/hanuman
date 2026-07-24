@@ -2,342 +2,233 @@ from __future__ import annotations
 
 import argparse
 import datetime as dt
+import re
+from collections import defaultdict
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Mapping
+from typing import Any
 
-from hanuman.core.config import settings  # config Pydantic (chess_com_username)
 from hanuman.services.core.chess_service import ChessService
 
-# =========================
-#  Modèle de données
-# =========================
+CHESS_USERNAME = "prakasch"
+OBSIDIAN_ROOT = Path("/home/vince/Prakash/projets/Obsidian_Priv-/Echecs")
 
 
-@dataclass
+@dataclass(frozen=True)
 class ChessGame:
     game_id: str
     end_time: dt.datetime
     white: str
     black: str
-    result: str  # "win" / "loss" / "draw"
-    color: str  # "white" / "black" (ton point de vue)
+    result: str
+    color: str
     opening_name: str
     eco: str
-    time_control: str  # "blitz", "rapid", etc.
+    time_control: str
     url: str
     pgn: str
 
-
-# =========================
-#  Helpers
-# =========================
-
-
-def _slugify(value: str) -> str:
-    """Transforme une chaîne en nom de fichier safe."""
-    return value.lower().replace(" ", "_").replace("/", "_").replace("–", "-").replace("—", "-")
+    @property
+    def opponent(self) -> str:
+        return self.black if self.color == "white" else self.white
 
 
-def _build_opening_key(game: ChessGame) -> str:
-    """Construit une clé d'ouverture propre à partir d'une partie.
-
-    - Normalise l'ECO (C20, D02, etc.)
-    - Nettoie le nom d'ouverture
-    - Évite les doublons du type 'C20 C20'
-    """
-    eco = (game.eco or "").strip().upper()
-    name = (game.opening_name or "").strip()
-
-    # Si pas de nom → on tombe au moins sur l'ECO ou "Unknown"
-    if not name:
-        name = eco or "Unknown"
-
-    # Si le nom est exactement l'ECO (ex: "C20"), on ne double pas
-    if eco and name.upper() != eco:
-        return f"{eco} {name}"
-
-    # Sinon : juste le nom (qui peut être "C20" ou un vrai nom)
-    return name
+def _safe(value: str) -> str:
+    value = re.sub(r"[^\w\-. ]+", "", value, flags=re.UNICODE).strip()
+    return re.sub(r"\s+", " ", value) or "partie"
 
 
-def _group_by_opening(games: Iterable[ChessGame]) -> Dict[str, List[ChessGame]]:
-    """Regroupe les parties par clé d’ouverture (ECO + nom nettoyés)."""
-    groups: Dict[str, List[ChessGame]] = {}
-    for g in games:
-        key = _build_opening_key(g)
-        groups.setdefault(key, []).append(g)
-    return groups
+def _game_from_raw(raw: dict[str, Any]) -> ChessGame:
+    return ChessGame(
+        game_id=str(raw["id"]),
+        end_time=raw["end_time"],
+        white=str(raw["white"]),
+        black=str(raw["black"]),
+        result=str(raw["result"]),
+        color=str(raw["color"]),
+        opening_name=str(raw.get("opening_name") or "Ouverture inconnue"),
+        eco=str(raw.get("eco") or "UNK").upper(),
+        time_control=str(raw.get("time_control") or "inconnue"),
+        url=str(raw.get("url") or ""),
+        pgn=str(raw.get("pgn") or ""),
+    )
 
 
-def _format_game_line(game: ChessGame) -> str:
-    """Formate une ligne du tableau Markdown pour une partie avec tags Obsidian."""
+def _game_note(game: ChessGame) -> str:
     date = game.end_time.strftime("%Y-%m-%d")
-    res_symbol = {"win": "✅", "loss": "❌", "draw": "½"}.get(game.result, "?")
+    opening_link = f"[[Openings/{game.eco[0] if game.eco != 'UNK' else 'Autres'}/{game.eco} - {_safe(game.opening_name)}]]"
+    return f'''---
+type: chess-game
+date: {date}
+platform: chess.com
+username: {CHESS_USERNAME}
+result: {game.result}
+color: {game.color}
+opponent: "{game.opponent}"
+eco: {game.eco}
+opening: "{game.opening_name}"
+time_control: {game.time_control}
+tags:
+  - chess/game
+  - chess/{game.result}
+  - chess/{game.time_control}
+  - eco/{game.eco}
+---
 
-    # Tags pour la vue graphique
-    color_tag = "#white" if game.color == "white" else "#black"
-    result_tag_map = {"win": "#win", "loss": "#loss", "draw": "#draw"}
-    result_tag = result_tag_map.get(game.result, "")
+# {game.white} vs {game.black}
 
-    tc_tag = f"#tc/{game.time_control}" if game.time_control else ""
+## Résumé
 
-    opponent = game.white if game.color == "black" else game.black
+- **Résultat :** {game.result}
+- **Couleur :** {game.color}
+- **Adversaire :** {game.opponent}
+- **Cadence :** {game.time_control}
+- **Ouverture :** {opening_link}
+- **Chess.com :** [ouvrir la partie]({game.url})
 
-    # Affichage ECO + nom d’ouverture
-    eco = (game.eco or "").strip()
-    opening_name = (game.opening_name or "").strip()
+## PGN
 
-    if eco and opening_name:
-        opening_cell = f"`{eco}` {opening_name}"
-    elif eco:
-        opening_cell = f"`{eco}`"
-    elif opening_name:
-        opening_cell = opening_name
-    else:
-        opening_cell = "—"
+```pgn
+{game.pgn.strip()}
+```
 
-    return (
-        f"| {date} | {color_tag} | {res_symbol} {result_tag} | "
-        f"{tc_tag or game.time_control} | {opening_cell} | "
-        f"vs **{opponent}** | [Lien]({game.url}) |"
-    )
+## Analyse personnelle
+
+### Moment critique
+
+### Erreurs
+
+### Ce que je dois retenir
+'''
 
 
-def _split_opening_key(opening_key: str) -> tuple[str, str]:
-    """Sépare 'ECO Nom' en (ECO, Nom)."""
-    if " " in opening_key:
-        eco, name = opening_key.split(" ", 1)
-    else:
-        eco, name = "", opening_key
-    return eco, name
+def _opening_note(eco: str, name: str, games: list[ChessGame]) -> str:
+    wins = sum(g.result == "win" for g in games)
+    draws = sum(g.result == "draw" for g in games)
+    losses = sum(g.result == "loss" for g in games)
+    score = round((wins + draws / 2) / len(games) * 100, 1) if games else 0
+    links = []
+    for game in sorted(games, key=lambda item: item.end_time, reverse=True):
+        date = game.end_time.strftime("%Y-%m-%d")
+        filename = f"{date} - {game.eco} - {_safe(game.white)} vs {_safe(game.black)}"
+        links.append(f"- [[Parties/{game.end_time.year}/{filename}|{date} · {game.opponent} · {game.result}]]")
+    return f'''---
+type: chess-opening
+eco: {eco}
+opening: "{name}"
+games_count: {len(games)}
+tags:
+  - chess/opening
+  - eco/{eco}
+---
+
+# {eco} — {name}
+
+## Statistiques personnelles
+
+- **Parties :** {len(games)}
+- **Victoires :** {wins}
+- **Nulles :** {draws}
+- **Défaites :** {losses}
+- **Score :** {score} %
+
+## Parties
+
+{chr(10).join(links)}
+
+## Notes personnelles
+
+### Plans principaux
+
+### Erreurs récurrentes
+
+### Variantes à travailler
+'''
 
 
-def _build_opening_note(opening_key: str, games: List[ChessGame]) -> str:
-    """Construit le contenu Markdown pour une ouverture donnée."""
-    eco, name = _split_opening_key(opening_key)
+def _dashboard(games: list[ChessGame], openings: dict[tuple[str, str], list[ChessGame]]) -> str:
+    wins = sum(g.result == "win" for g in games)
+    draws = sum(g.result == "draw" for g in games)
+    losses = sum(g.result == "loss" for g in games)
+    rows = []
+    for (eco, name), grouped in sorted(openings.items(), key=lambda item: (-len(item[1]), item[0][0])):
+        letter = eco[0] if eco != "UNK" else "Autres"
+        rows.append(f"| [[Openings/{letter}/{eco} - {_safe(name)}|{eco} · {name}]] | {len(grouped)} |")
+    return f'''---
+title: "Chess.com → Obsidian"
+username: {CHESS_USERNAME}
+games_count: {len(games)}
+openings_count: {len(openings)}
+tags:
+  - chess/dashboard
+---
 
-    # Fallback : si l'ECO est vide, on le prend sur la première partie
-    if not eco and games:
-        eco = (games[0].eco or "").strip().upper()
+# Tableau de bord — {CHESS_USERNAME}
 
-    # Fallback : si le nom est vide, on prend au moins l'ECO ou la clé brute
-    if not name:
-        name = eco or opening_key
+- **Parties importées :** {len(games)}
+- **Victoires :** {wins}
+- **Nulles :** {draws}
+- **Défaites :** {losses}
+- **Profil :** [Chess.com](https://www.chess.com/member/{CHESS_USERNAME})
 
-    tags: List[str] = ["#chess", "#ouverture"]
-    if eco:
-        tags.append(f"#eco/{eco}")
+## Ouvertures
 
-    title = f"{eco} {name}" if eco and eco not in name else name
+| ECO / Ouverture | Parties |
+|---|---:|
+{chr(10).join(rows)}
+'''
 
-    header_lines: List[str] = [
-        "---",
-        f'title: "{title}"',
-        f"eco: {eco!r}",
-        "tags:",
-        *[f"  - {t}" for t in tags],
-        f"games_count: {len(games)}",
-        "---",
-        "",
-        f"# {title}",
-        "",
-    ]
 
-    if eco:
-        header_lines.append(f"**ECO**: `{eco}`")
-        header_lines.append("")
+def sync_chess_to_obsidian(limit: int = 200) -> dict[str, Any]:
+    raw_games = ChessService().get_latest_games(username=CHESS_USERNAME, limit=limit)
+    games = [_game_from_raw(raw) for raw in raw_games]
+    parties_root = OBSIDIAN_ROOT / "Parties"
+    openings_root = OBSIDIAN_ROOT / "Openings"
+    parties_root.mkdir(parents=True, exist_ok=True)
+    openings_root.mkdir(parents=True, exist_ok=True)
 
-    header_lines.extend(
-        [
-            "## Parties liées",
-            "",
-            "| Date | Couleur | Résultat | Cadence | ECO / Ouverture | Adversaire | Lien |",
-            "|------|---------|----------|---------|------------------|------------|------|",
-        ]
-    )
+    created = 0
+    skipped = 0
+    grouped: dict[tuple[str, str], list[ChessGame]] = defaultdict(list)
 
-    lines: List[str] = header_lines.copy()
-
-    # Tableau récapitulatif (tri par date décroissante)
-    for g in sorted(games, key=lambda x: x.end_time, reverse=True):
-        lines.append(_format_game_line(g))
-
-    # Section PGN détaillée
-    lines.append("")
-    lines.append("## PGN des parties")
-    lines.append("")
-
-    for g in sorted(games, key=lambda x: x.end_time, reverse=True):
-        if not g.pgn.strip():
+    for game in games:
+        grouped[(game.eco, game.opening_name)].append(game)
+        year_dir = parties_root / str(game.end_time.year)
+        year_dir.mkdir(parents=True, exist_ok=True)
+        date = game.end_time.strftime("%Y-%m-%d")
+        filename = f"{date} - {game.eco} - {_safe(game.white)} vs {_safe(game.black)}.md"
+        path = year_dir / filename
+        if path.exists():
+            skipped += 1
             continue
+        path.write_text(_game_note(game), encoding="utf-8")
+        created += 1
 
-        date_str = g.end_time.strftime("%Y-%m-%d")
-        opponent = g.white if g.color == "black" else g.black
-        title_line = f"{date_str} vs {opponent}"
-
-        lines.append(f"### {title_line}")
-        lines.append("")
-        lines.append("```pgn")
-        lines.append(g.pgn.strip())
-        lines.append("```")
-        lines.append("")
-
-    # Zone pour tes remarques
-    lines.append("## Notes personnelles")
-    lines.append("")
-    lines.append("> Ajoute ici tes idées, plans, erreurs récurrentes, etc.")
-    lines.append("")
-
-    return "\n".join(lines)
-
-
-def _build_overview_note(groups: Mapping[str, List[ChessGame]]) -> str:
-    """Construit la note Overview.md (vue globale des ouvertures)."""
-    lines: List[str] = [
-        "---",
-        'title: "Chess Openings Overview"',
-        "tags:",
-        "  - #chess",
-        "  - #overview",
-        f"openings_count: {len(groups)}",
-        "---",
-        "",
-        "# Vue d’ensemble des ouvertures",
-        "",
-        "| Ouverture | Parties | Dernière partie | Fichier |",
-        "|----------|---------|-----------------|---------|",
-    ]
-
-    # Tri par nombre de parties décroissant
-    for opening_key, games in sorted(groups.items(), key=lambda item: len(item[1]), reverse=True):
-        eco, name = _split_opening_key(opening_key)
-        last_game = max(games, key=lambda g: g.end_time)
-        date_str = last_game.end_time.strftime("%Y-%m-%d")
-        slug = _slugify(opening_key)
-        note_name = f"{slug}.md"
-        display_name = f"{opening_key} ({len(games)} parties)"
-
-        lines.append(
-            f"| [[Openings/{note_name}|{display_name}]] | "
-            f"{len(games)} | {date_str} | `Openings/{note_name}` |"
+    for (eco, name), opening_games in grouped.items():
+        letter = eco[0] if eco != "UNK" else "Autres"
+        directory = openings_root / letter
+        directory.mkdir(parents=True, exist_ok=True)
+        (directory / f"{eco} - {_safe(name)}.md").write_text(
+            _opening_note(eco, name, opening_games), encoding="utf-8"
         )
 
-    lines.append("")
-    lines.append("## Idées")
-    lines.append("")
-    lines.append("- Focalise-toi sur les ouvertures avec le plus de défaites.")
-    lines.append("- Repère les schémas qui se répètent.")
-    lines.append("")
-
-    return "\n".join(lines)
-
-
-# =========================
-#  Orchestration principale
-# =========================
-
-
-def sync_chess_to_obsidian(limit: int = 200) -> None:
-    """
-    Orchestration principale.
-
-    - Récupère les parties Chess.com
-    - Regroupe par ouverture
-    - Écrit / met à jour les notes Obsidian dans le dossier Echecs.
-    """
-    chess_username = settings.chess_com_username  # à définir dans ta config
-    obsidian_root = Path("/home/prakash/Prakash/obsidian/Echecs")
-    openings_dir = obsidian_root / "Openings"
-
-    # S'assure que les dossiers existent
-    obsidian_root.mkdir(parents=True, exist_ok=True)
-    openings_dir.mkdir(parents=True, exist_ok=True)
-
-    chess = ChessService()
-
-    # TODO: adapte le nom de méthode à ton service réel
-    raw_games: List[Dict[str, Any]] = chess.get_latest_games(
-        username=chess_username,
-        limit=limit,
-    )
-
-    games: List[ChessGame] = []
-    for g in raw_games:
-        # ICI: adapte aux champs renvoyés par ChessService
-        try:
-            games.append(
-                ChessGame(
-                    game_id=g["id"],
-                    end_time=g["end_time"],
-                    white=g["white"],
-                    black=g["black"],
-                    result=g["result"],
-                    color=g["color"],
-                    opening_name=g["opening_name"],
-                    eco=g.get("eco", ""),
-                    time_control=g.get("time_control", ""),
-                    url=g.get("url", ""),
-                    pgn=g.get("pgn", ""),  # 🔥 AJOUT OBLIGATOIRE
-                )
-            )
-
-        except KeyError:
-            # Si une partie est incomplète, on l'ignore
-            continue
-
-    groups = _group_by_opening(games)
-
-    # 1) Notes par ouverture
-    for opening_key, ogames in groups.items():
-        slug = _slugify(opening_key)
-        note_path = openings_dir / f"{slug}.md"
-        note_path.parent.mkdir(parents=True, exist_ok=True)
-        content = _build_opening_note(opening_key, ogames)
-        note_path.write_text(content, encoding="utf-8")
-
-    # 2) Note d’overview
-    overview_path = obsidian_root / "Overview.md"
-    overview_content = _build_overview_note(groups)
-    overview_path.parent.mkdir(parents=True, exist_ok=True)
-    overview_path.write_text(overview_content, encoding="utf-8")
-
-    # 3) Feedback console
-    print(
-        f"[chess→obsidian] {len(games)} parties traitées, "
-        f"{len(groups)} ouvertures, notes écrites dans {obsidian_root}"
-    )
-
-
-# =========================
-#  CLI
-# =========================
-
-
-def build_parser() -> argparse.ArgumentParser:
-    """CLI pour l'orchestration Chess.com → Obsidian."""
-    parser = argparse.ArgumentParser(
-        prog="hanuman.orchestrations.chess_to_obsidian",
-        description="Synchronise les parties Chess.com dans le vault Obsidian (dossier Echecs).",
-    )
-    parser.add_argument(
-        "--limit",
-        type=int,
-        default=200,
-        help="Nombre maximum de parties à récupérer sur Chess.com",
-    )
-    return parser
+    (OBSIDIAN_ROOT / "Dashboard.md").write_text(_dashboard(games, grouped), encoding="utf-8")
+    return {
+        "status": "ok",
+        "username": CHESS_USERNAME,
+        "destination": str(OBSIDIAN_ROOT),
+        "games_received": len(games),
+        "games_created": created,
+        "games_skipped": skipped,
+        "openings_updated": len(grouped),
+    }
 
 
 def main(argv: list[str] | None = None) -> None:
-    """Point d'entrée CLI.
-
-    Exemple :
-        poetry run python -m hanuman.orchestrations.chess_to_obsidian --limit 50
-    """
-    parser = build_parser()
+    parser = argparse.ArgumentParser(description="Synchronise Chess.com vers Obsidian")
+    parser.add_argument("--limit", type=int, default=200)
     args = parser.parse_args(argv)
-    sync_chess_to_obsidian(limit=args.limit)
+    print(sync_chess_to_obsidian(limit=args.limit))
 
 
 if __name__ == "__main__":
