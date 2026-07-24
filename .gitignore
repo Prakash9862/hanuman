@@ -25,3 +25,13 @@ __pycache__/
 .coverage
 htmlcov/
 .coverage.*
+
+# Python
+coverage.xml
+.pytest_cache/
+__pycache__/
+
+# Frontend
+frontend/node_modules/
+frontend/dist/
+*.tsbuildinfo
