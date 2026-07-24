@@ -3,14 +3,19 @@
 
 # Secrets
 secrets/
+.secrets/
+config/gmail_credentials.json
 *.env
+
+# Runtime
+.hanuman-*.pid
+frontend/.vite/
 
 # Logs
 logs/
 *.log
 logs/hanuman_debug.log
 logs/hanuman_error.log
-
 
 # Python
 __pycache__/
@@ -25,11 +30,8 @@ __pycache__/
 .coverage
 htmlcov/
 .coverage.*
-
-# Python
 coverage.xml
 .pytest_cache/
-__pycache__/
 
 # Frontend
 frontend/node_modules/
