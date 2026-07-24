@@ -87,7 +87,9 @@ def scan_obsidian_notes(query: str | None = None) -> list[dict[str, Any]]:
             continue
 
         title = str(metadata.get("title") or path.stem)
-        searchable = f"{relative.as_posix()} {title} {' '.join(_tags(metadata.get('tags')))}".casefold()
+        searchable = (
+            f"{relative.as_posix()} {title} {' '.join(_tags(metadata.get('tags')))}".casefold()
+        )
         if needle and needle not in searchable:
             continue
 

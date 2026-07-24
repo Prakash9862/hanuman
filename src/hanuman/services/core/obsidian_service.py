@@ -6,12 +6,16 @@ import re
 from pathlib import Path
 from typing import Any, Dict, List
 
-OBSIDIAN_VAULT_DIR = os.getenv("OBSIDIAN_VAULT_DIR", os.path.expanduser("~/Prakash/obsidian"))
+OBSIDIAN_VAULT = Path(
+    os.getenv("OBSIDIAN_VAULT_PATH")
+    or os.getenv("OBSIDIAN_VAULT_DIR")
+    or os.path.expanduser("~/Prakash/obsidian")
+).expanduser()
 
 
 def abs_path(rel_or_abs: str) -> Path:
-    p = Path(rel_or_abs).expanduser()
-    return p if p.is_absolute() else Path(OBSIDIAN_VAULT_DIR) / p
+    path = Path(rel_or_abs).expanduser()
+    return path if path.is_absolute() else OBSIDIAN_VAULT / path
 
 
 def read_markdown(path: str) -> str:
