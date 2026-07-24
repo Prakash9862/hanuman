@@ -154,7 +154,7 @@ def _code_block(code: str, language: str = "") -> dict:
         "type": "code",
         "code": {
             "rich_text": _rich(code),
-            "language": (language or "plain text"),
+            "language": "plain text" if (language or "").lower() == "pgn" else (language or "plain text"),
         },
     }
 
@@ -452,10 +452,13 @@ def send_markdown_to_notion(
                 db_summary_name=db_summary_name,
                 db_date_name=db_date_name,
             )
-            return _post_create_page(body_alt)
-
-        raise RuntimeError(f"Notion API error {exc.code}: {detail}") from exc
-
+            try:
+                return _post_create_page(body_alt)
+            except urllib.error.HTTPError as alt_exc:
+                alt_detail = alt_exc.read().decode("utf-8", errors="ignore")
+                raise RuntimeError(
+                    f"Notion API error {alt_exc.code}: {alt_detail}"
+                ) from alt_exc
 
 # =========
 # CLI v2
