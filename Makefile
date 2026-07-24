@@ -130,16 +130,52 @@ all-check: ## Lance absolument toutes les vérifications locales
 # Exécution
 # -----------------------------------------------------
 
-run-api: ## Lance l'API FastAPI en mode développement
-	PYTHONPATH=src $(RUN) uvicorn $(API_APP) \
+BACKEND_PID := .hanuman-backend.pid
+FRONTEND_PID := .hanuman-frontend.pid
+BACKEND_LOG := .hanuman-backend.log
+FRONTEND_LOG := .hanuman-frontend.log
+HANUMAN_URL := http://127.0.0.1:5173
+
+run: ## Lance backend, frontend et ouvre Hanuman
+	@$(MAKE) stop >/dev/null 2>&1 || true
+	@echo "Démarrage du backend..."
+	@nohup env PYTHONPATH=src $(RUN) uvicorn $(API_APP) \
 		--reload \
 		--host $(HOST) \
-		--port $(PORT)
+		--port $(PORT) \
+		> $(BACKEND_LOG) 2>&1 & echo $$! > $(BACKEND_PID)
+	@echo "Démarrage du frontend..."
+	@nohup npm --prefix frontend run dev -- --host 127.0.0.1 \
+		> $(FRONTEND_LOG) 2>&1 & echo $$! > $(FRONTEND_PID)
+	@echo "Attente de Hanuman..."
+	@for i in $$(seq 1 30); do \
+		if curl -fsS $(HANUMAN_URL) >/dev/null 2>&1; then \
+			xdg-open $(HANUMAN_URL) >/dev/null 2>&1 & \
+			echo "Hanuman est lancé : $(HANUMAN_URL)"; \
+			exit 0; \
+		fi; \
+		sleep 1; \
+	done; \
+	echo "Le frontend n'a pas démarré. Consulte $(FRONTEND_LOG)"; \
+	exit 1
 
-run: run-api ## Alias de run-api
+stop: ## Arrête backend et frontend
+	@echo "Arrêt de Hanuman..."
+	@if [ -f $(BACKEND_PID) ]; then \
+		kill $$(cat $(BACKEND_PID)) 2>/dev/null || true; \
+		rm -f $(BACKEND_PID); \
+	fi
+	@if [ -f $(FRONTEND_PID) ]; then \
+		kill $$(cat $(FRONTEND_PID)) 2>/dev/null || true; \
+		rm -f $(FRONTEND_PID); \
+	fi
+	@pkill -f "uvicorn .*hanuman\.main:app" 2>/dev/null || true
+	@pkill -f "vite.*5173" 2>/dev/null || true
+	@echo "Hanuman arrêté."
 
-stop: ## Arrête le serveur Uvicorn de Hanuman
-	@pkill -f "uvicorn .*hanuman\.main:app" || true
+restart: stop ## Redémarre Hanuman
+	@sleep 1
+	@$(MAKE) run
 
 # -----------------------------------------------------
 # Nettoyage
@@ -150,3 +186,6 @@ clean: ## Supprime caches, rapports et fichiers temporaires
 	@rm -rf .pytest_cache .mypy_cache .ruff_cache
 	@rm -rf htmlcov coverage.xml .coverage
 	@echo "Nettoyage terminé."
+
+
+
