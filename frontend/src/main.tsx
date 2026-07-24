@@ -5,6 +5,7 @@ import App from './App'
 import './styles.css'
 import './wikipedia.css'
 import './hanuman-os.css'
+import './gmail.css'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
