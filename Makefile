@@ -122,7 +122,6 @@ all-check: ## Lance absolument toutes les vérifications locales
 	@echo ""
 	@echo "[5/5] Semgrep"
 	$(RUN) semgrep --config p/ci .
-	
 	@echo ""
 	@echo "=== Toutes les vérifications ont réussi ==="
 
@@ -159,7 +158,7 @@ run: ## Lance backend, frontend et ouvre Hanuman
 	echo "Le frontend n'a pas démarré. Consulte $(FRONTEND_LOG)"; \
 	exit 1
 
-stop: ## Arrête backend et frontend
+stop: ## Arrête backend et tous les serveurs Vite de Hanuman
 	@echo "Arrêt de Hanuman..."
 	@if [ -f $(BACKEND_PID) ]; then \
 		kill $$(cat $(BACKEND_PID)) 2>/dev/null || true; \
@@ -170,7 +169,8 @@ stop: ## Arrête backend et frontend
 		rm -f $(FRONTEND_PID); \
 	fi
 	@pkill -f "uvicorn .*hanuman\.main:app" 2>/dev/null || true
-	@pkill -f "vite.*5173" 2>/dev/null || true
+	@pkill -f "node .*frontend/node_modules/.bin/vite" 2>/dev/null || true
+	@pkill -f "vite.*--host 127\.0\.0\.1" 2>/dev/null || true
 	@echo "Hanuman arrêté."
 
 restart: stop ## Redémarre Hanuman
@@ -186,6 +186,3 @@ clean: ## Supprime caches, rapports et fichiers temporaires
 	@rm -rf .pytest_cache .mypy_cache .ruff_cache
 	@rm -rf htmlcov coverage.xml .coverage
 	@echo "Nettoyage terminé."
-
-
-
