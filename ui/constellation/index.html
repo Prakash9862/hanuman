@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#08090d" />
+  <title>Hanuman — Constellation</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <main class="app-shell">
+    <div class="nebula nebula-a"></div>
+    <div class="nebula nebula-b"></div>
+    <div class="stars" aria-hidden="true"></div>
+
+    <header class="topbar">
+      <div class="brand">
+        <span class="brand-mark">✦</span>
+        <div>
+          <strong>HANUMAN</strong>
+          <small>Celui qui relie les mondes</small>
+        </div>
+      </div>
+      <div class="system-status"><span></span> Système opérationnel</div>
+    </header>
+
+    <section class="constellation" aria-label="Constellation des services Hanuman">
+      <svg class="links" viewBox="0 0 1200 760" preserveAspectRatio="none" aria-hidden="true">
+        <defs>
+          <linearGradient id="goldLine" x1="0" x2="1">
+            <stop offset="0" stop-color="#80673f" stop-opacity=".15" />
+            <stop offset=".5" stop-color="#e3c58c" stop-opacity=".9" />
+            <stop offset="1" stop-color="#80673f" stop-opacity=".15" />
+          </linearGradient>
+          <filter id="glow"><feGaussianBlur stdDeviation="4" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+        </defs>
+        <path class="link active" data-link="obsidian-notion" d="M 245 405 C 450 330, 750 330, 955 405" />
+        <path class="link" d="M 310 190 C 480 285, 520 330, 600 380" />
+        <path class="link" d="M 885 180 C 730 275, 685 325, 600 380" />
+        <path class="link" d="M 235 610 C 400 520, 500 450, 600 380" />
+        <path class="link" d="M 965 605 C 800 520, 700 450, 600 380" />
+        <circle class="traveller" r="3.5"><animateMotion dur="4s" repeatCount="indefinite" path="M 245 405 C 450 330, 750 330, 955 405" /></circle>
+      </svg>
+
+      <button class="node node-github" data-service="github" aria-label="Ouvrir GitHub">
+        <span class="node-orbit"></span><span class="node-core">GH</span><span class="node-label">GitHub</span><span class="node-meta">Connecté</span>
+      </button>
+      <button class="node node-calendar" data-service="calendar" aria-label="Ouvrir Google Calendar">
+        <span class="node-orbit"></span><span class="node-core">31</span><span class="node-label">Calendar</span><span class="node-meta">Connecté</span>
+      </button>
+      <button class="node node-obsidian" data-service="obsidian" aria-label="Ouvrir Obsidian">
+        <span class="node-orbit"></span><span class="node-core">◇</span><span class="node-label">Obsidian</span><span class="node-meta">Vault local</span>
+      </button>
+
+      <button class="node node-center" data-service="hanuman" aria-label="Ouvrir Hanuman">
+        <span class="halo halo-a"></span><span class="halo halo-b"></span><span class="center-core">✦</span><span class="center-title">HANUMAN</span><span class="center-subtitle">Orchestrateur</span>
+      </button>
+
+      <button class="node node-notion" data-service="notion" aria-label="Ouvrir Notion">
+        <span class="node-orbit"></span><span class="node-core">N</span><span class="node-label">Notion</span><span class="node-meta">Connecté</span>
+      </button>
+      <button class="node node-chess" data-service="chess" aria-label="Ouvrir Chess.com">
+        <span class="node-orbit"></span><span class="node-core">♞</span><span class="node-label">Chess.com</span><span class="node-meta">Connecté</span>
+      </button>
+      <button class="node node-wikipedia" data-service="wikipedia" aria-label="Ouvrir Wikipedia">
+        <span class="node-orbit"></span><span class="node-core">W</span><span class="node-label">Wikipedia</span><span class="node-meta">Connecté</span>
+      </button>
+      <button class="node node-gmail dormant" data-service="gmail" aria-label="Configurer Gmail">
+        <span class="node-orbit"></span><span class="node-core">M</span><span class="node-label">Gmail</span><span class="node-meta">À connecter</span>
+      </button>
+
+      <button class="edge-action" data-service="sync" aria-label="Ouvrir la synchronisation Obsidian Notion">
+        <span>Obsidian ↔ Notion</span><small>Orchestration active</small>
+      </button>
+    </section>
+
+    <footer class="dock">
+      <button data-service="search">⌘ K <span>Recherche universelle</span></button>
+      <div class="dock-divider"></div>
+      <button data-service="activity">3 flux actifs</button>
+      <button data-service="settings">Réglages</button>
+    </footer>
+  </main>
+
+  <aside class="inspector" aria-hidden="true" aria-label="Inspecteur Hanuman">
+    <button class="close-panel" aria-label="Fermer">×</button>
+    <div class="inspector-kicker">CONSTELLATION / NŒUD</div>
+    <h2 id="panel-title">Hanuman</h2>
+    <p id="panel-description"></p>
+    <div id="panel-status" class="status-card"></div>
+    <div id="panel-actions" class="action-list"></div>
+  </aside>
+  <div class="backdrop" hidden></div>
+
+  <script src="./app.js"></script>
+</body>
+</html>
