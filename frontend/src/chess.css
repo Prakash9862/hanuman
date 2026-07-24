@@ -1,0 +1,30 @@
+.chess-page { --chess-red: #a52828; --chess-dark: #4d1719; --chess-soft: #f7e7e4; }
+.chess-hero { display:flex; justify-content:space-between; gap:2rem; align-items:center; padding:2.2rem; border:1px solid #d8b9b3; border-radius:24px; color:#fff8f4; background:linear-gradient(135deg,#3e1215,#8f2426 62%,#bd4a3d); box-shadow:0 22px 55px rgba(83,24,24,.2); }
+.chess-hero h1 { max-width:760px; margin:.35rem 0 .7rem; font-size:clamp(2rem,4vw,3.5rem); line-height:1.02; }
+.chess-hero p { max-width:720px; color:#f7deda; }
+.chess-grid { display:grid; grid-template-columns:1fr 1.35fr; gap:1rem; margin-top:1rem; }
+.chess-panel,.chess-sync-card,.chess-report { border:1px solid #dec5c0; border-radius:20px; background:rgba(255,250,247,.92); box-shadow:0 15px 35px rgba(72,27,27,.08); }
+.chess-panel { padding:1.35rem; display:grid; gap:.35rem; }
+.chess-panel__icon { width:42px; height:42px; display:grid; place-items:center; border-radius:14px; color:#fff; background:var(--chess-red); margin-bottom:.4rem; }
+.chess-panel small,.chess-report small { color:#896d68; text-transform:uppercase; letter-spacing:.08em; }
+.chess-panel h2 { margin:0; }
+.chess-panel a { display:flex; align-items:center; gap:.35rem; color:var(--chess-red); font-weight:700; margin-top:.7rem; }
+.chess-panel code,.chess-report code { overflow-wrap:anywhere; color:#652224; }
+.chess-sync-card { display:grid; grid-template-columns:1fr auto auto; align-items:end; gap:1.2rem; padding:1.5rem; margin-top:1rem; }
+.chess-sync-card h2 { margin:.2rem 0; }
+.chess-sync-card label { display:grid; gap:.4rem; font-weight:700; }
+.chess-sync-card select { min-width:150px; padding:.8rem; border:1px solid #cdaaa4; border-radius:12px; background:#fff; }
+.chess-action { display:flex; align-items:center; justify-content:center; gap:.55rem; border:0; border-radius:13px; padding:.9rem 1.15rem; color:#fff; background:var(--chess-red); font-weight:800; cursor:pointer; }
+.chess-action:disabled { opacity:.65; cursor:wait; }
+.chess-report { margin-top:1rem; padding:1.5rem; }
+.chess-report__title { display:flex; align-items:center; gap:.8rem; color:var(--chess-dark); }
+.chess-report__title h2 { margin:.1rem 0 0; }
+.chess-stats { display:grid; grid-template-columns:repeat(4,1fr); gap:.75rem; margin:1.2rem 0; }
+.chess-stats span { padding:1rem; border-radius:15px; background:var(--chess-soft); display:grid; gap:.25rem; }
+.chess-stats strong { font-size:1.75rem; color:var(--chess-dark); }
+.chess-report > p { display:flex; align-items:center; gap:.45rem; }
+.chess-message { margin-top:1rem; padding:1rem; border-radius:14px; }
+.chess-message--error { background:#fee4e2; color:#8c1d18; border:1px solid #f4aaa3; }
+.spin { animation:chess-spin .8s linear infinite; }
+@keyframes chess-spin { to { transform:rotate(360deg); } }
+@media (max-width:900px) { .chess-grid,.chess-sync-card { grid-template-columns:1fr; } .chess-stats { grid-template-columns:1fr 1fr; } }
