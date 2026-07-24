@@ -41,7 +41,7 @@ export default function WikipediaNotionPage() {
     setResult(null)
 
     try {
-      const response = await fetch('/orchestrations/wikipedia-to-notion', {
+      const response = await fetch('/api/orchestrations/wikipedia-to-notion', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
