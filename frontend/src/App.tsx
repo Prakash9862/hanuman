@@ -7,12 +7,14 @@ import {
   GitCompareArrows,
   HeartPulse,
   Library,
+  Mail,
   Sparkles,
   Swords,
 } from 'lucide-react'
 import { BrowserRouter, NavLink, Navigate, Route, Routes, useNavigate } from 'react-router-dom'
 
 import ChessObsidianPage from './ChessObsidianPage'
+import GmailPage from './GmailPage'
 import HanumanOSPage from './HanumanOSPage'
 import ObsidianNotionPage from './ObsidianNotionPage'
 import WikipediaNotionPage from './WikipediaNotionPage'
@@ -25,6 +27,14 @@ const orchestrationCards = [
     tone: 'violet',
     status: 'Opérationnelle',
     icon: GitCompareArrows,
+  },
+  {
+    title: 'Gmail → Hanuman',
+    description: 'Lire la boîte de réception, repérer les messages importants et préparer leur traitement.',
+    path: '/orchestrations/gmail',
+    tone: 'graphite',
+    status: 'Lecture seule',
+    icon: Mail,
   },
   {
     title: 'Wikipédia → Notion',
@@ -68,6 +78,7 @@ function AppShell() {
       <Route path="/" element={<HanumanOSPage />} />
       <Route path="/constellation" element={<Navigate to="/" replace />} />
       <Route path="/orchestrations" element={<OrchestrationsPage />} />
+      <Route path="/orchestrations/gmail" element={<GmailPage />} />
       <Route path="/orchestrations/obsidian-notion" element={<ObsidianNotionPage />} />
       <Route path="/orchestrations/wikipedia-notion" element={<WikipediaNotionPage />} />
       <Route path="/orchestrations/chess-obsidian" element={<ChessObsidianPage />} />
