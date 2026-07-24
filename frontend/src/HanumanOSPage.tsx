@@ -41,7 +41,7 @@ const nodes: Node[] = [
   { id: 'wikipedia', label: 'Wikipédia', subtitle: 'Documentation', x: 66, y: 86, status: 'active', icon: BookOpen, route: '/orchestrations/wikipedia-notion' },
   { id: 'chess', label: 'Chess.com', subtitle: 'Parties et analyses', x: 34, y: 86, status: 'active', icon: Swords, route: '/orchestrations/chess-obsidian' },
   { id: 'openai', label: 'OpenAI', subtitle: 'Raisonnement', x: 16, y: 68, status: 'partial', icon: BrainCircuit },
-  { id: 'gmail', label: 'Gmail', subtitle: 'À connecter', x: 8, y: 18, status: 'planned', icon: Mail },
+  { id: 'gmail', label: 'Gmail', subtitle: 'Lecture seule', x: 8, y: 18, status: 'partial', icon: Mail, route: '/orchestrations/gmail' },
 ]
 
 const links: Array<[NodeId, NodeId, Exclude<NodeStatus, 'core'>]> = [
@@ -52,7 +52,7 @@ const links: Array<[NodeId, NodeId, Exclude<NodeStatus, 'core'>]> = [
   ['hanuman', 'wikipedia', 'active'],
   ['hanuman', 'chess', 'active'],
   ['hanuman', 'openai', 'partial'],
-  ['hanuman', 'gmail', 'planned'],
+  ['hanuman', 'gmail', 'partial'],
   ['obsidian', 'notion', 'active'],
   ['wikipedia', 'notion', 'active'],
   ['chess', 'obsidian', 'active'],
