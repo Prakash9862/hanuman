@@ -1,7 +1,6 @@
 import {
   Activity,
   AlertTriangle,
-  CheckCircle2,
   ChevronDown,
   ChevronUp,
   Clock3,
@@ -15,12 +14,13 @@ import {
   Search,
   ServerCog,
   TerminalSquare,
-  XCircle,
 } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
+import type { CSSProperties } from 'react'
 
 type ServiceState = 'healthy' | 'degraded' | 'down'
 type Period = '1h' | '24h' | '7d' | '30d'
+type Metric = 'score' | 'latency' | 'errors'
 
 type ServiceCheck = {
   id: string
@@ -75,6 +75,13 @@ const initialFollowUp: FollowUp[] = [
   { id: 'health-storage', priority: 'Basse', subject: 'Historique persistant', state: 'À faire', next: 'Déplacer localStorage vers le backend' },
 ]
 
+const periodDuration: Record<Period, number> = {
+  '1h': 60 * 60 * 1000,
+  '24h': 24 * 60 * 60 * 1000,
+  '7d': 7 * 24 * 60 * 60 * 1000,
+  '30d': 30 * 24 * 60 * 60 * 1000,
+}
+
 function readStored<T>(key: string, fallback: T): T {
   try {
     const raw = localStorage.getItem(key)
@@ -90,23 +97,53 @@ function stateLabel(state: ServiceState) {
   return 'Indisponible'
 }
 
-function HealthChart({ history, metric }: { history: HistoryPoint[]; metric: 'score' | 'latency' }) {
-  const values = history.slice(-24).map((point) => point[metric])
-  if (!values.length) return <div className="health-empty">Le premier contrôle alimentera ce graphe.</div>
-  const max = Math.max(...values, metric === 'score' ? 100 : 1)
-  const min = metric === 'score' ? 0 : Math.min(...values)
+function metricLabel(metric: Metric) {
+  if (metric === 'score') return 'Score global'
+  if (metric === 'latency') return 'Latence moyenne'
+  return 'Anomalies détectées'
+}
+
+function metricUnit(metric: Metric) {
+  if (metric === 'score') return '/100'
+  if (metric === 'latency') return 'ms'
+  return 'alertes'
+}
+
+function HealthChart({ history, metric, period }: { history: HistoryPoint[]; metric: Metric; period: Period }) {
+  const cutoff = Date.now() - periodDuration[period]
+  const filtered = history.filter((point) => new Date(point.timestamp).getTime() >= cutoff).slice(-48)
+  const source = filtered.length ? filtered : history.slice(-12)
+  const values = source.map((point) => point[metric])
+
+  if (!values.length) {
+    return <div className="health-empty">Le premier contrôle alimentera ce graphe.</div>
+  }
+
+  const max = metric === 'score' ? 100 : Math.max(...values, 1)
+  const min = metric === 'score' || metric === 'errors' ? 0 : Math.min(...values)
   const span = Math.max(1, max - min)
-  const points = values.map((value, index) => {
-    const x = values.length === 1 ? 50 : (index / (values.length - 1)) * 100
-    const y = 92 - ((value - min) / span) * 78
-    return `${x},${y}`
-  }).join(' ')
-  return <svg className="health-chart" viewBox="0 0 100 100" preserveAspectRatio="none" aria-label={metric === 'score' ? 'Score de santé' : 'Latence moyenne'}>
-    <line x1="0" y1="92" x2="100" y2="92" />
-    <line x1="0" y1="53" x2="100" y2="53" />
-    <line x1="0" y1="14" x2="100" y2="14" />
-    <polyline points={points} />
-  </svg>
+  const coordinates = values.map((value, index) => {
+    const x = values.length === 1 ? 50 : 4 + (index / (values.length - 1)) * 92
+    const y = 88 - ((value - min) / span) * 72
+    return { x, y, value }
+  })
+  const points = coordinates.map(({ x, y }) => `${x},${y}`).join(' ')
+  const latest = values.at(-1) ?? 0
+
+  return (
+    <div className="health-chart-wrap">
+      <div className="health-chart-value"><strong>{latest}</strong><span>{metricUnit(metric)}</span></div>
+      <svg className={`health-chart health-chart--${metric}`} viewBox="0 0 100 100" preserveAspectRatio="none" aria-label={metricLabel(metric)}>
+        <line x1="4" y1="88" x2="96" y2="88" />
+        <line x1="4" y1="52" x2="96" y2="52" />
+        <line x1="4" y1="16" x2="96" y2="16" />
+        <polygon points={`4,88 ${points} 96,88`} />
+        <polyline points={points} />
+        {coordinates.map(({ x, y, value }, index) => <circle key={`${x}-${index}`} cx={x} cy={y} r="1.25"><title>{value} {metricUnit(metric)}</title></circle>)}
+      </svg>
+      <div className="health-chart-axis"><span>{source[0] ? new Date(source[0].timestamp).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : '—'}</span><span>Maintenant</span></div>
+    </div>
+  )
 }
 
 export default function HealthPage() {
@@ -141,13 +178,15 @@ export default function HealthPage() {
         return { ...definition, state: 'down', latency: null, checkedAt: new Date().toISOString(), message }
       }
     }))
-    const healthy = results.filter((item) => item.state === 'healthy').length
-    const score = Math.round((healthy / results.length) * 100)
+
+    const healthyCount = results.filter((item) => item.state === 'healthy').length
+    const scoreValue = Math.round((healthyCount / results.length) * 100)
     const latencies = results.flatMap((item) => item.latency === null ? [] : [item.latency])
-    const latency = latencies.length ? Math.round(latencies.reduce((sum, value) => sum + value, 0) / latencies.length) : 0
-    const point = { timestamp: new Date().toISOString(), score, latency, errors: results.length - healthy }
+    const latencyValue = latencies.length ? Math.round(latencies.reduce((sum, value) => sum + value, 0) / latencies.length) : 0
+    const point = { timestamp: new Date().toISOString(), score: scoreValue, latency: latencyValue, errors: results.length - healthyCount }
     const nextHistory = [...history, point].slice(-720)
     const mergedLogs = [...nextLogs.reverse(), ...logs].slice(0, 500)
+
     setChecks(results)
     setHistory(nextHistory)
     setLogs(mergedLogs)
@@ -163,14 +202,23 @@ export default function HealthPage() {
     return () => window.clearInterval(timer)
   }, [liveLogs, history, logs])
 
-  const visibleChecks = useMemo(() => serviceFilter === 'all' ? checks : checks.filter((check) => check.id === serviceFilter), [checks, serviceFilter])
-  const visibleLogs = useMemo(() => logs.filter((entry) => (logLevel === 'all' || entry.level === logLevel) && `${entry.source} ${entry.message}`.toLowerCase().includes(logSearch.toLowerCase())), [logs, logLevel, logSearch])
+  const visibleChecks = useMemo(
+    () => serviceFilter === 'all' ? checks : checks.filter((check) => check.id === serviceFilter),
+    [checks, serviceFilter],
+  )
+  const visibleLogs = useMemo(
+    () => logs.filter((entry) => (logLevel === 'all' || entry.level === logLevel) && `${entry.source} ${entry.message}`.toLowerCase().includes(logSearch.toLowerCase())),
+    [logs, logLevel, logSearch],
+  )
+
   const healthy = checks.filter((item) => item.state === 'healthy').length
   const warnings = checks.filter((item) => item.state === 'degraded').length
   const down = checks.filter((item) => item.state === 'down').length
   const score = checks.length ? Math.round((healthy / checks.length) * 100) : 0
-  const averageLatency = Math.round(checks.flatMap((item) => item.latency === null ? [] : [item.latency]).reduce((sum, value) => sum + value, 0) / Math.max(1, checks.filter((item) => item.latency !== null).length))
+  const latencyValues = checks.flatMap((item) => item.latency === null ? [] : [item.latency])
+  const averageLatency = Math.round(latencyValues.reduce((sum, value) => sum + value, 0) / Math.max(1, latencyValues.length))
   const globalState = down ? 'Dégradé' : warnings ? 'À surveiller' : 'Opérationnel'
+  const completedTasks = followUp.filter((item) => item.state === 'Terminé').length
 
   function updateFollowUp(id: string, state: FollowUp['state']) {
     const next = followUp.map((item) => item.id === id ? { ...item, state } : item)
@@ -187,40 +235,64 @@ export default function HealthPage() {
     URL.revokeObjectURL(link.href)
   }
 
-  return <div className="health-page">
-    <header className="health-hero">
-      <div><p className="eyebrow">Hanuman / Santé du système</p><h1>Le centre d’observation.</h1><p>État des connecteurs, performance, activité récente, journaux techniques et trajectoire de maintenance.</p></div>
-      <button className="health-refresh" onClick={() => void runChecks()} disabled={loading}><RefreshCw size={17} className={loading ? 'spin' : ''} /> Contrôler maintenant</button>
-    </header>
+  return (
+    <div className="health-page">
+      <header className="health-hero">
+        <div>
+          <p className="eyebrow">Hanuman / Santé du système</p>
+          <h1>Le centre d’observation.</h1>
+          <p>État des connecteurs, performance, activité récente, journaux techniques et trajectoire de maintenance.</p>
+        </div>
+        <button className="health-refresh" onClick={() => void runChecks()} disabled={loading}><RefreshCw size={17} className={loading ? 'spin' : ''} /> Contrôler maintenant</button>
+      </header>
 
-    <section className="health-summary">
-      <article className="health-score"><div className="health-score__ring" style={{ '--score': `${score * 3.6}deg` } as React.CSSProperties}><span>{score}</span><small>/100</small></div><div><span className={`health-pill health-pill--${down ? 'down' : warnings ? 'degraded' : 'healthy'}`}>{globalState}</span><h2>Hanuman {globalState.toLowerCase()}</h2><p>{healthy} services opérationnels, {warnings} avertissement{warnings > 1 ? 's' : ''}, {down} panne{down > 1 ? 's' : ''}.</p></div></article>
-      <article><ServerCog size={20} /><strong>{healthy}/{checks.length || definitions.length}</strong><span>Connecteurs actifs</span></article>
-      <article><Gauge size={20} /><strong>{averageLatency} ms</strong><span>Latence moyenne</span></article>
-      <article><AlertTriangle size={20} /><strong>{warnings + down}</strong><span>Anomalies actuelles</span></article>
-      <article><Clock3 size={20} /><strong>{checks[0] ? new Date(checks[0].checkedAt).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : '—'}</strong><span>Dernier contrôle</span></article>
-    </section>
+      <section className="health-summary">
+        <article className="health-score">
+          <div className="health-score__ring" style={{ '--score': `${score * 3.6}deg` } as CSSProperties}><span>{score}</span><small>/100</small></div>
+          <div><span className={`health-pill health-pill--${down ? 'down' : warnings ? 'degraded' : 'healthy'}`}>{globalState}</span><h2>Hanuman {globalState.toLowerCase()}</h2><p>{healthy} services opérationnels, {warnings} avertissement{warnings > 1 ? 's' : ''}, {down} panne{down > 1 ? 's' : ''}.</p></div>
+        </article>
+        <article><ServerCog size={20} /><strong>{healthy}/{checks.length || definitions.length}</strong><span>Connecteurs actifs</span></article>
+        <article><Gauge size={20} /><strong>{averageLatency} ms</strong><span>Latence moyenne</span></article>
+        <article><AlertTriangle size={20} /><strong>{warnings + down}</strong><span>Anomalies actuelles</span></article>
+        <article><Clock3 size={20} /><strong>{checks[0] ? new Date(checks[0].checkedAt).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : '—'}</strong><span>Dernier contrôle</span></article>
+      </section>
 
-    <section className="health-panel health-analytics">
-      <div className="health-panel__heading"><div><span>Historique</span><h2>Santé et performance</h2></div><div className="health-segmented">{(['1h', '24h', '7d', '30d'] as Period[]).map((item) => <button key={item} className={period === item ? 'active' : ''} onClick={() => setPeriod(item)}>{item}</button>)}</div></div>
-      <div className="health-chart-grid"><article><div><b>Score global</b><span>Fenêtre {period}</span></div><HealthChart history={history} metric="score" /></article><article><div><b>Latence moyenne</b><span>millisecondes</span></div><HealthChart history={history} metric="latency" /></article></div>
-    </section>
+      <section className="health-panel health-analytics">
+        <div className="health-panel__heading">
+          <div><span>Historique</span><h2>Santé et performance</h2></div>
+          <div className="health-segmented">{(['1h', '24h', '7d', '30d'] as Period[]).map((item) => <button key={item} className={period === item ? 'active' : ''} onClick={() => setPeriod(item)}>{item}</button>)}</div>
+        </div>
+        <div className="health-chart-grid">
+          {(['score', 'latency', 'errors'] as Metric[]).map((metric) => <article key={metric}><div><b>{metricLabel(metric)}</b><span>Fenêtre {period}</span></div><HealthChart history={history} metric={metric} period={period} /></article>)}
+          <article className="health-distribution">
+            <div><b>Répartition actuelle</b><span>{checks.length || definitions.length} services</span></div>
+            <div className="health-distribution__content">
+              <div className="health-distribution__ring" style={{ '--healthy': `${checks.length ? (healthy / checks.length) * 360 : 0}deg`, '--warning': `${checks.length ? ((healthy + warnings) / checks.length) * 360 : 0}deg` } as CSSProperties}><span>{healthy}</span><small>actifs</small></div>
+              <div className="health-distribution__legend"><span><i className="health-dot health-dot--healthy" />Opérationnels <b>{healthy}</b></span><span><i className="health-dot health-dot--degraded" />Dégradés <b>{warnings}</b></span><span><i className="health-dot health-dot--down" />Indisponibles <b>{down}</b></span></div>
+            </div>
+          </article>
+        </div>
+      </section>
 
-    <section className="health-panel">
-      <div className="health-panel__heading"><div><span>Infrastructure</span><h2>Connecteurs et services</h2></div><label className="health-select"><Filter size={14} /><select value={serviceFilter} onChange={(event) => setServiceFilter(event.target.value)}><option value="all">Tous les services</option>{definitions.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}</select></label></div>
-      <div className="health-service-table"><div className="health-service-row health-service-row--head"><span>Service</span><span>État</span><span>Latence</span><span>Dernier contrôle</span><span /></div>{visibleChecks.map((check) => <div key={check.id} className="health-service-wrap"><button className="health-service-row" onClick={() => setExpanded(expanded === check.id ? null : check.id)}><span><i className={`health-dot health-dot--${check.state}`} />{check.label}</span><span>{stateLabel(check.state)}</span><span>{check.latency === null ? '—' : `${check.latency} ms`}</span><span>{new Date(check.checkedAt).toLocaleTimeString('fr-FR')}</span><span>{expanded === check.id ? <ChevronUp size={15} /> : <ChevronDown size={15} />}</span></button>{expanded === check.id && <div className="health-service-detail"><code>GET {check.endpoint}</code><p>{check.message}</p><button onClick={() => void runChecks()}><RefreshCw size={14} /> Retester</button></div>}</div>)}</div>
-    </section>
+      <section className="health-panel">
+        <div className="health-panel__heading"><div><span>Infrastructure</span><h2>Connecteurs et services</h2></div><label className="health-select"><Filter size={14} /><select value={serviceFilter} onChange={(event) => setServiceFilter(event.target.value)}><option value="all">Tous les services</option>{definitions.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}</select></label></div>
+        <div className="health-service-table">
+          <div className="health-service-row health-service-row--head"><span>Service</span><span>État</span><span>Latence</span><span>Dernier contrôle</span><span /></div>
+          {visibleChecks.map((check) => <div key={check.id} className="health-service-wrap"><button className="health-service-row" onClick={() => setExpanded(expanded === check.id ? null : check.id)}><span><i className={`health-dot health-dot--${check.state}`} />{check.label}</span><span>{stateLabel(check.state)}</span><span>{check.latency === null ? '—' : `${check.latency} ms`}</span><span>{new Date(check.checkedAt).toLocaleTimeString('fr-FR')}</span><span>{expanded === check.id ? <ChevronUp size={15} /> : <ChevronDown size={15} />}</span></button>{expanded === check.id && <div className="health-service-detail"><code>GET {check.endpoint}</code><p>{check.message}</p><button onClick={() => void runChecks()}><RefreshCw size={14} /> Retester</button></div>}</div>)}
+        </div>
+      </section>
 
-    <section className="health-two-columns">
-      <article className="health-panel"><div className="health-panel__heading"><div><span>Activité</span><h2>Historique récent</h2></div><Activity size={19} /></div><div className="health-timeline">{logs.slice(0, 8).map((entry, index) => <div key={`${entry.timestamp}-${index}`}><i className={`health-dot health-dot--${entry.level === 'INFO' ? 'healthy' : entry.level === 'WARN' ? 'degraded' : 'down'}`} /><time>{new Date(entry.timestamp).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</time><p><b>{entry.source}</b>{entry.message}</p></div>)}</div></article>
-      <article className="health-panel"><div className="health-panel__heading"><div><span>Plan d’action</span><h2>Suivi de la suite</h2></div><ListChecks size={19} /></div><div className="health-follow-up">{followUp.map((item) => <div key={item.id}><span className={`health-priority health-priority--${item.priority.toLowerCase()}`}>{item.priority}</span><p><b>{item.subject}</b><small>{item.next}</small></p><select value={item.state} onChange={(event) => updateFollowUp(item.id, event.target.value as FollowUp['state'])}><option>À faire</option><option>En cours</option><option>Terminé</option></select></div>)}</div></article>
-    </section>
+      <section className="health-two-columns">
+        <article className="health-panel"><div className="health-panel__heading"><div><span>Activité</span><h2>Historique récent</h2></div><Activity size={19} /></div><div className="health-timeline">{logs.slice(0, 8).map((entry, index) => <div key={`${entry.timestamp}-${index}`}><i className={`health-dot health-dot--${entry.level === 'INFO' ? 'healthy' : entry.level === 'WARN' ? 'degraded' : 'down'}`} /><time>{new Date(entry.timestamp).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</time><p><b>{entry.source}</b>{entry.message}</p></div>)}</div></article>
+        <article className="health-panel"><div className="health-panel__heading"><div><span>Plan d’action</span><h2>Suivi de la suite</h2></div><span className="health-progress-label">{completedTasks}/{followUp.length} terminés</span></div><div className="health-follow-up">{followUp.map((item) => <div key={item.id}><span className={`health-priority health-priority--${item.priority.toLowerCase()}`}>{item.priority}</span><p><b>{item.subject}</b><small>{item.next}</small></p><select value={item.state} onChange={(event) => updateFollowUp(item.id, event.target.value as FollowUp['state'])}><option>À faire</option><option>En cours</option><option>Terminé</option></select></div>)}</div></article>
+      </section>
 
-    <section className="health-panel health-logs">
-      <div className="health-panel__heading"><div><span>Observabilité</span><h2>Explorateur de logs</h2></div><div className="health-log-actions"><button onClick={() => setLiveLogs(!liveLogs)}>{liveLogs ? <Pause size={14} /> : <Play size={14} />}{liveLogs ? 'Pause' : 'Reprendre'}</button><button onClick={exportLogs}><Download size={14} /> Exporter</button></div></div>
-      <div className="health-log-filters"><label><Search size={14} /><input value={logSearch} onChange={(event) => setLogSearch(event.target.value)} placeholder="Rechercher dans les logs" /></label><select value={logLevel} onChange={(event) => setLogLevel(event.target.value)}><option value="all">Tous les niveaux</option><option>INFO</option><option>WARN</option><option>ERROR</option></select></div>
-      <div className="health-console">{visibleLogs.slice(0, 100).map((entry, index) => <div key={`${entry.timestamp}-${index}`}><time>{new Date(entry.timestamp).toLocaleString('fr-FR')}</time><span className={`health-level health-level--${entry.level.toLowerCase()}`}>{entry.level}</span><b>{entry.source}</b><code>{entry.message}</code></div>)}{!visibleLogs.length && <p>Aucun journal ne correspond aux filtres.</p>}</div>
-      <div className="health-console__footer"><TerminalSquare size={14} /> {visibleLogs.length} entrées · actualisation automatique {liveLogs ? 'active' : 'en pause'}</div>
-    </section>
-  </div>
+      <section className="health-panel health-logs">
+        <div className="health-panel__heading"><div><span>Observabilité</span><h2>Explorateur de logs</h2></div><div className="health-log-actions"><button onClick={() => setLiveLogs(!liveLogs)}>{liveLogs ? <Pause size={14} /> : <Play size={14} />}{liveLogs ? 'Pause' : 'Reprendre'}</button><button onClick={exportLogs}><Download size={14} /> Exporter</button></div></div>
+        <div className="health-log-filters"><label><Search size={14} /><input value={logSearch} onChange={(event) => setLogSearch(event.target.value)} placeholder="Rechercher dans les logs" /></label><select value={logLevel} onChange={(event) => setLogLevel(event.target.value)}><option value="all">Tous les niveaux</option><option>INFO</option><option>WARN</option><option>ERROR</option></select></div>
+        <div className="health-console">{visibleLogs.slice(0, 100).map((entry, index) => <div key={`${entry.timestamp}-${index}`}><time>{new Date(entry.timestamp).toLocaleString('fr-FR')}</time><span className={`health-level health-level--${entry.level.toLowerCase()}`}>{entry.level}</span><b>{entry.source}</b><code>{entry.message}</code></div>)}{!visibleLogs.length && <p>Aucun journal ne correspond aux filtres.</p>}</div>
+        <div className="health-console__footer"><TerminalSquare size={14} /> {visibleLogs.length} entrées · actualisation automatique {liveLogs ? 'active' : 'en pause'}</div>
+      </section>
+    </div>
+  )
 }
