@@ -91,22 +91,26 @@ def test_sync_writes_games_and_graph_indexes(tmp_path, monkeypatch) -> None:
 
     first_content = first_game.read_text(encoding="utf-8")
     assert "type: chess-game" in first_content
+    assert "hanuman-chess-game" in first_content
     assert "result: win" in first_content
     assert 'opponent: "Opponent1"' in first_content
     assert "eco: B20" in first_content
+    assert "analysis_status: pending" in first_content
     assert "chess/opening/B20" in first_content
     assert "chess/year/2024" in first_content
     assert "chess/month/2024-01" in first_content
+    assert "chess/analysis/pending" in first_content
     assert "[[_Index/Annees/2024|2024]]" in first_content
     assert "[[_Index/Mois/2024-01|2024-01]]" in first_content
-    assert "[[_Index/Ouvertures/B20|B20 — Sicilian Defense]]" in first_content
+    assert "[[_Index/Ouvertures/B20|B20]]" in first_content
     assert "[[_Index/Adversaires/Opponent1|Opponent1]]" in first_content
-    assert "## En-têtes PGN" in first_content
+    assert "> [!info]- En-têtes PGN" in first_content
     assert "WhiteElo" in first_content
     assert "1800" in first_content
-    assert "## PGN complet" in first_content
+    assert "> [!note]- PGN complet" in first_content
     assert '[Event "Game1"]' in first_content
     assert "## Analyse Stockfish" in first_content
+    assert "> [!stockfish] 🟡 Analyse en attente" in first_content
     assert "Analyse non encore lancée." in first_content
 
     year_index = obsidian_root / "_Index" / "Annees" / "2024.md"
@@ -119,8 +123,12 @@ def test_sync_writes_games_and_graph_indexes(tmp_path, monkeypatch) -> None:
         assert path.is_file()
 
     assert "2024-01-01 · B20 · Opponent1 · win" in year_index.read_text(encoding="utf-8")
-    assert "2024-01-02 · B20 · Opponent2 · loss" in opening_index.read_text(encoding="utf-8")
-    assert "[[_Index/Ouvertures/B20|B20]]" in dashboard.read_text(encoding="utf-8")
+    assert "2024-01-02 · B20 · Opponent2 · loss" in opening_index.read_text(
+        encoding="utf-8"
+    )
+    dashboard_content = dashboard.read_text(encoding="utf-8")
+    assert "hanuman-chess-dashboard" in dashboard_content
+    assert "[[_Index/Ouvertures/B20|B20]]" in dashboard_content
 
 
 def test_sync_preserves_existing_analysis(tmp_path, monkeypatch) -> None:
@@ -156,7 +164,5 @@ def test_main_calls_sync_with_custom_limit(monkeypatch) -> None:
         return {"status": "ok"}
 
     monkeypatch.setattr(mod, "sync_chess_to_obsidian", fake_sync)
-
     mod.main(["--limit", "42"])
-
     assert called_with == [42]
