@@ -4,7 +4,6 @@ import argparse
 import json
 import os
 import re
-from collections import Counter, defaultdict
 from pathlib import Path
 from typing import Any
 
@@ -14,6 +13,7 @@ from hanuman.services.chess_analysis_service import (
     StockfishAnalyzer,
 )
 
+CHESS_USERNAME = "prakasch"
 PGN_PATTERN = re.compile(r"```pgn\s*(.*?)```", re.DOTALL | re.IGNORECASE)
 START_MARKER = "<!-- HANUMAN_CHESS_ANALYSIS_START -->"
 END_MARKER = "<!-- HANUMAN_CHESS_ANALYSIS_END -->"
@@ -45,52 +45,108 @@ def _move_label(move: Any) -> str:
 
 
 def _format_eval(value_cp: int) -> str:
-    value = value_cp / 100
-    return f"{value:+.2f}"
+    return f"{value_cp / 100:+.2f}"
 
 
-def _critical_moves(analysis: GameAnalysis) -> list[Any]:
+def _player_color(analysis: GameAnalysis) -> str:
+    if analysis.white.lower() == CHESS_USERNAME.lower():
+        return "white"
+    if analysis.black.lower() == CHESS_USERNAME.lower():
+        return "black"
+    raise ValueError(f"{CHESS_USERNAME} absent de la partie")
+
+
+def _player_moves(analysis: GameAnalysis) -> list[Any]:
+    color = _player_color(analysis)
+    return [move for move in analysis.moves if move.color == color]
+
+
+def _opponent_moves(analysis: GameAnalysis) -> list[Any]:
+    color = _player_color(analysis)
+    return [move for move in analysis.moves if move.color != color]
+
+
+def _player_critical(analysis: GameAnalysis) -> list[Any]:
     return [
         move
-        for move in analysis.moves
+        for move in _player_moves(analysis)
         if move.classification in {"blunder", "mistake", "dubious", "excellent"}
         or move.missed_excellent
     ]
 
 
-def render_analysis_markdown(analysis: GameAnalysis) -> str:
-    critical = _critical_moves(analysis)
-    turning_point = (
-        f"demi-coup {analysis.turning_point_ply}"
-        if analysis.turning_point_ply is not None
-        else "aucune bascule détectée"
+def _opponent_highlights(analysis: GameAnalysis) -> list[Any]:
+    return [
+        move
+        for move in _opponent_moves(analysis)
+        if move.classification == "blunder" or move.excellent
+    ]
+
+
+def _counts(moves: list[Any]) -> dict[str, int]:
+    return {
+        "blunders": sum(move.classification == "blunder" for move in moves),
+        "mistakes": sum(move.classification == "mistake" for move in moves),
+        "dubious": sum(move.classification == "dubious" for move in moves),
+        "excellent": sum(move.excellent for move in moves),
+        "missed_excellent": sum(move.missed_excellent for move in moves),
+    }
+
+
+def _average_loss(moves: list[Any]) -> float:
+    return round(sum(move.loss_cp for move in moves) / len(moves), 1) if moves else 0.0
+
+
+def _turning_label(analysis: GameAnalysis) -> str:
+    if analysis.turning_point_ply is None:
+        return "aucune bascule détectée"
+    move = next(
+        (item for item in analysis.moves if item.ply == analysis.turning_point_ply),
+        None,
     )
+    return _move_label(move) if move is not None else f"demi-coup {analysis.turning_point_ply}"
+
+
+def _quality(move: Any) -> str:
+    quality = move.annotation or "—"
+    if move.missed_excellent and not move.excellent:
+        return f"{quality} · occasion manquée" if quality != "—" else "occasion manquée"
+    return quality
+
+
+def render_analysis_markdown(analysis: GameAnalysis) -> str:
+    player_moves = _player_moves(analysis)
+    critical = _player_critical(analysis)
+    opponent = _opponent_highlights(analysis)
+    counts = _counts(player_moves)
+    worst = max(player_moves, key=lambda item: item.loss_cp, default=None)
+
     lines = [
         START_MARKER,
         "## Analyse Stockfish",
         "",
-        "### Résumé",
+        "### Ton bilan",
         "",
         f"- **Moteur :** {analysis.engine}",
         f"- **Profondeur :** {analysis.depth}",
-        f"- **Perte moyenne sur la partie :** {analysis.average_centipawn_loss} cp/coup",
-        f"- **Pire coup :** {analysis.worst_move or '—'}",
-        f"- **Moment de bascule :** {turning_point}",
+        f"- **Perte moyenne :** {_average_loss(player_moves)} cp par coup joué",
+        f"- **Pire coup :** {_move_label(worst) if worst is not None else '—'}",
+        f"- **Moment de bascule :** {_turning_label(analysis)}",
         "",
         "| Qualité | Nombre |",
         "|---|---:|",
-        f"| `??` Gaffes | {analysis.counts['blunders']} |",
-        f"| `?` Erreurs | {analysis.counts['mistakes']} |",
-        f"| `?!` Coups douteux | {analysis.counts['dubious']} |",
-        f"| `!!` Excellents coups | {analysis.counts['excellent']} |",
-        f"| Excellents coups manqués | {analysis.counts['missed_excellent']} |",
+        f"| `??` Gaffes | {counts['blunders']} |",
+        f"| `?` Erreurs | {counts['mistakes']} |",
+        f"| `?!` Coups douteux | {counts['dubious']} |",
+        f"| `!!` Excellents coups | {counts['excellent']} |",
+        f"| Excellents coups manqués | {counts['missed_excellent']} |",
         "",
-        "### Chronologie des coups critiques",
+        "### Tes coups critiques",
         "",
     ]
 
     if not critical:
-        lines.append("Aucun coup critique détecté avec les seuils actuels.")
+        lines.append("Aucun de tes coups ne franchit les seuils critiques actuels.")
     else:
         lines.extend(
             [
@@ -99,12 +155,9 @@ def render_analysis_markdown(analysis: GameAnalysis) -> str:
             ]
         )
         for move in critical:
-            quality = move.annotation or "—"
-            if move.missed_excellent and not move.excellent:
-                quality = f"{quality} · occasion manquée" if quality != "—" else "occasion manquée"
             best = f"`{move.best_move_san}`" if move.best_move_san else "—"
             lines.append(
-                f"| **{_move_label(move)}** | {quality} | "
+                f"| **{_move_label(move)}** | {_quality(move)} | "
                 f"{_format_eval(move.eval_before_cp)} | {_format_eval(move.eval_after_cp)} | "
                 f"{move.loss_cp} cp | {best} |"
             )
@@ -115,14 +168,13 @@ def render_analysis_markdown(analysis: GameAnalysis) -> str:
         lines.append("Aucune variante critique disponible.")
     else:
         for move in variants:
-            label = _move_label(move)
             lines.extend(
                 [
-                    f"#### {label}",
+                    f"#### {_move_label(move)}",
                     "",
                     f"- **Meilleur coup :** `{move.best_move_san or '—'}`",
                     f"- **Perte :** {move.loss_cp} cp",
-                    f"- **Phase :** {'ouverture' if move.opening_phase else 'milieu/finale'}",
+                    f"- **Phase :** {'ouverture' if move.opening_phase else 'milieu ou finale'}",
                     "",
                     "```text",
                     " ".join(move.principal_variation),
@@ -131,8 +183,20 @@ def render_analysis_markdown(analysis: GameAnalysis) -> str:
                 ]
             )
 
+    lines.extend(["### Faits marquants de l’adversaire", ""])
+    if not opponent:
+        lines.append("Aucune gaffe ni coup excellent adverse détecté.")
+    else:
+        for move in opponent:
+            description = "gaffe" if move.classification == "blunder" else "coup excellent"
+            best = f" · meilleur : `{move.best_move_san}`" if move.best_move_san else ""
+            lines.append(
+                f"- **{_move_label(move)}** — {description}, perte {move.loss_cp} cp{best}"
+            )
+
     lines.extend(
         [
+            "",
             "### Seuils utilisés",
             "",
             "- `??` : perte d’au moins 200 cp",
@@ -151,7 +215,6 @@ def inject_analysis(markdown: str, rendered: str) -> str:
         before, rest = markdown.split(START_MARKER, 1)
         _, after = rest.split(END_MARKER, 1)
         return before.rstrip() + "\n\n" + rendered + after
-
     without_legacy = LEGACY_ANALYSIS_PATTERN.sub("", markdown).rstrip()
     return without_legacy + "\n\n" + rendered + "\n"
 
@@ -166,128 +229,28 @@ def analyse_note(path: Path, analyzer: StockfishAnalyzer) -> GameAnalysis | None
         inject_analysis(markdown, render_analysis_markdown(analysis)),
         encoding="utf-8",
     )
-    path.with_suffix(".analysis.json").write_text(
-        json.dumps(analysis.to_dict(), ensure_ascii=False, indent=2),
-        encoding="utf-8",
-    )
     return analysis
 
 
-def _quality_note(label: str, symbol: str, description: str) -> str:
-    return f'''---
-type: chess-quality
-symbol: "{symbol}"
-tags:
-  - chess/quality
----
-
-# {symbol} — {label}
-
-{description}
-
-## Navigation
-
-- [[../Analyse Stockfish|Synthèse Stockfish]]
-'''
-
-
-def write_quality_nodes(root: Path) -> None:
-    quality_root = root / "Qualite"
-    quality_root.mkdir(parents=True, exist_ok=True)
-    nodes = {
-        "Gaffe.md": (
-            "Gaffe",
-            "??",
-            "Perte d’au moins 200 centipions par rapport au meilleur coup.",
-        ),
-        "Erreur.md": (
-            "Erreur",
-            "?",
-            "Perte comprise entre 100 et 199 centipions.",
-        ),
-        "Douteux.md": (
-            "Douteux",
-            "?!",
-            "Perte comprise entre 50 et 99 centipions.",
-        ),
-        "Excellent.md": (
-            "Excellent",
-            "!!",
-            "Coup unique, tactique ou sacrifice correct détecté avec forte confiance.",
-        ),
-        "Excellent manque.md": (
-            "Excellent coup manqué",
-            "!!?",
-            "Occasion tactique forte non jouée.",
-        ),
-    }
-    for filename, values in nodes.items():
-        (quality_root / filename).write_text(_quality_note(*values), encoding="utf-8")
-
-
-def write_summary(root: Path, analyses: list[GameAnalysis]) -> None:
-    counts: Counter[str] = Counter()
-    by_eco: dict[str, Counter[str]] = defaultdict(Counter)
-    for analysis in analyses:
-        counts.update(analysis.counts)
-        by_eco[analysis.eco].update(analysis.counts)
-
-    rows = []
-    for eco, values in sorted(by_eco.items(), key=lambda item: -item[1]["blunders"]):
-        rows.append(
-            f"| {eco} | {values['blunders']} | {values['mistakes']} | "
-            f"{values['dubious']} | {values['excellent']} | "
-            f"{values['missed_excellent']} |"
-        )
-
-    summary = f'''---
-type: chess-analysis-dashboard
-tags:
-  - chess/dashboard
-  - chess/analysis
----
-
-# Analyse Stockfish — synthèse
-
-- **Parties analysées :** {len(analyses)}
-- **Gaffes `??` :** {counts['blunders']}
-- **Erreurs `?` :** {counts['mistakes']}
-- **Douteux `?!` :** {counts['dubious']}
-- **Excellents `!!` :** {counts['excellent']}
-- **Excellents coups manqués :** {counts['missed_excellent']}
-
-## Qualité des coups
-
-- [[Qualite/Gaffe|?? Gaffe]]
-- [[Qualite/Erreur|? Erreur]]
-- [[Qualite/Douteux|?! Douteux]]
-- [[Qualite/Excellent|!! Excellent]]
-- [[Qualite/Excellent manque|Excellent coup manqué]]
-
-## Répartition par ECO
-
-| ECO | ?? | ? | ?! | !! | excellents manqués |
-|---|---:|---:|---:|---:|---:|
-{chr(10).join(rows)}
-'''
-    (root / "Analyse Stockfish.md").write_text(summary, encoding="utf-8")
+def _game_paths(root: Path) -> list[Path]:
+    paths = list(root.glob("[0-9][0-9][0-9][0-9]/[0-9][0-9]/*.md"))
+    return sorted(paths, key=lambda path: path.name, reverse=True)
 
 
 def analyse_vault(limit: int | None = None, depth: int = 18) -> dict[str, Any]:
     root = _chess_root()
-    parties = root / "Parties"
-    if not parties.exists():
-        raise FileNotFoundError(f"Dossier de parties introuvable : {parties}")
+    if not root.exists():
+        raise FileNotFoundError(f"Dossier Echecs introuvable : {root}")
+
+    paths = _game_paths(root)
+    if limit is not None:
+        paths = paths[:limit]
 
     config = AnalysisConfig(
         engine_path=os.environ.get("STOCKFISH_PATH"),
         depth=depth,
     )
-    paths = sorted(parties.rglob("*.md"), reverse=True)
-    if limit is not None:
-        paths = paths[:limit]
-
-    analyses: list[GameAnalysis] = []
+    analysed = 0
     skipped = 0
     failed: list[dict[str, str]] = []
     with StockfishAnalyzer(config) as analyzer:
@@ -297,16 +260,14 @@ def analyse_vault(limit: int | None = None, depth: int = 18) -> dict[str, Any]:
                 if analysis is None:
                     skipped += 1
                 else:
-                    analyses.append(analysis)
+                    analysed += 1
             except Exception as exc:
                 failed.append({"path": str(path), "error": str(exc)})
 
-    write_quality_nodes(root)
-    write_summary(root, analyses)
     return {
         "status": "ok" if not failed else "partial",
         "root": str(root),
-        "analysed": len(analyses),
+        "analysed": analysed,
         "skipped": skipped,
         "failed": failed,
     }
@@ -314,7 +275,7 @@ def analyse_vault(limit: int | None = None, depth: int = 18) -> dict[str, Any]:
 
 def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(
-        description="Analyse les parties Obsidian avec Stockfish"
+        description="Ajoute l’analyse Stockfish dans les notes chronologiques"
     )
     parser.add_argument("--limit", type=int, default=None)
     parser.add_argument("--depth", type=int, default=18)
