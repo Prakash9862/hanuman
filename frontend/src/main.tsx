@@ -6,6 +6,7 @@ import './styles.css'
 import './wikipedia.css'
 import './hanuman-os.css'
 import './gmail.css'
+import './health.css'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
