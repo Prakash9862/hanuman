@@ -29,6 +29,7 @@ import GmailPage from './GmailPage'
 import HanumanOSPage from './HanumanOSPage'
 import HealthPage from './HealthPage'
 import ObsidianNotionPage from './ObsidianNotionPage'
+import ResourcesPage from './ResourcesPage'
 import WikipediaNotionPage from './WikipediaNotionPage'
 
 const healthEndpoints = [
@@ -149,7 +150,7 @@ function AppShell() {
         <nav className="nav">
           <NavLink to="/" end><Sparkles size={18} /> Hanuman</NavLink>
           <NavLink to="/orchestrations"><Boxes size={18} /> Orchestrations</NavLink>
-          <NavLink to="/library"><Library size={18} /> Bibliothèque</NavLink>
+          <NavLink to="/resources"><Library size={18} /> Ressources</NavLink>
           <NavLink to="/health"><HeartPulse size={18} /> Santé</NavLink>
         </nav>
         {location.pathname === '/' && <SidebarHealth />}
@@ -165,7 +166,8 @@ function AppShell() {
           <Route path="/orchestrations/obsidian-notion" element={<ObsidianNotionPage />} />
           <Route path="/orchestrations/wikipedia-notion" element={<WikipediaNotionPage />} />
           <Route path="/orchestrations/chess-obsidian" element={<ChessObsidianPage />} />
-          <Route path="/library" element={<PlaceholderPage title="Bibliothèque" text="La couche transversale des contenus de Hanuman." />} />
+          <Route path="/resources" element={<ResourcesPage />} />
+          <Route path="/library" element={<Navigate to="/resources" replace />} />
           <Route path="/health" element={<HealthPage />} />
         </Routes>
       </main>
@@ -196,10 +198,6 @@ function OrchestrationsPage() {
       </section>
     </div>
   )
-}
-
-function PlaceholderPage({ title, text }: { title: string; text: string }) {
-  return <div className="page"><header className="page-header"><div><p className="eyebrow">Hanuman</p><h1>{title}</h1><p>{text}</p></div></header><div className="placeholder-panel"><CalendarDays size={28} /><b>Espace réservé</b><span>La structure existe déjà pour permettre une construction progressive sans refonte.</span></div></div>
 }
 
 export default function App() {
