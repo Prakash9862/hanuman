@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import os
+from html import unescape
+from re import sub
 from typing import Any
-from urllib.parse import quote_plus, urlencode
+from urllib.parse import quote, quote_plus, urlencode
 from xml.etree import ElementTree
 
 import httpx
@@ -10,7 +12,7 @@ import httpx
 YOUTUBE_SEARCH_URL = "https://www.googleapis.com/youtube/v3/search"
 GALLICA_SRU_URL = "https://gallica.bnf.fr/services/engine/search/sru"
 GALLICA_SEARCH_URL = "https://gallica.bnf.fr/services/engine/search/sru"
-IMSLP_SEARCH_URL = "https://imslp.org/wiki/Special:Search"
+IMSLP_API_URL = "https://imslp.org/api.php"
 
 HTTP_HEADERS = {
     "User-Agent": "Hanuman/0.2 (personal research assistant)",
@@ -139,8 +141,43 @@ def search_gallica(query: str, max_results: int = 10) -> list[dict[str, Any]]:
     return records
 
 
-def build_imslp_search_url(query: str) -> str:
-    return f"{IMSLP_SEARCH_URL}?{urlencode({'search': query})}"
+def _plain_text(value: str | None) -> str:
+    if not value:
+        return ""
+    return sub(r"<[^>]+>", "", unescape(value)).strip()
+
+
+def search_imslp(query: str, max_results: int = 20) -> list[dict[str, Any]]:
+    response = httpx.get(
+        IMSLP_API_URL,
+        params={
+            "action": "query",
+            "list": "search",
+            "srsearch": query,
+            "srwhat": "text",
+            "srnamespace": 0,
+            "srlimit": max(1, min(max_results, 50)),
+            "srprop": "snippet|timestamp",
+            "format": "json",
+        },
+        headers={**HTTP_HEADERS, "Accept": "application/json"},
+        follow_redirects=True,
+        timeout=25,
+    )
+    response.raise_for_status()
+    payload = response.json()
+
+    results: list[dict[str, Any]] = []
+    for item in (payload.get("query") or {}).get("search", []):
+        title = str(item.get("title") or "Page IMSLP")
+        results.append(
+            {
+                "title": title,
+                "description": _plain_text(item.get("snippet")),
+                "url": f"https://imslp.org/wiki/{quote(title.replace(' ', '_'), safe='():,_-')}",
+            }
+        )
+    return results
 
 
 def build_google_maps_search_url(location: str) -> str:
