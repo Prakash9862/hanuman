@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException, Query
 
+from hanuman.services.local_programs_service import inspect_program, inspect_programs
 from hanuman.services.resources_service import (
     build_google_maps_directions_url,
     build_google_maps_search_url,
@@ -40,6 +41,10 @@ def youtube_search(
 
 @router.get("/gallica/status")
 def gallica_status() -> dict[str, object]:
+    try:
+        search_gallica("test", max_results=1)
+    except Exception as exc:
+        return {"ok": False, "configured": True, "message": str(exc)}
     return {"ok": True, "configured": True}
 
 
@@ -57,35 +62,38 @@ def gallica_search(
 
 @router.get("/imslp/status")
 def imslp_status() -> dict[str, object]:
-    return {
-        "ok": True,
-        "configured": True,
-        "mode": "search_link",
-    }
+    return {"ok": True, "configured": True, "mode": "search_link"}
 
 
 @router.get("/imslp/search")
 def imslp_search(q: str = Query(min_length=1)) -> dict[str, object]:
-    return {
-        "ok": True,
-        "query": q,
-        "url": build_imslp_search_url(q),
-    }
+    return {"ok": True, "query": q, "url": build_imslp_search_url(q)}
+
+
+@router.get("/maps/status")
+def maps_status() -> dict[str, object]:
+    return {"ok": True, "configured": True, "mode": "universal_urls"}
 
 
 @router.get("/maps/search")
 def maps_search(location: str = Query(min_length=1)) -> dict[str, object]:
-    return {
-        "ok": True,
-        "location": location,
-        "url": build_google_maps_search_url(location),
-    }
+    return {"ok": True, "location": location, "url": build_google_maps_search_url(location)}
 
 
 @router.get("/maps/directions")
 def maps_directions(location: str = Query(min_length=1)) -> dict[str, object]:
-    return {
-        "ok": True,
-        "location": location,
-        "url": build_google_maps_directions_url(location),
-    }
+    return {"ok": True, "location": location, "url": build_google_maps_directions_url(location)}
+
+
+@router.get("/programs/status")
+def programs_status() -> dict[str, object]:
+    programs = inspect_programs()
+    return {"ok": all(item["ok"] for item in programs), "count": len(programs), "programs": programs}
+
+
+@router.get("/programs/{program_id}/status")
+def program_status(program_id: str) -> dict[str, object]:
+    try:
+        return inspect_program(program_id)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail="Programme inconnu") from exc
