@@ -24,12 +24,14 @@ _CONNECTORS: tuple[ConnectorDescriptor, ...] = (
     ConnectorDescriptor(
         id="calendar",
         label="Google Calendar",
-        description="Lecture des calendriers et des événements à venir.",
+        description="Lecture des calendriers, événements à venir et liens Google Maps.",
         kind=ConnectorKind.REMOTE_API,
         capabilities=[
             "calendar.read",
             "calendar.list_calendars",
             "calendar.list_events",
+            "maps.open_location",
+            "maps.open_directions",
         ],
         requires_auth=True,
         status_endpoint="/calendar/status",
@@ -111,6 +113,42 @@ _CONNECTORS: tuple[ConnectorDescriptor, ...] = (
             "chess.export_pgn",
         ],
         status_endpoint="/chess/ping",
+    ),
+    ConnectorDescriptor(
+        id="youtube",
+        label="YouTube",
+        description="Recherche de vidéos, chaînes et playlists via YouTube Data API.",
+        kind=ConnectorKind.REMOTE_API,
+        capabilities=[
+            "video.search",
+            "video.read_metadata",
+            "video.open",
+        ],
+        requires_auth=True,
+        status_endpoint="/resources/youtube/status",
+    ),
+    ConnectorDescriptor(
+        id="gallica",
+        label="Gallica",
+        description="Recherche de documents numérisés dans les collections de la BnF.",
+        kind=ConnectorKind.REMOTE_API,
+        capabilities=[
+            "heritage.search",
+            "heritage.read_metadata",
+            "heritage.open_document",
+        ],
+        status_endpoint="/resources/gallica/status",
+    ),
+    ConnectorDescriptor(
+        id="imslp",
+        label="IMSLP",
+        description="Recherche et ouverture de partitions dans la bibliothèque IMSLP.",
+        kind=ConnectorKind.REMOTE_API,
+        capabilities=[
+            "music_score.search",
+            "music_score.open_search",
+        ],
+        status_endpoint="/resources/imslp/status",
     ),
 )
 
