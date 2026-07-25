@@ -84,10 +84,9 @@ def test_exchange_code_for_token_success(
     result = calendar_service.exchange_code_for_token("dummy-code")
 
     assert result is True
-    assert saved == {
-        "access_token": "tok",
-        "refresh_token": "ref",
-    }
+    assert saved["access_token"] == "tok"
+    assert saved["refresh_token"] == "ref"
+    assert isinstance(saved["expires_at"], float)
 
 
 def test_exchange_code_for_token_invalid_code(
@@ -195,6 +194,7 @@ def test_get_calendar_list_success(
         url: str,
         headers: dict[str, str],
         timeout: int,
+        params: dict[str, Any] | None = None,
     ) -> DummyResponse:
         assert url == calendar_service.CALENDAR_LIST_URL
         assert headers["Authorization"] == "Bearer abc"
@@ -260,6 +260,7 @@ def test_get_calendar_list_unauthorized(
         url: str,
         headers: dict[str, str],
         timeout: int,
+        params: dict[str, Any] | None = None,
     ) -> DummyResponse:
         return DummyResponse(
             401,
@@ -281,8 +282,9 @@ def test_get_calendar_list_unauthorized(
 
     assert isinstance(result, PingResult)
     assert result.ok is False
-    assert result.error == ("Token Calendar expiré ou invalide")
-
+    assert result.error is not None
+    assert "aucun refresh_token" in result.error
+    assert "nouvelle connexion Google" in result.error
 
 def test_get_calendar_list_server_error(
     monkeypatch: pytest.MonkeyPatch,
@@ -298,6 +300,7 @@ def test_get_calendar_list_server_error(
         url: str,
         headers: dict[str, str],
         timeout: int,
+        params: dict[str, Any] | None = None,
     ) -> DummyResponse:
         return DummyResponse(
             500,
