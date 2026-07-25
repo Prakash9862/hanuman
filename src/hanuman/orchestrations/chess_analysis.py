@@ -8,7 +8,11 @@ from collections import Counter, defaultdict
 from pathlib import Path
 from typing import Any
 
-from hanuman.services.chess_analysis_service import AnalysisConfig, GameAnalysis, analyse_pgn
+from hanuman.services.chess_analysis_service import (
+    AnalysisConfig,
+    GameAnalysis,
+    StockfishAnalyzer,
+)
 
 PGN_PATTERN = re.compile(r"```pgn\s*(.*?)```", re.DOTALL | re.IGNORECASE)
 START_MARKER = "<!-- HANUMAN_CHESS_ANALYSIS_START -->"
@@ -32,21 +36,6 @@ def _chess_root() -> Path:
 def extract_pgn(markdown: str) -> str | None:
     match = PGN_PATTERN.search(markdown)
     return match.group(1).strip() if match else None
-
-
-def quality_tags(analysis: GameAnalysis) -> list[str]:
-    tags: list[str] = []
-    mapping = {
-        "blunders": "chess/quality/blunder",
-        "mistakes": "chess/quality/mistake",
-        "dubious": "chess/quality/dubious",
-        "excellent": "chess/quality/excellent",
-        "missed_excellent": "chess/quality/missed-excellent",
-    }
-    for key, tag in mapping.items():
-        if analysis.counts.get(key, 0):
-            tags.append(tag)
-    return tags
 
 
 def _move_label(move: Any) -> str:
@@ -88,7 +77,12 @@ def render_analysis_markdown(analysis: GameAnalysis) -> str:
             detail += " · occasion tactique forte manquée"
         best = f" · meilleur : `{move.best_move_san}`" if move.best_move_san else ""
         opening = " · phase d’ouverture" if move.opening_phase else ""
-        lines.append(f"- **{_move_label(move)}** — {detail}{best}{opening}")
+        pv = (
+            f" · ligne : `{' '.join(move.principal_variation)}`"
+            if move.principal_variation
+            else ""
+        )
+        lines.append(f"- **{_move_label(move)}** — {detail}{best}{opening}{pv}")
     lines.extend(["", END_MARKER])
     return "\n".join(lines)
 
@@ -101,16 +95,17 @@ def inject_analysis(markdown: str, rendered: str) -> str:
     return markdown.rstrip() + "\n\n" + rendered + "\n"
 
 
-def analyse_note(path: Path, config: AnalysisConfig) -> GameAnalysis | None:
+def analyse_note(path: Path, analyzer: StockfishAnalyzer) -> GameAnalysis | None:
     markdown = path.read_text(encoding="utf-8")
     pgn = extract_pgn(markdown)
     if not pgn:
         return None
-    analysis = analyse_pgn(pgn, config)
-    rendered = render_analysis_markdown(analysis)
-    path.write_text(inject_analysis(markdown, rendered), encoding="utf-8")
-    sidecar = path.with_suffix(".analysis.json")
-    sidecar.write_text(
+    analysis = analyzer.analyse_pgn(pgn)
+    path.write_text(
+        inject_analysis(markdown, render_analysis_markdown(analysis)),
+        encoding="utf-8",
+    )
+    path.with_suffix(".analysis.json").write_text(
         json.dumps(analysis.to_dict(), ensure_ascii=False, indent=2),
         encoding="utf-8",
     )
@@ -129,9 +124,9 @@ tags:
 
 {description}
 
-## Parties liées
+## Navigation
 
-Les parties analysées portent des tags techniques stables dans leurs fichiers JSON et leurs résumés Hanuman.
+- [[../Analyse Stockfish|Synthèse Stockfish]]
 '''
 
 
@@ -139,11 +134,31 @@ def write_quality_nodes(root: Path) -> None:
     quality_root = root / "Qualite"
     quality_root.mkdir(parents=True, exist_ok=True)
     nodes = {
-        "Gaffe.md": ("Gaffe", "??", "Perte d’au moins 200 centipions par rapport au meilleur coup."),
-        "Erreur.md": ("Erreur", "?", "Perte comprise entre 100 et 199 centipions."),
-        "Douteux.md": ("Douteux", "?!", "Perte comprise entre 50 et 99 centipions."),
-        "Excellent.md": ("Excellent", "!!", "Coup unique, tactique ou sacrifice correct détecté avec forte confiance."),
-        "Excellent manque.md": ("Excellent coup manqué", "!!?", "Occasion tactique forte non jouée."),
+        "Gaffe.md": (
+            "Gaffe",
+            "??",
+            "Perte d’au moins 200 centipions par rapport au meilleur coup.",
+        ),
+        "Erreur.md": (
+            "Erreur",
+            "?",
+            "Perte comprise entre 100 et 199 centipions.",
+        ),
+        "Douteux.md": (
+            "Douteux",
+            "?!",
+            "Perte comprise entre 50 et 99 centipions.",
+        ),
+        "Excellent.md": (
+            "Excellent",
+            "!!",
+            "Coup unique, tactique ou sacrifice correct détecté avec forte confiance.",
+        ),
+        "Excellent manque.md": (
+            "Excellent coup manqué",
+            "!!?",
+            "Occasion tactique forte non jouée.",
+        ),
     }
     for filename, values in nodes.items():
         (quality_root / filename).write_text(_quality_note(*values), encoding="utf-8")
@@ -160,7 +175,8 @@ def write_summary(root: Path, analyses: list[GameAnalysis]) -> None:
     for eco, values in sorted(by_eco.items(), key=lambda item: -item[1]["blunders"]):
         rows.append(
             f"| {eco} | {values['blunders']} | {values['mistakes']} | "
-            f"{values['dubious']} | {values['excellent']} | {values['missed_excellent']} |"
+            f"{values['dubious']} | {values['excellent']} | "
+            f"{values['missed_excellent']} |"
         )
 
     summary = f'''---
@@ -213,15 +229,16 @@ def analyse_vault(limit: int | None = None, depth: int = 18) -> dict[str, Any]:
     analyses: list[GameAnalysis] = []
     skipped = 0
     failed: list[dict[str, str]] = []
-    for path in paths:
-        try:
-            analysis = analyse_note(path, config)
-            if analysis is None:
-                skipped += 1
-            else:
-                analyses.append(analysis)
-        except Exception as exc:
-            failed.append({"path": str(path), "error": str(exc)})
+    with StockfishAnalyzer(config) as analyzer:
+        for path in paths:
+            try:
+                analysis = analyse_note(path, analyzer)
+                if analysis is None:
+                    skipped += 1
+                else:
+                    analyses.append(analysis)
+            except Exception as exc:
+                failed.append({"path": str(path), "error": str(exc)})
 
     write_quality_nodes(root)
     write_summary(root, analyses)
@@ -235,11 +252,14 @@ def analyse_vault(limit: int | None = None, depth: int = 18) -> dict[str, Any]:
 
 
 def main(argv: list[str] | None = None) -> None:
-    parser = argparse.ArgumentParser(description="Analyse les parties Obsidian avec Stockfish")
+    parser = argparse.ArgumentParser(
+        description="Analyse les parties Obsidian avec Stockfish"
+    )
     parser.add_argument("--limit", type=int, default=None)
     parser.add_argument("--depth", type=int, default=18)
     args = parser.parse_args(argv)
-    print(json.dumps(analyse_vault(limit=args.limit, depth=args.depth), ensure_ascii=False, indent=2))
+    result = analyse_vault(limit=args.limit, depth=args.depth)
+    print(json.dumps(result, ensure_ascii=False, indent=2))
 
 
 if __name__ == "__main__":
