@@ -3,6 +3,8 @@ import {
   BrainCircuit,
   CalendarDays,
   ChevronRight,
+  Cpu,
+  Database,
   Github,
   Mail,
   MapPin,
@@ -21,19 +23,9 @@ import { useNavigate } from 'react-router-dom'
 
 type NodeStatus = 'active' | 'partial' | 'planned' | 'core'
 type NodeId =
-  | 'hanuman'
-  | 'obsidian'
-  | 'notion'
-  | 'github'
-  | 'calendar'
-  | 'wikipedia'
-  | 'chess'
-  | 'gmail'
-  | 'openai'
-  | 'youtube'
-  | 'gallica'
-  | 'imslp'
-  | 'maps'
+  | 'hanuman' | 'obsidian' | 'notion' | 'github' | 'calendar' | 'wikipedia'
+  | 'chess' | 'gmail' | 'openai' | 'youtube' | 'gallica' | 'imslp' | 'maps'
+  | 'stockfish' | 'scid' | 'lc0'
 type Viewport = { x: number; y: number; scale: number }
 
 type Node = {
@@ -55,6 +47,9 @@ const nodes: Node[] = [
   { id: 'calendar', label: 'Calendar', subtitle: 'Planification', x: 82, y: 64, status: 'active', icon: CalendarDays, route: '/orchestrations/calendar' },
   { id: 'wikipedia', label: 'Wikipédia', subtitle: 'Documentation', x: 67, y: 86, status: 'active', icon: BookOpen, route: '/orchestrations/wikipedia-notion' },
   { id: 'chess', label: 'Chess.com', subtitle: 'Parties et analyses', x: 34, y: 86, status: 'active', icon: Swords, route: '/orchestrations/chess-obsidian' },
+  { id: 'stockfish', label: 'Stockfish', subtitle: 'Moteur tactique', x: 17, y: 92, status: 'active', icon: Cpu, route: '/resources?source=chess' },
+  { id: 'scid', label: 'SCID', subtitle: 'Base de parties', x: 27, y: 98, status: 'active', icon: Database, route: '/resources?source=chess' },
+  { id: 'lc0', label: 'Leela', subtitle: 'Analyse neuronale', x: 43, y: 97, status: 'planned', icon: BrainCircuit, route: '/resources?source=chess' },
   { id: 'openai', label: 'OpenAI', subtitle: 'Raisonnement', x: 17, y: 66, status: 'partial', icon: BrainCircuit },
   { id: 'gmail', label: 'Gmail', subtitle: 'Communication', x: 9, y: 18, status: 'partial', icon: Mail, route: '/orchestrations/gmail' },
   { id: 'youtube', label: 'YouTube', subtitle: 'Vidéo et veille', x: 91, y: 18, status: 'partial', icon: Youtube, route: '/resources?source=youtube' },
@@ -64,22 +59,13 @@ const nodes: Node[] = [
 ]
 
 const links: Array<[NodeId, NodeId, Exclude<NodeStatus, 'core'>]> = [
-  ['hanuman', 'obsidian', 'active'],
-  ['hanuman', 'notion', 'active'],
-  ['hanuman', 'github', 'partial'],
-  ['hanuman', 'calendar', 'active'],
-  ['hanuman', 'wikipedia', 'active'],
-  ['hanuman', 'chess', 'active'],
-  ['hanuman', 'openai', 'partial'],
-  ['hanuman', 'gmail', 'partial'],
-  ['hanuman', 'youtube', 'partial'],
-  ['hanuman', 'gallica', 'active'],
-  ['hanuman', 'imslp', 'active'],
-  ['obsidian', 'notion', 'active'],
-  ['wikipedia', 'notion', 'active'],
-  ['chess', 'obsidian', 'active'],
-  ['calendar', 'maps', 'active'],
-  ['gallica', 'imslp', 'active'],
+  ['hanuman', 'obsidian', 'active'], ['hanuman', 'notion', 'active'], ['hanuman', 'github', 'partial'],
+  ['hanuman', 'calendar', 'active'], ['hanuman', 'wikipedia', 'active'], ['hanuman', 'chess', 'active'],
+  ['hanuman', 'openai', 'partial'], ['hanuman', 'gmail', 'partial'], ['hanuman', 'youtube', 'partial'],
+  ['hanuman', 'gallica', 'active'], ['hanuman', 'imslp', 'active'], ['obsidian', 'notion', 'active'],
+  ['wikipedia', 'notion', 'active'], ['chess', 'obsidian', 'active'], ['calendar', 'maps', 'active'],
+  ['gallica', 'imslp', 'active'], ['chess', 'stockfish', 'active'], ['chess', 'scid', 'active'],
+  ['chess', 'lc0', 'planned'], ['stockfish', 'obsidian', 'active'], ['scid', 'stockfish', 'active'],
 ]
 
 function statusLabel(status: NodeStatus) {
@@ -97,99 +83,22 @@ export default function HanumanOSPage() {
   const [viewport, setViewport] = useState<Viewport>(initialViewport)
   const dragStart = useRef<{ pointerX: number; pointerY: number; x: number; y: number } | null>(null)
   const selected = useMemo(() => nodes.find((node) => node.id === selectedId) ?? null, [selectedId])
-
-  function openRoute(route?: string) {
-    if (route) navigate(route)
-  }
-
-  function zoomBy(delta: number) {
-    setViewport((current) => ({
-      ...current,
-      scale: Math.min(1.6, Math.max(.72, current.scale + delta)),
-    }))
-  }
+  function openRoute(route?: string) { if (route) navigate(route) }
+  function zoomBy(delta: number) { setViewport((current) => ({ ...current, scale: Math.min(1.6, Math.max(.72, current.scale + delta)) })) }
 
   return (
     <section className="hanuman-os">
       <div className="hanuman-os__atmosphere" />
-      <header className="hanuman-os__topline">
-        <div><span className="hanuman-os__sigil">✦</span><b>HANUMAN</b><small>Celui qui relie les mondes</small></div>
-        <span className="hanuman-os__health"><i /> Système opérationnel</span>
-      </header>
-
-      <div
-        className={`hanuman-os__map${dragStart.current ? ' is-dragging' : ''}`}
-        aria-label="Constellation Hanuman"
-        onWheel={(event) => { event.preventDefault(); zoomBy(event.deltaY > 0 ? -.08 : .08) }}
-        onPointerDown={(event) => {
-          if ((event.target as HTMLElement).closest('button')) return
-          event.currentTarget.setPointerCapture(event.pointerId)
-          dragStart.current = {
-            pointerX: event.clientX,
-            pointerY: event.clientY,
-            x: viewport.x,
-            y: viewport.y,
-          }
-        }}
-        onPointerMove={(event) => {
-          const start = dragStart.current
-          if (!start) return
-          setViewport((current) => ({
-            ...current,
-            x: start.x + event.clientX - start.pointerX,
-            y: start.y + event.clientY - start.pointerY,
-          }))
-        }}
-        onPointerUp={() => { dragStart.current = null }}
-        onPointerCancel={() => { dragStart.current = null }}
-      >
+      <header className="hanuman-os__topline"><div><span className="hanuman-os__sigil">✦</span><b>HANUMAN</b><small>Celui qui relie les mondes</small></div><span className="hanuman-os__health"><i /> Système opérationnel</span></header>
+      <div className={`hanuman-os__map${dragStart.current ? ' is-dragging' : ''}`} aria-label="Constellation Hanuman" onWheel={(event) => { event.preventDefault(); zoomBy(event.deltaY > 0 ? -.08 : .08) }} onPointerDown={(event) => { if ((event.target as HTMLElement).closest('button')) return; event.currentTarget.setPointerCapture(event.pointerId); dragStart.current = { pointerX: event.clientX, pointerY: event.clientY, x: viewport.x, y: viewport.y } }} onPointerMove={(event) => { const start = dragStart.current; if (!start) return; setViewport((current) => ({ ...current, x: start.x + event.clientX - start.pointerX, y: start.y + event.clientY - start.pointerY })) }} onPointerUp={() => { dragStart.current = null }} onPointerCancel={() => { dragStart.current = null }}>
         <div className="hanuman-os__stars" />
         <div className="hanuman-os__world" style={{ transform: `translate(${viewport.x}px, ${viewport.y}px) scale(${viewport.scale})` }}>
-          <svg viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
-            {links.map(([fromId, toId, status]) => {
-              const from = nodes.find((node) => node.id === fromId)!
-              const to = nodes.find((node) => node.id === toId)!
-              const selectedLink = selectedId === fromId || selectedId === toId
-              return <line key={`${fromId}-${toId}`} x1={from.x} y1={from.y} x2={to.x} y2={to.y} className={`hanuman-os__link hanuman-os__link--${status} ${selectedLink ? 'is-selected' : ''}`} vectorEffect="non-scaling-stroke" />
-            })}
-          </svg>
-
-          {nodes.map(({ id, label, subtitle, x, y, status, icon: Icon, route }) => (
-            <button
-              key={id}
-              className={`hanuman-os__node hanuman-os__node--${id} hanuman-os__node--${status} ${selectedId === id ? 'is-selected' : ''}`}
-              style={{ left: `${x}%`, top: `${y}%` }}
-              onClick={() => setSelectedId(id)}
-              onDoubleClick={() => openRoute(route)}
-            >
-              <span className="hanuman-os__orb"><Icon size={id === 'hanuman' ? 22 : 15} /></span>
-              <span className="hanuman-os__label"><b>{label}</b><small>{subtitle}</small></span>
-            </button>
-          ))}
+          <svg viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">{links.map(([fromId, toId, status]) => { const from = nodes.find((node) => node.id === fromId)!; const to = nodes.find((node) => node.id === toId)!; const selectedLink = selectedId === fromId || selectedId === toId; return <line key={`${fromId}-${toId}`} x1={from.x} y1={from.y} x2={to.x} y2={to.y} className={`hanuman-os__link hanuman-os__link--${status} ${selectedLink ? 'is-selected' : ''}`} vectorEffect="non-scaling-stroke" /> })}</svg>
+          {nodes.map(({ id, label, subtitle, x, y, status, icon: Icon, route }) => <button key={id} className={`hanuman-os__node hanuman-os__node--${id} hanuman-os__node--${status} ${selectedId === id ? 'is-selected' : ''}`} style={{ left: `${x}%`, top: `${y}%` }} onClick={() => setSelectedId(id)} onDoubleClick={() => openRoute(route)}><span className="hanuman-os__orb"><Icon size={id === 'hanuman' ? 22 : 15} /></span><span className="hanuman-os__label"><b>{label}</b><small>{subtitle}</small></span></button>)}
         </div>
       </div>
-
-      <div className="hanuman-os__zoom" aria-label="Contrôles de la constellation">
-        <button onClick={() => zoomBy(-.12)} aria-label="Dézoomer"><Minus size={15} /></button>
-        <span>{Math.round(viewport.scale * 100)}%</span>
-        <button onClick={() => zoomBy(.12)} aria-label="Zoomer"><Plus size={15} /></button>
-        <button onClick={() => setViewport(initialViewport)} aria-label="Recentrer"><RotateCcw size={14} /></button>
-      </div>
-
-      {selected && (
-        <aside className="hanuman-os__inspector">
-          <button className="hanuman-os__inspector-close" onClick={() => setSelectedId(null)} aria-label="Fermer l’inspecteur"><X size={15} /></button>
-          <p>CONSTELLATION / NŒUD</p>
-          <h1>{selected.label}</h1>
-          <span className={`hanuman-os__status hanuman-os__status--${selected.status}`}>{statusLabel(selected.status)}</span>
-          <div className="hanuman-os__meta"><Network size={14} /> {links.filter(([from, to]) => from === selected.id || to === selected.id).length} connexions</div>
-          <p className="hanuman-os__description">{selected.subtitle}. Hanuman orchestre ses échanges avec le reste de l’écosystème.</p>
-          {selected.route
-            ? <button className="hanuman-os__inspector-action" onClick={() => openRoute(selected.route)}>Entrer dans l’espace <ChevronRight size={16} /></button>
-            : <small>Aucune orchestration dédiée stabilisée.</small>}
-        </aside>
-      )}
-
+      <div className="hanuman-os__zoom" aria-label="Contrôles de la constellation"><button onClick={() => zoomBy(-.12)} aria-label="Dézoomer"><Minus size={15} /></button><span>{Math.round(viewport.scale * 100)}%</span><button onClick={() => zoomBy(.12)} aria-label="Zoomer"><Plus size={15} /></button><button onClick={() => setViewport(initialViewport)} aria-label="Recentrer"><RotateCcw size={14} /></button></div>
+      {selected && <aside className="hanuman-os__inspector"><button className="hanuman-os__inspector-close" onClick={() => setSelectedId(null)} aria-label="Fermer l’inspecteur"><X size={15} /></button><p>CONSTELLATION / NŒUD</p><h1>{selected.label}</h1><span className={`hanuman-os__status hanuman-os__status--${selected.status}`}>{statusLabel(selected.status)}</span><div className="hanuman-os__meta"><Network size={14} /> {links.filter(([from, to]) => from === selected.id || to === selected.id).length} connexions</div><p className="hanuman-os__description">{selected.subtitle}. Hanuman orchestre ses échanges avec le reste de l’écosystème.</p>{selected.route ? <button className="hanuman-os__inspector-action" onClick={() => openRoute(selected.route)}>Entrer dans l’espace <ChevronRight size={16} /></button> : <small>Aucune orchestration dédiée stabilisée.</small>}</aside>}
       <footer className="hanuman-os__dock"><span>Glisser : déplacer</span><i /><span>Molette : zoomer</span><i /><span>Double-clic : ouvrir</span></footer>
     </section>
   )
