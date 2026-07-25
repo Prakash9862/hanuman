@@ -20,6 +20,9 @@ def test_registry_contains_existing_connectors() -> None:
         "openai",
         "wikipedia",
         "chess-com",
+        "youtube",
+        "gallica",
+        "imslp",
     }
 
 
@@ -50,3 +53,11 @@ def test_provider_lookup() -> None:
 
     assert [provider.id for provider in providers] == ["notion"]
     assert providers_for("missing.capability") == []
+
+
+def test_calendar_exposes_maps_capabilities() -> None:
+    calendar = get_connector("calendar")
+
+    assert calendar is not None
+    assert "maps.open_location" in calendar.capabilities
+    assert "maps.open_directions" in calendar.capabilities
