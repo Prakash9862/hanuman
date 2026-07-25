@@ -98,7 +98,20 @@ def _filename(game: ChessGame) -> str:
     return f"{date} - {game.eco} - {_safe(game.opponent)}.md"
 
 
-def _game_note(game: ChessGame) -> str:
+def _default_analysis() -> str:
+    return f"{ANALYSIS_START}\n## Analyse Stockfish\n\nAnalyse non encore lancée.\n{ANALYSIS_END}"
+
+
+def _extract_analysis(markdown: str) -> str | None:
+    if ANALYSIS_START not in markdown or ANALYSIS_END not in markdown:
+        return None
+    before, rest = markdown.split(ANALYSIS_START, 1)
+    del before
+    body, _ = rest.split(ANALYSIS_END, 1)
+    return f"{ANALYSIS_START}{body}{ANALYSIS_END}"
+
+
+def _game_note(game: ChessGame, analysis_block: str | None = None) -> str:
     date = game.end_time.strftime("%Y-%m-%d")
     headers = _parse_headers(game.pgn)
     title = f"{date} — {game.eco} — {game.opponent}"
@@ -106,6 +119,7 @@ def _game_note(game: ChessGame) -> str:
     white_elo = headers.get("WhiteElo", "")
     black_elo = headers.get("BlackElo", "")
     termination = headers.get("Termination", "")
+    analysis = analysis_block or _default_analysis()
 
     return f'''---
 type: chess-game
@@ -157,11 +171,7 @@ tags:
 {game.pgn.strip()}
 ```
 
-{ANALYSIS_START}
-## Analyse Stockfish
-
-Analyse non encore lancée.
-{ANALYSIS_END}
+{analysis}
 '''
 
 
@@ -176,11 +186,6 @@ def _reset_root(root: Path) -> None:
 
 def sync_chess_to_obsidian(limit: int = 200, reset: bool = False) -> dict[str, Any]:
     root = _chess_root()
-    if reset:
-        _reset_root(root)
-    else:
-        root.mkdir(parents=True, exist_ok=True)
-
     raw_games = ChessService().get_latest_games(username=CHESS_USERNAME, limit=limit)
     games = sorted(
         (_game_from_raw(raw) for raw in raw_games),
@@ -188,13 +193,23 @@ def sync_chess_to_obsidian(limit: int = 200, reset: bool = False) -> dict[str, A
         reverse=True,
     )
 
+    if reset:
+        _reset_root(root)
+    else:
+        root.mkdir(parents=True, exist_ok=True)
+
     written = 0
+    preserved_analyses = 0
     for game in games:
-        year_dir = root / game.end_time.strftime("%Y")
-        month_dir = year_dir / game.end_time.strftime("%m")
+        month_dir = root / game.end_time.strftime("%Y") / game.end_time.strftime("%m")
         month_dir.mkdir(parents=True, exist_ok=True)
         path = month_dir / _filename(game)
-        path.write_text(_game_note(game), encoding="utf-8")
+        previous_analysis = None
+        if path.exists() and not reset:
+            previous_analysis = _extract_analysis(path.read_text(encoding="utf-8"))
+            if previous_analysis is not None:
+                preserved_analyses += 1
+        path.write_text(_game_note(game, previous_analysis), encoding="utf-8")
         written += 1
 
     return {
@@ -203,6 +218,7 @@ def sync_chess_to_obsidian(limit: int = 200, reset: bool = False) -> dict[str, A
         "destination": str(root),
         "games_received": len(games),
         "games_written": written,
+        "analyses_preserved": preserved_analyses,
         "reset": reset,
         "structure": "Echecs/YYYY/MM/date - ECO - adversaire.md",
     }
