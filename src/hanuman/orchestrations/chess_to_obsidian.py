@@ -195,7 +195,7 @@ def sync_chess_to_obsidian(limit: int = 200, reset: bool = False) -> dict[str, A
         (_game_from_raw(raw) for raw in raw_games),
         key=lambda game: game.end_time,
         reverse=True,
-    )
+    )[:limit]
 
     if reset:
         _reset_root(root)
