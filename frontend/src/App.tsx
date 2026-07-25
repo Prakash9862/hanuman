@@ -13,12 +13,13 @@ import {
 } from 'lucide-react'
 import { BrowserRouter, NavLink, Navigate, Route, Routes, useNavigate } from 'react-router-dom'
 
+import CalendarPage from './CalendarPage'
 import ChessObsidianPage from './ChessObsidianPage'
 import GmailPage from './GmailPage'
 import HanumanOSPage from './HanumanOSPage'
+import HealthPage from './HealthPage'
 import ObsidianNotionPage from './ObsidianNotionPage'
 import WikipediaNotionPage from './WikipediaNotionPage'
-import CalendarPage from './CalendarPage'
 
 const orchestrationCards = [
   {
@@ -38,14 +39,13 @@ const orchestrationCards = [
     icon: Mail,
   },
   {
-  title: 'Google Calendar → Hanuman',
-  description:
-    'Consulter les calendriers et afficher les prochains événements.',
-  path: '/orchestrations/calendar',
-  tone: 'green',
-  status: 'Lecture seule',
-  icon: CalendarDays,
-},
+    title: 'Google Calendar → Hanuman',
+    description: 'Consulter les calendriers et afficher les prochains événements.',
+    path: '/orchestrations/calendar',
+    tone: 'green',
+    status: 'Lecture seule',
+    icon: CalendarDays,
+  },
   {
     title: 'Wikipédia → Notion',
     description: 'Transformer une recherche encyclopédique en page Notion structurée.',
@@ -89,20 +89,19 @@ function AppShell() {
       <Route path="/constellation" element={<Navigate to="/" replace />} />
       <Route path="/orchestrations" element={<OrchestrationsPage />} />
       <Route path="/orchestrations/gmail" element={<GmailPage />} />
-      <Route path="/orchestrations/calendar" element={<CalendarPage />}
-/>
+      <Route path="/orchestrations/calendar" element={<CalendarPage />} />
       <Route path="/orchestrations/obsidian-notion" element={<ObsidianNotionPage />} />
       <Route path="/orchestrations/wikipedia-notion" element={<WikipediaNotionPage />} />
       <Route path="/orchestrations/chess-obsidian" element={<ChessObsidianPage />} />
       <Route path="/library" element={<PlaceholderPage title="Bibliothèque" text="La couche transversale des contenus de Hanuman." />} />
-      <Route path="/health" element={<PlaceholderPage title="Santé du système" text="Diagnostic des connecteurs, services et outils locaux." />} />
+      <Route path="/health" element={<HealthPage />} />
     </Routes></main>
   </div>
 }
 
 function OrchestrationsPage() {
   const navigate = useNavigate()
-  return <div className="page"><header className="page-header"><div><p className="eyebrow">Hanuman / Orchestrations</p><h1>Les espaces où les outils coopèrent.</h1><p>Chaque orchestration possède sa propre logique et son ambiance, mais reste intégrée au même système Hanuman.</p></div></header><section className="catalog-grid">{orchestrationCards.map(({ title,description,path,tone,status,icon:Icon }) => <button key={title} className={`catalog-card tone-${tone}`} onClick={() => navigate(path)}><span className="catalog-card__top"><span className="orchestration-card__icon"><Icon size={21} /></span><span className="catalog-status">{status}</span></span><b>{title}</b><p>{description}</p><span className="catalog-card__footer">Entrer dans l’espace <ArrowRight size={16} /></span></button>)}</section></div>
+  return <div className="page"><header className="page-header"><div><p className="eyebrow">Hanuman / Orchestrations</p><h1>Les espaces où les outils coopèrent.</h1><p>Chaque orchestration possède sa propre logique et son ambiance, mais reste intégrée au même système Hanuman.</p></div></header><section className="catalog-grid">{orchestrationCards.map(({ title, description, path, tone, status, icon: Icon }) => <button key={title} className={`catalog-card tone-${tone}`} onClick={() => navigate(path)}><span className="catalog-card__top"><span className="orchestration-card__icon"><Icon size={21} /></span><span className="catalog-status">{status}</span></span><b>{title}</b><p>{description}</p><span className="catalog-card__footer">Entrer dans l’espace <ArrowRight size={16} /></span></button>)}</section></div>
 }
 
 function PlaceholderPage({ title, text }: { title: string; text: string }) {
