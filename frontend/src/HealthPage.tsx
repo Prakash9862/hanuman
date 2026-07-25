@@ -66,6 +66,18 @@ const definitions = [
   { id: 'openai', label: 'OpenAI', endpoint: '/openai/ping' },
   { id: 'wikipedia', label: 'Wikipédia', endpoint: '/wikipedia/ping' },
   { id: 'chess', label: 'Chess.com', endpoint: '/chess/ping' },
+
+  // Ressources documentaires et pratiques
+  { id: 'youtube', label: 'YouTube', endpoint: '/resources/youtube/status' },
+  { id: 'gallica', label: 'Gallica', endpoint: '/resources/gallica/status' },
+  { id: 'imslp', label: 'IMSLP', endpoint: '/resources/imslp/status' },
+  { id: 'maps', label: 'Google Maps', endpoint: '/resources/maps/status' },
+
+  // Environnement d’analyse échiquéenne
+  { id: 'stockfish', label: 'Stockfish', endpoint: '/resources/programs/stockfish/status' },
+  { id: 'scid', label: 'SCID', endpoint: '/resources/programs/scid/status' },
+  { id: 'lc0', label: 'Leela Chess Zero', endpoint: '/resources/programs/lc0/status' },
+  { id: 'ffmpeg', label: 'FFmpeg', endpoint: '/resources/programs/ffmpeg/status' },
 ]
 
 const initialFollowUp: FollowUp[] = [

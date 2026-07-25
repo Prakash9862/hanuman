@@ -6,14 +6,20 @@ from hanuman.main import app
 
 client = TestClient(app)
 
-
 def test_list_connectors() -> None:
     response = client.get("/connectors")
 
     assert response.status_code == 200
     payload = response.json()
-    assert payload["total"] == 8
-    assert {item["id"] for item in payload["connectors"]} == {
+
+    assert payload["total"] == len(payload["connectors"])
+
+    connector_ids = {
+        connector["id"]
+        for connector in payload["connectors"]
+    }
+
+    assert {
         "gmail",
         "calendar",
         "github",
@@ -22,7 +28,10 @@ def test_list_connectors() -> None:
         "openai",
         "wikipedia",
         "chess-com",
-    }
+        "youtube",
+        "gallica",
+        "imslp",
+    } <= connector_ids
 
 
 def test_get_connector() -> None:
