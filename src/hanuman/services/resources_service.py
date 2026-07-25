@@ -8,35 +8,52 @@ from xml.etree import ElementTree
 import httpx
 
 YOUTUBE_SEARCH_URL = "https://www.googleapis.com/youtube/v3/search"
-GALLICA_SRU_URL = "https://gallica.bnf.fr/SRU"
+GALLICA_SRU_URL = "https://gallica.bnf.fr/services/engine/search/sru"
+GALLICA_SEARCH_URL = "https://gallica.bnf.fr/services/engine/search/sru"
 IMSLP_SEARCH_URL = "https://imslp.org/wiki/Special:Search"
+
+HTTP_HEADERS = {
+    "User-Agent": "Hanuman/0.2 (personal research assistant)",
+    "Accept": "application/xml,text/xml;q=0.9,application/json;q=0.8,*/*;q=0.5",
+}
 
 
 def youtube_configured() -> bool:
     return bool(os.environ.get("YOUTUBE_API_KEY"))
 
 
-def search_youtube(query: str, max_results: int = 10) -> list[dict[str, Any]]:
+def search_youtube(
+    query: str,
+    max_results: int = 25,
+    *,
+    page_token: str | None = None,
+) -> dict[str, Any]:
     api_key = os.environ.get("YOUTUBE_API_KEY")
     if not api_key:
         raise ValueError("YouTube non configuré : ajoute YOUTUBE_API_KEY dans .env")
 
+    params: dict[str, str | int] = {
+        "part": "snippet",
+        "q": query,
+        "type": "video",
+        "maxResults": max(1, min(max_results, 50)),
+        "relevanceLanguage": "fr",
+        "key": api_key,
+    }
+    if page_token:
+        params["pageToken"] = page_token
+
     response = httpx.get(
         YOUTUBE_SEARCH_URL,
-        params={
-            "part": "snippet",
-            "q": query,
-            "type": "video",
-            "maxResults": max(1, min(max_results, 25)),
-            "relevanceLanguage": "fr",
-            "key": api_key,
-        },
+        params=params,
+        headers=HTTP_HEADERS,
         timeout=20,
     )
     response.raise_for_status()
+    payload = response.json()
 
     results: list[dict[str, Any]] = []
-    for item in response.json().get("items", []):
+    for item in payload.get("items", []):
         video_id = (item.get("id") or {}).get("videoId")
         snippet = item.get("snippet") or {}
         if not video_id:
@@ -52,7 +69,24 @@ def search_youtube(query: str, max_results: int = 10) -> list[dict[str, Any]]:
                 "url": f"https://www.youtube.com/watch?v={video_id}",
             }
         )
-    return results
+
+    return {
+        "results": results,
+        "next_page_token": payload.get("nextPageToken"),
+        "prev_page_token": payload.get("prevPageToken"),
+        "total_results": (payload.get("pageInfo") or {}).get("totalResults"),
+    }
+
+
+def build_gallica_search_url(query: str) -> str:
+    return "https://gallica.bnf.fr/services/engine/search/sru?" + urlencode(
+        {
+            "version": "1.2",
+            "operation": "searchRetrieve",
+            "query": f'(gallica all "{query}")',
+            "maximumRecords": 25,
+        }
+    )
 
 
 def search_gallica(query: str, max_results: int = 10) -> list[dict[str, Any]]:
@@ -61,15 +95,25 @@ def search_gallica(query: str, max_results: int = 10) -> list[dict[str, Any]]:
         params={
             "version": "1.2",
             "operation": "searchRetrieve",
-            "query": f'gallica all "{query}"',
+            "query": f'(gallica all "{query}")',
             "maximumRecords": max(1, min(max_results, 25)),
             "suggest": 0,
         },
+        headers=HTTP_HEADERS,
+        follow_redirects=True,
         timeout=25,
     )
     response.raise_for_status()
 
     root = ElementTree.fromstring(response.text)
+    diagnostics = [
+        element.text.strip()
+        for element in root.iter()
+        if element.tag.endswith("message") and element.text and element.text.strip()
+    ]
+    if diagnostics:
+        raise RuntimeError("Réponse SRU Gallica : " + " ; ".join(diagnostics[:3]))
+
     dc = "{http://purl.org/dc/elements/1.1/}"
     records: list[dict[str, Any]] = []
 
