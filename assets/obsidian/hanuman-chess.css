@@ -1,0 +1,202 @@
+/* Hanuman Chess — thème Obsidian maximal
+   Généré pour les notes Echecs produites par Hanuman.
+   Compatible lecture et Live Preview. */
+
+:root {
+  --hanuman-gold: #d5a84b;
+  --hanuman-red: #d66a6a;
+  --hanuman-green: #63b47c;
+  --hanuman-blue: #68a7d8;
+  --hanuman-purple: #a886d7;
+  --hanuman-orange: #dc9457;
+  --hanuman-cyan: #58b8b0;
+  --hanuman-muted: color-mix(in srgb, var(--text-muted) 78%, transparent);
+  --hanuman-panel: color-mix(in srgb, var(--background-secondary) 86%, transparent);
+  --hanuman-border: color-mix(in srgb, var(--hanuman-gold) 34%, var(--background-modifier-border));
+}
+
+/* Largeur, rythme et fond des fiches */
+.markdown-reading-view:has(.metadata-container [data-property-key="type"]),
+.markdown-source-view:has(.metadata-container [data-property-key="type"]) {
+  --file-line-width: 980px;
+}
+
+.markdown-preview-view h1,
+.markdown-source-view.mod-cm6 .cm-header-1 {
+  letter-spacing: -0.025em;
+  font-weight: 760;
+}
+
+.markdown-preview-view h1 {
+  padding-bottom: 0.45rem;
+  border-bottom: 1px solid var(--hanuman-border);
+}
+
+.markdown-preview-view h2,
+.markdown-source-view.mod-cm6 .cm-header-2 {
+  margin-top: 2rem;
+  color: var(--hanuman-gold);
+}
+
+.markdown-preview-view h3,
+.markdown-source-view.mod-cm6 .cm-header-3 {
+  color: var(--hanuman-blue);
+}
+
+/* Métadonnées façon fiche */
+.metadata-container {
+  border: 1px solid var(--hanuman-border);
+  border-radius: 14px;
+  padding: 0.75rem 0.9rem;
+  background: linear-gradient(145deg, var(--hanuman-panel), transparent);
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.08);
+}
+
+.metadata-property-key {
+  color: var(--hanuman-muted);
+  font-weight: 650;
+}
+
+/* Liens internes : couleurs par rôle */
+a.internal-link[data-href*="Dashboard"],
+.cm-hmd-internal-link:has(.cm-underline[title*="Dashboard"]) {
+  color: var(--hanuman-gold) !important;
+}
+
+a.internal-link[data-href*="_Index/Annees"],
+a.internal-link[data-href*="_Index\\Annees"] {
+  color: var(--hanuman-blue) !important;
+}
+
+a.internal-link[data-href*="_Index/Mois"],
+a.internal-link[data-href*="_Index\\Mois"] {
+  color: var(--hanuman-purple) !important;
+}
+
+a.internal-link[data-href*="_Index/Ouvertures"],
+a.internal-link[data-href*="_Index\\Ouvertures"] {
+  color: var(--hanuman-red) !important;
+}
+
+a.internal-link[data-href*="_Index/Adversaires"],
+a.internal-link[data-href*="_Index\\Adversaires"] {
+  color: var(--hanuman-green) !important;
+}
+
+a.external-link[href*="chess.com"] {
+  color: var(--hanuman-orange) !important;
+}
+
+/* Liens de parties : pastilles cliquables */
+a.internal-link[data-href*="Echecs/20"],
+a.internal-link[data-href^="20"] {
+  display: inline-block;
+  margin: 0.12rem 0;
+  padding: 0.18rem 0.48rem;
+  border: 1px solid color-mix(in srgb, var(--hanuman-cyan) 35%, transparent);
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--hanuman-cyan) 8%, transparent);
+  text-decoration: none;
+}
+
+a.internal-link:hover {
+  filter: brightness(1.16);
+  text-decoration-thickness: 2px;
+}
+
+/* Listes de navigation */
+.markdown-preview-view h2 + ul,
+.markdown-preview-view h2 + p + ul {
+  border-left: 3px solid var(--hanuman-border);
+  padding: 0.65rem 0.85rem 0.65rem 1.3rem;
+  background: var(--hanuman-panel);
+  border-radius: 0 12px 12px 0;
+}
+
+/* Tableaux Stockfish et PGN */
+.markdown-preview-view table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  overflow: hidden;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 10px;
+}
+
+.markdown-preview-view th {
+  color: var(--hanuman-gold);
+  background: var(--background-secondary);
+  font-weight: 700;
+}
+
+.markdown-preview-view tr:nth-child(even) td {
+  background: color-mix(in srgb, var(--background-secondary) 55%, transparent);
+}
+
+/* Mise en valeur des annotations d'échecs */
+.markdown-preview-view code {
+  border-radius: 6px;
+  padding: 0.08rem 0.35rem;
+}
+
+.markdown-preview-view p strong,
+.markdown-preview-view td strong {
+  color: var(--text-normal);
+}
+
+/* Blocs PGN / variantes */
+.markdown-preview-view pre,
+.markdown-source-view.mod-cm6 .HyperMD-codeblock {
+  border: 1px solid var(--hanuman-border);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--background-primary-alt) 92%, #000 8%);
+}
+
+.markdown-preview-view pre code.language-pgn {
+  font-variant-ligatures: none;
+  line-height: 1.65;
+}
+
+/* Callouts prêts pour une future génération enrichie */
+.callout[data-callout="chess"] {
+  --callout-color: 213, 168, 75;
+  --callout-icon: lucide-crown;
+}
+
+.callout[data-callout="stockfish"] {
+  --callout-color: 88, 184, 176;
+  --callout-icon: lucide-cpu;
+}
+
+.callout[data-callout="mistake"] {
+  --callout-color: 214, 106, 106;
+  --callout-icon: lucide-triangle-alert;
+}
+
+.callout[data-callout="success"] {
+  --callout-color: 99, 180, 124;
+}
+
+/* Tags chess plus discrets */
+a.tag[href*="chess/"] {
+  border: 1px solid color-mix(in srgb, var(--hanuman-gold) 32%, transparent);
+  background: color-mix(in srgb, var(--hanuman-gold) 9%, transparent);
+  color: var(--hanuman-gold);
+}
+
+/* Graphe local : renforcer les liens de la note active */
+.workspace-leaf-content[data-type="localgraph"] .graph-view.color-fill-tag {
+  color: var(--hanuman-gold);
+}
+
+/* Mobile */
+@media (max-width: 700px) {
+  .markdown-preview-view table {
+    font-size: 0.88em;
+  }
+
+  .metadata-container {
+    border-radius: 10px;
+    padding: 0.55rem;
+  }
+}
