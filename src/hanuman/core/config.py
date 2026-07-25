@@ -30,6 +30,19 @@ class Settings(BaseSettings):
     notion_base_url: str = "https://api.notion.com/v1"
     github_api_url: str = "https://api.github.com/"
     chess_com_username: str = "prakasch"
+    
+    google_calendar_client_id: str = Field(
+    default=...,
+    alias="GOOGLE_CALENDAR_CLIENT_ID",
+)
+    google_calendar_client_secret: str = Field(
+    default=...,
+    alias="GOOGLE_CALENDAR_CLIENT_SECRET",
+)
+    google_calendar_redirect_uri: str = Field(
+    default=...,
+    alias="GOOGLE_CALENDAR_REDIRECT_URI",
+)
 
     model_config = SettingsConfigDict(
         env_file=".env", env_file_encoding="utf-8", extra="ignore", case_sensitive=True

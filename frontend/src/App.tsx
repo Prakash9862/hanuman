@@ -18,6 +18,7 @@ import GmailPage from './GmailPage'
 import HanumanOSPage from './HanumanOSPage'
 import ObsidianNotionPage from './ObsidianNotionPage'
 import WikipediaNotionPage from './WikipediaNotionPage'
+import CalendarPage from './CalendarPage'
 
 const orchestrationCards = [
   {
@@ -36,6 +37,15 @@ const orchestrationCards = [
     status: 'Lecture seule',
     icon: Mail,
   },
+  {
+  title: 'Google Calendar → Hanuman',
+  description:
+    'Consulter les calendriers et afficher les prochains événements.',
+  path: '/orchestrations/calendar',
+  tone: 'green',
+  status: 'Lecture seule',
+  icon: CalendarDays,
+},
   {
     title: 'Wikipédia → Notion',
     description: 'Transformer une recherche encyclopédique en page Notion structurée.',
@@ -79,6 +89,8 @@ function AppShell() {
       <Route path="/constellation" element={<Navigate to="/" replace />} />
       <Route path="/orchestrations" element={<OrchestrationsPage />} />
       <Route path="/orchestrations/gmail" element={<GmailPage />} />
+      <Route path="/orchestrations/calendar" element={<CalendarPage />}
+/>
       <Route path="/orchestrations/obsidian-notion" element={<ObsidianNotionPage />} />
       <Route path="/orchestrations/wikipedia-notion" element={<WikipediaNotionPage />} />
       <Route path="/orchestrations/chess-obsidian" element={<ChessObsidianPage />} />
