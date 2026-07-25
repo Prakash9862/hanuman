@@ -5,19 +5,35 @@ import {
   ChevronRight,
   Github,
   Mail,
+  MapPin,
   Minus,
+  Music2,
   Network,
   NotebookPen,
   Plus,
   RotateCcw,
   Swords,
   X,
+  Youtube,
 } from 'lucide-react'
 import { useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 
 type NodeStatus = 'active' | 'partial' | 'planned' | 'core'
-type NodeId = 'hanuman' | 'obsidian' | 'notion' | 'github' | 'calendar' | 'wikipedia' | 'chess' | 'gmail' | 'openai'
+type NodeId =
+  | 'hanuman'
+  | 'obsidian'
+  | 'notion'
+  | 'github'
+  | 'calendar'
+  | 'wikipedia'
+  | 'chess'
+  | 'gmail'
+  | 'openai'
+  | 'youtube'
+  | 'gallica'
+  | 'imslp'
+  | 'maps'
 type Viewport = { x: number; y: number; scale: number }
 
 type Node = {
@@ -35,12 +51,16 @@ const nodes: Node[] = [
   { id: 'hanuman', label: 'Hanuman', subtitle: 'Centre de gravité', x: 50, y: 50, status: 'core', icon: BrainCircuit },
   { id: 'obsidian', label: 'Obsidian', subtitle: 'Mémoire locale', x: 21, y: 35, status: 'active', icon: NotebookPen, route: '/orchestrations/obsidian-notion' },
   { id: 'notion', label: 'Notion', subtitle: 'Organisation', x: 79, y: 35, status: 'active', icon: Network, route: '/orchestrations/obsidian-notion' },
-  { id: 'github', label: 'GitHub', subtitle: 'Développement', x: 50, y: 14, status: 'partial', icon: Github, route: '/orchestrations' },
-  { id: 'calendar', label: 'Calendar', subtitle: 'Planification', x: 84, y: 68, status: 'active', icon: CalendarDays, route: '/orchestrations/calendar' },
-  { id: 'wikipedia', label: 'Wikipédia', subtitle: 'Documentation', x: 66, y: 86, status: 'active', icon: BookOpen, route: '/orchestrations/wikipedia-notion' },
+  { id: 'github', label: 'GitHub', subtitle: 'Développement', x: 50, y: 12, status: 'partial', icon: Github, route: '/orchestrations' },
+  { id: 'calendar', label: 'Calendar', subtitle: 'Planification', x: 82, y: 64, status: 'active', icon: CalendarDays, route: '/orchestrations/calendar' },
+  { id: 'wikipedia', label: 'Wikipédia', subtitle: 'Documentation', x: 67, y: 86, status: 'active', icon: BookOpen, route: '/orchestrations/wikipedia-notion' },
   { id: 'chess', label: 'Chess.com', subtitle: 'Parties et analyses', x: 34, y: 86, status: 'active', icon: Swords, route: '/orchestrations/chess-obsidian' },
-  { id: 'openai', label: 'OpenAI', subtitle: 'Raisonnement', x: 16, y: 68, status: 'partial', icon: BrainCircuit },
-  { id: 'gmail', label: 'Gmail', subtitle: 'Lecture seule', x: 8, y: 18, status: 'partial', icon: Mail, route: '/orchestrations/gmail' },
+  { id: 'openai', label: 'OpenAI', subtitle: 'Raisonnement', x: 17, y: 66, status: 'partial', icon: BrainCircuit },
+  { id: 'gmail', label: 'Gmail', subtitle: 'Communication', x: 9, y: 18, status: 'partial', icon: Mail, route: '/orchestrations/gmail' },
+  { id: 'youtube', label: 'YouTube', subtitle: 'Vidéo et veille', x: 91, y: 18, status: 'partial', icon: Youtube, route: '/resources?source=youtube' },
+  { id: 'gallica', label: 'Gallica', subtitle: 'Patrimoine BnF', x: 94, y: 43, status: 'active', icon: BookOpen, route: '/resources?source=gallica' },
+  { id: 'imslp', label: 'IMSLP', subtitle: 'Partitions', x: 89, y: 89, status: 'active', icon: Music2, route: '/resources?source=imslp' },
+  { id: 'maps', label: 'Google Maps', subtitle: 'Trajets de rendez-vous', x: 96, y: 69, status: 'active', icon: MapPin, route: '/resources?source=maps' },
 ]
 
 const links: Array<[NodeId, NodeId, Exclude<NodeStatus, 'core'>]> = [
@@ -52,9 +72,14 @@ const links: Array<[NodeId, NodeId, Exclude<NodeStatus, 'core'>]> = [
   ['hanuman', 'chess', 'active'],
   ['hanuman', 'openai', 'partial'],
   ['hanuman', 'gmail', 'partial'],
+  ['hanuman', 'youtube', 'partial'],
+  ['hanuman', 'gallica', 'active'],
+  ['hanuman', 'imslp', 'active'],
   ['obsidian', 'notion', 'active'],
   ['wikipedia', 'notion', 'active'],
   ['chess', 'obsidian', 'active'],
+  ['calendar', 'maps', 'active'],
+  ['gallica', 'imslp', 'active'],
 ]
 
 function statusLabel(status: NodeStatus) {
