@@ -6,6 +6,7 @@ import io
 import os
 import re
 import shutil
+from collections import defaultdict
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -38,6 +39,15 @@ class ChessGame:
     def opponent(self) -> str:
         return self.black if self.color == "white" else self.white
 
+    @property
+    def year(self) -> str:
+        return self.end_time.strftime("%Y")
+
+    @property
+    def month(self) -> str:
+        return self.end_time.strftime("%Y-%m")
+
+
 
 def _chess_root() -> Path:
     configured = os.environ.get("CHESS_OBSIDIAN_PATH")
@@ -51,13 +61,16 @@ def _chess_root() -> Path:
     return OBSIDIAN_ROOT.expanduser().resolve()
 
 
+
 def _safe(value: str) -> str:
     value = re.sub(r"[^\w\-. ]+", "", value, flags=re.UNICODE).strip()
     return re.sub(r"\s+", " ", value) or "partie"
 
 
+
 def _yaml_quote(value: str) -> str:
     return '"' + value.replace("\\", "\\\\").replace('"', '\\"') + '"'
+
 
 
 def _game_from_raw(raw: dict[str, Any]) -> ChessGame:
@@ -76,11 +89,13 @@ def _game_from_raw(raw: dict[str, Any]) -> ChessGame:
     )
 
 
+
 def _parse_headers(pgn: str) -> dict[str, str]:
     game = chess.pgn.read_game(io.StringIO(pgn))
     if game is None:
         return {}
     return {str(key): str(value) for key, value in game.headers.items()}
+
 
 
 def _headers_table(headers: dict[str, str]) -> str:
@@ -93,9 +108,18 @@ def _headers_table(headers: dict[str, str]) -> str:
     return "\n".join(rows)
 
 
+
 def _filename(game: ChessGame) -> str:
     date = game.end_time.strftime("%Y-%m-%d")
     return f"{date} - {game.eco} - {_safe(game.opponent)}.md"
+
+
+
+def _game_link(game: ChessGame) -> str:
+    path = f"{game.year}/{game.end_time.strftime('%m')}/{_filename(game)[:-3]}"
+    label = f"{game.end_time.strftime('%Y-%m-%d')} · {game.eco} · {game.opponent} · {game.result}"
+    return f"[[{path}|{label}]]"
+
 
 
 def _default_analysis() -> str:
@@ -107,12 +131,14 @@ def _default_analysis() -> str:
     )
 
 
+
 def _extract_analysis(markdown: str) -> str | None:
     if ANALYSIS_START not in markdown or ANALYSIS_END not in markdown:
         return None
     _, rest = markdown.split(ANALYSIS_START, 1)
     body, _ = rest.split(ANALYSIS_END, 1)
     return f"{ANALYSIS_START}{body}{ANALYSIS_END}"
+
 
 
 def _game_note(game: ChessGame, analysis_block: str | None = None) -> str:
@@ -124,10 +150,13 @@ def _game_note(game: ChessGame, analysis_block: str | None = None) -> str:
     black_elo = headers.get("BlackElo", "")
     termination = headers.get("Termination", "")
     analysis = analysis_block or _default_analysis()
+    opponent_slug = _safe(game.opponent)
 
     return f'''---
 type: chess-game
 date: {date}
+year: {game.year}
+month: {game.month}
 platform: chess.com
 username: {CHESS_USERNAME}
 game_id: {_yaml_quote(game.game_id)}
@@ -149,9 +178,19 @@ tags:
   - chess/color/{game.color}
   - chess/time/{_safe(game.time_control).replace(' ', '-').lower()}
   - chess/opening/{game.eco}
+  - chess/year/{game.year}
+  - chess/month/{game.month}
 ---
 
 # {title}
+
+## Connexions
+
+- **Tableau de bord :** [[Dashboard|Échecs]]
+- **Année :** [[_Index/Annees/{game.year}|{game.year}]]
+- **Mois :** [[_Index/Mois/{game.month}|{game.month}]]
+- **Ouverture :** [[_Index/Ouvertures/{game.eco}|{game.eco} — {opening}]]
+- **Adversaire :** [[_Index/Adversaires/{opponent_slug}|{game.opponent}]]
 
 ## Résumé
 
@@ -179,6 +218,123 @@ tags:
 '''
 
 
+
+def _index_note(kind: str, key: str, title: str, games: list[ChessGame]) -> str:
+    links = "\n".join(f"- {_game_link(game)}" for game in games)
+    return f'''---
+type: chess-index
+index_kind: {kind}
+index_key: {_yaml_quote(key)}
+games_count: {len(games)}
+tags:
+  - chess/index/{kind}
+---
+
+# {title}
+
+- **Parties :** {len(games)}
+- **Retour :** [[Dashboard|Tableau de bord Échecs]]
+
+## Parties
+
+{links}
+'''
+
+
+
+def _dashboard(games: list[ChessGame]) -> str:
+    years = sorted({game.year for game in games}, reverse=True)
+    months = sorted({game.month for game in games}, reverse=True)
+    openings = sorted({game.eco for game in games})
+    opponents = sorted({_safe(game.opponent) for game in games}, key=str.lower)
+    recent = "\n".join(f"- {_game_link(game)}" for game in games[:30])
+    return f'''---
+type: chess-dashboard
+games_count: {len(games)}
+tags:
+  - chess/dashboard
+---
+
+# Tableau de bord Échecs
+
+- **Parties :** {len(games)}
+- **Années :** {len(years)}
+- **Mois :** {len(months)}
+- **Ouvertures ECO :** {len(openings)}
+- **Adversaires :** {len(opponents)}
+
+## Navigation
+
+### Années
+
+{' · '.join(f'[[_Index/Annees/{year}|{year}]]' for year in years)}
+
+### Mois
+
+{' · '.join(f'[[_Index/Mois/{month}|{month}]]' for month in months)}
+
+### Ouvertures
+
+{' · '.join(f'[[_Index/Ouvertures/{eco}|{eco}]]' for eco in openings)}
+
+## Parties récentes
+
+{recent}
+'''
+
+
+
+def _write_indexes(root: Path, games: list[ChessGame]) -> int:
+    index_root = root / "_Index"
+    if index_root.exists():
+        shutil.rmtree(index_root)
+
+    by_year: dict[str, list[ChessGame]] = defaultdict(list)
+    by_month: dict[str, list[ChessGame]] = defaultdict(list)
+    by_opening: dict[str, list[ChessGame]] = defaultdict(list)
+    by_opponent: dict[str, list[ChessGame]] = defaultdict(list)
+
+    for game in games:
+        by_year[game.year].append(game)
+        by_month[game.month].append(game)
+        by_opening[game.eco].append(game)
+        by_opponent[_safe(game.opponent)].append(game)
+
+    written = 0
+    groups = [
+        ("Annees", "year", by_year, lambda key, _: key),
+        ("Mois", "month", by_month, lambda key, _: key),
+        (
+            "Ouvertures",
+            "opening",
+            by_opening,
+            lambda key, grouped: f"{key} — {grouped[0].opening_name}",
+        ),
+        (
+            "Adversaires",
+            "opponent",
+            by_opponent,
+            lambda _, grouped: grouped[0].opponent,
+        ),
+    ]
+
+    for directory, kind, grouped_values, title_factory in groups:
+        target = index_root / directory
+        target.mkdir(parents=True, exist_ok=True)
+        for key, grouped_games in grouped_values.items():
+            grouped_games.sort(key=lambda game: game.end_time, reverse=True)
+            title = title_factory(key, grouped_games)
+            (target / f"{key}.md").write_text(
+                _index_note(kind, key, title, grouped_games),
+                encoding="utf-8",
+            )
+            written += 1
+
+    (root / "Dashboard.md").write_text(_dashboard(games), encoding="utf-8")
+    return written + 1
+
+
+
 def _reset_root(root: Path) -> None:
     root.mkdir(parents=True, exist_ok=True)
     for child in root.iterdir():
@@ -186,6 +342,7 @@ def _reset_root(root: Path) -> None:
             shutil.rmtree(child)
         else:
             child.unlink()
+
 
 
 def sync_chess_to_obsidian(limit: int = 200, reset: bool = False) -> dict[str, Any]:
@@ -216,6 +373,8 @@ def sync_chess_to_obsidian(limit: int = 200, reset: bool = False) -> dict[str, A
         path.write_text(_game_note(game, previous_analysis), encoding="utf-8")
         written += 1
 
+    index_files = _write_indexes(root, games)
+
     return {
         "status": "ok",
         "username": CHESS_USERNAME,
@@ -223,14 +382,16 @@ def sync_chess_to_obsidian(limit: int = 200, reset: bool = False) -> dict[str, A
         "games_received": len(games),
         "games_written": written,
         "analyses_preserved": preserved_analyses,
+        "index_files_written": index_files,
         "reset": reset,
-        "structure": "Echecs/YYYY/MM/date - ECO - adversaire.md",
+        "structure": "Echecs/YYYY/MM/date - ECO - adversaire.md + _Index",
     }
+
 
 
 def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(
-        description="Reconstruit la bibliothèque Chess.com chronologique dans Obsidian"
+        description="Reconstruit la bibliothèque Chess.com et son graphe Obsidian"
     )
     parser.add_argument("--limit", type=int, default=200)
     parser.add_argument(
