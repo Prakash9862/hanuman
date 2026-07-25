@@ -33,7 +33,7 @@ class FakeChessService:
                     '[BlackElo "1750"]\n'
                     '[Opening "Sicilian Defense"]\n'
                     '[Termination "prakasch won by resignation"]\n\n'
-                    '1. e4 c5 2. Nf3'
+                    "1. e4 c5 2. Nf3"
                 ),
             },
             {
@@ -52,14 +52,14 @@ class FakeChessService:
                     '[White "Opponent2"]\n'
                     '[Black "prakasch"]\n'
                     '[Opening "Sicilian Defense"]\n\n'
-                    '1. e4 c5 2. Nf3 d6'
+                    "1. e4 c5 2. Nf3 d6"
                 ),
             },
         ]
 
 
-def test_sync_chess_to_obsidian_writes_chronological_notes(tmp_path, monkeypatch) -> None:
-    """L'orchestration écrit un Markdown complet par partie dans YYYY/MM."""
+def test_sync_writes_games_and_graph_indexes(tmp_path, monkeypatch) -> None:
+    """La synchronisation écrit les parties et les nœuds du graphe Obsidian."""
 
     obsidian_root = tmp_path / "Echecs"
     fake_service = FakeChessService()
@@ -78,8 +78,9 @@ def test_sync_chess_to_obsidian_writes_chronological_notes(tmp_path, monkeypatch
         "games_received": 2,
         "games_written": 2,
         "analyses_preserved": 0,
+        "index_files_written": 6,
         "reset": False,
-        "structure": "Echecs/YYYY/MM/date - ECO - adversaire.md",
+        "structure": "Echecs/YYYY/MM/date - ECO - adversaire.md + _Index",
     }
 
     first_game = obsidian_root / "2024" / "01" / "2024-01-01 - B20 - Opponent1.md"
@@ -94,6 +95,12 @@ def test_sync_chess_to_obsidian_writes_chronological_notes(tmp_path, monkeypatch
     assert 'opponent: "Opponent1"' in first_content
     assert "eco: B20" in first_content
     assert "chess/opening/B20" in first_content
+    assert "chess/year/2024" in first_content
+    assert "chess/month/2024-01" in first_content
+    assert "[[_Index/Annees/2024|2024]]" in first_content
+    assert "[[_Index/Mois/2024-01|2024-01]]" in first_content
+    assert "[[_Index/Ouvertures/B20|B20 — Sicilian Defense]]" in first_content
+    assert "[[_Index/Adversaires/Opponent1|Opponent1]]" in first_content
     assert "## En-têtes PGN" in first_content
     assert "WhiteElo" in first_content
     assert "1800" in first_content
@@ -102,10 +109,18 @@ def test_sync_chess_to_obsidian_writes_chronological_notes(tmp_path, monkeypatch
     assert "## Analyse Stockfish" in first_content
     assert "Analyse non encore lancée." in first_content
 
-    assert not (obsidian_root / "Openings").exists()
-    assert not (obsidian_root / "Qualite").exists()
-    assert not (obsidian_root / "Dashboard.md").exists()
-    assert not (obsidian_root / "Analyse Stockfish.md").exists()
+    year_index = obsidian_root / "_Index" / "Annees" / "2024.md"
+    month_index = obsidian_root / "_Index" / "Mois" / "2024-01.md"
+    opening_index = obsidian_root / "_Index" / "Ouvertures" / "B20.md"
+    opponent_index = obsidian_root / "_Index" / "Adversaires" / "Opponent1.md"
+    dashboard = obsidian_root / "Dashboard.md"
+
+    for path in (year_index, month_index, opening_index, opponent_index, dashboard):
+        assert path.is_file()
+
+    assert "2024-01-01 · B20 · Opponent1 · win" in year_index.read_text(encoding="utf-8")
+    assert "2024-01-02 · B20 · Opponent2 · loss" in opening_index.read_text(encoding="utf-8")
+    assert "[[_Index/Ouvertures/B20|B20]]" in dashboard.read_text(encoding="utf-8")
 
 
 def test_sync_preserves_existing_analysis(tmp_path, monkeypatch) -> None:
@@ -117,7 +132,7 @@ def test_sync_preserves_existing_analysis(tmp_path, monkeypatch) -> None:
     monkeypatch.setattr(mod, "ChessService", lambda: fake_service)
 
     mod.sync_chess_to_obsidian(limit=1)
-    path = obsidian_root / "2024" / "01" / "2024-01-01 - B20 - Opponent1.md"
+    path = obsidian_root / "2024" / "01" / "2024-01-02 - B20 - Opponent2.md"
     original = path.read_text(encoding="utf-8")
     analysed = original.replace(
         "Analyse non encore lancée.",
