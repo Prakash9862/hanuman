@@ -116,7 +116,7 @@ def _filename(game: ChessGame) -> str:
 
 
 def _game_link(game: ChessGame) -> str:
-    path = f"{game.year}/{game.end_time.strftime('%m')}/{_filename(game)[:-3]}"
+    path = f"Echecs/{game.year}/{game.end_time.strftime('%m')}/{_filename(game)[:-3]}"
     label = f"{game.end_time.strftime('%Y-%m-%d')} · {game.eco} · {game.opponent} · {game.result}"
     return f"[[{path}|{label}]]"
 
