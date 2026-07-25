@@ -77,8 +77,7 @@ def _refresh_access_token(tokens: dict[str, Any]) -> str:
         )
 
     raise RuntimeError(
-        f"Échec du renouvellement Calendar : "
-        f"{response.status_code} {response.text}"
+        f"Échec du renouvellement Calendar : " f"{response.status_code} {response.text}"
     )
 
 
@@ -147,8 +146,7 @@ def _authorized_get(
 
     if response.status_code == 401:
         raise ValueError(
-            "Google Calendar refuse le token renouvelé. "
-            "Une nouvelle connexion est nécessaire."
+            "Google Calendar refuse le token renouvelé. " "Une nouvelle connexion est nécessaire."
         )
 
     return response
@@ -178,9 +176,7 @@ def exchange_code_for_token(code: str) -> bool:
     if response.status_code == 400:
         raise ValueError(f"Code OAuth expiré ou invalide : {response.text}")
 
-    raise RuntimeError(
-        f"Erreur OAuth Calendar : {response.status_code} {response.text}"
-    )
+    raise RuntimeError(f"Erreur OAuth Calendar : {response.status_code} {response.text}")
 
 
 def get_calendars() -> list[dict[str, Any]]:

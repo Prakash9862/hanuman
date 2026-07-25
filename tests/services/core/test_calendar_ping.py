@@ -286,6 +286,7 @@ def test_get_calendar_list_unauthorized(
     assert "aucun refresh_token" in result.error
     assert "nouvelle connexion Google" in result.error
 
+
 def test_get_calendar_list_server_error(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

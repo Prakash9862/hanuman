@@ -48,8 +48,7 @@ def test_list_capabilities() -> None:
     payload = response.json()
     assert payload["total"] > 0
     assert any(
-        item["capability"] == "notes.write"
-        and item["connector_ids"] == ["obsidian"]
+        item["capability"] == "notes.write" and item["connector_ids"] == ["obsidian"]
         for item in payload["capabilities"]
     )
 

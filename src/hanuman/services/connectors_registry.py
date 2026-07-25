@@ -6,7 +6,6 @@ from hanuman.models.connectors import (
     ConnectorKind,
 )
 
-
 _CONNECTORS: tuple[ConnectorDescriptor, ...] = (
     ConnectorDescriptor(
         id="gmail",
