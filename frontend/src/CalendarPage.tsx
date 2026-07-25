@@ -2,6 +2,7 @@ import {
   CalendarDays,
   ExternalLink,
   MapPin,
+  Navigation,
   RefreshCw,
 } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
@@ -55,6 +56,14 @@ function formatEventDate(event: CalendarEvent): string {
   }).format(new Date(event.start))
 }
 
+function mapsSearchUrl(location: string): string {
+  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(location)}`
+}
+
+function mapsDirectionsUrl(location: string): string {
+  return `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(location)}`
+}
+
 export default function CalendarPage() {
   const [calendars, setCalendars] = useState<CalendarInfo[]>([])
   const [events, setEvents] = useState<CalendarEvent[]>([])
@@ -105,8 +114,8 @@ export default function CalendarPage() {
           <p className="eyebrow">Hanuman / Google Calendar</p>
           <h1>Calendrier</h1>
           <p>
-            Tes prochains événements Google Calendar,
-            accessibles en lecture seule.
+            Tes prochains événements Google Calendar, avec accès rapide
+            aux lieux et itinéraires Google Maps.
           </p>
         </div>
 
@@ -179,10 +188,30 @@ export default function CalendarPage() {
               <h2>{event.summary}</h2>
 
               {event.location && (
-                <p className="calendar-event__location">
-                  <MapPin size={15} />
-                  {event.location}
-                </p>
+                <>
+                  <p className="calendar-event__location">
+                    <MapPin size={15} />
+                    {event.location}
+                  </p>
+                  <div className="calendar-event__maps">
+                    <a
+                      href={mapsSearchUrl(event.location)}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      <MapPin size={14} />
+                      Voir le lieu
+                    </a>
+                    <a
+                      href={mapsDirectionsUrl(event.location)}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      <Navigation size={14} />
+                      Itinéraire
+                    </a>
+                  </div>
+                </>
               )}
 
               {event.description && (
