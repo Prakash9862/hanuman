@@ -4,6 +4,7 @@ from fastapi import APIRouter, HTTPException, Query
 
 from hanuman.services.local_programs_service import inspect_program, inspect_programs
 from hanuman.services.resources_service import (
+    build_gallica_search_url,
     build_google_maps_directions_url,
     build_google_maps_search_url,
     build_imslp_search_url,
@@ -28,24 +29,34 @@ def youtube_status() -> dict[str, object]:
 @router.get("/youtube/search")
 def youtube_search(
     q: str = Query(min_length=1),
-    max_results: int = Query(default=10, ge=1, le=25),
+    max_results: int = Query(default=25, ge=1, le=50),
+    page_token: str | None = Query(default=None),
 ) -> dict[str, object]:
     try:
-        results = search_youtube(q, max_results=max_results)
+        page = search_youtube(q, max_results=max_results, page_token=page_token)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"Erreur YouTube : {exc}") from exc
-    return {"ok": True, "count": len(results), "results": results}
+
+    results = page["results"]
+    return {
+        "ok": True,
+        "count": len(results),
+        "results": results,
+        "next_page_token": page.get("next_page_token"),
+        "prev_page_token": page.get("prev_page_token"),
+        "total_results": page.get("total_results"),
+    }
 
 
 @router.get("/gallica/status")
 def gallica_status() -> dict[str, object]:
-    try:
-        search_gallica("test", max_results=1)
-    except Exception as exc:
-        return {"ok": False, "configured": True, "message": str(exc)}
-    return {"ok": True, "configured": True}
+    return {
+        "ok": True,
+        "configured": True,
+        "mode": "sru_with_browser_fallback",
+    }
 
 
 @router.get("/gallica/search")
@@ -53,11 +64,23 @@ def gallica_search(
     q: str = Query(min_length=1),
     max_results: int = Query(default=10, ge=1, le=25),
 ) -> dict[str, object]:
+    fallback_url = build_gallica_search_url(q)
     try:
         results = search_gallica(q, max_results=max_results)
     except Exception as exc:
-        raise HTTPException(status_code=502, detail=f"Erreur Gallica : {exc}") from exc
-    return {"ok": True, "count": len(results), "results": results}
+        return {
+            "ok": False,
+            "count": 0,
+            "results": [],
+            "message": f"La recherche directe Gallica est indisponible : {exc}",
+            "fallback_url": fallback_url,
+        }
+    return {
+        "ok": True,
+        "count": len(results),
+        "results": results,
+        "fallback_url": fallback_url,
+    }
 
 
 @router.get("/imslp/status")

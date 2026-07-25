@@ -34,6 +34,16 @@ type ProgramStatus = {
   message?: string
 }
 
+type SearchPayload = {
+  ok?: boolean
+  detail?: string
+  message?: string
+  results?: SearchResult[]
+  next_page_token?: string | null
+  total_results?: number | null
+  fallback_url?: string | null
+}
+
 const resources = [
   { id: 'youtube' as const, label: 'YouTube', eyebrow: 'Vidéo et veille', placeholder: 'Rechercher une vidéo, une chaîne, un sujet…', icon: Youtube },
   { id: 'gallica' as const, label: 'Gallica', eyebrow: 'Patrimoine et sources', placeholder: 'Rechercher une œuvre, un compositeur, un manuscrit…', icon: BookOpen },
@@ -47,10 +57,15 @@ export default function ResourcesPage() {
   const initialSource = searchParams.get('source') as ResourceId | null
   const [active, setActive] = useState<ResourceId>(resources.some((resource) => resource.id === initialSource) ? initialSource! : 'gallica')
   const [query, setQuery] = useState('')
+  const [lastQuery, setLastQuery] = useState('')
   const [results, setResults] = useState<SearchResult[]>([])
   const [programs, setPrograms] = useState<ProgramStatus[]>([])
   const [message, setMessage] = useState<string | null>(null)
+  const [fallbackUrl, setFallbackUrl] = useState<string | null>(null)
+  const [nextPageToken, setNextPageToken] = useState<string | null>(null)
+  const [totalResults, setTotalResults] = useState<number | null>(null)
   const [loading, setLoading] = useState(false)
+  const [loadingMore, setLoadingMore] = useState(false)
 
   const current = useMemo(() => resources.find((resource) => resource.id === active)!, [active])
 
@@ -66,8 +81,29 @@ export default function ResourcesPage() {
     setActive(source)
     setSearchParams({ source })
     setQuery('')
+    setLastQuery('')
     setResults([])
     setMessage(null)
+    setFallbackUrl(null)
+    setNextPageToken(null)
+    setTotalResults(null)
+  }
+
+  async function fetchSearch(
+    source: 'youtube' | 'gallica',
+    normalized: string,
+    pageToken?: string,
+  ): Promise<SearchPayload> {
+    const params = new URLSearchParams({
+      q: normalized,
+      max_results: source === 'youtube' ? '25' : '12',
+    })
+    if (pageToken) params.set('page_token', pageToken)
+
+    const response = await fetch(`${API_BASE}/resources/${source}/search?${params.toString()}`)
+    const payload = await response.json() as SearchPayload
+    if (!response.ok) throw new Error(payload.detail ?? `${current.label} indisponible`)
+    return payload
   }
 
   async function handleSubmit(event: FormEvent) {
@@ -76,7 +112,11 @@ export default function ResourcesPage() {
     if (!normalized || active === 'chess') return
 
     setMessage(null)
+    setFallbackUrl(null)
     setResults([])
+    setNextPageToken(null)
+    setTotalResults(null)
+    setLastQuery(normalized)
 
     try {
       if (active === 'maps') {
@@ -96,15 +136,39 @@ export default function ResourcesPage() {
       }
 
       setLoading(true)
-      const response = await fetch(`${API_BASE}/resources/${active}/search?q=${encodeURIComponent(normalized)}&max_results=12`)
-      const payload = await response.json()
-      if (!response.ok) throw new Error(payload.detail ?? `${current.label} indisponible`)
-      setResults(payload.results ?? [])
-      if (!(payload.results ?? []).length) setMessage(`Aucun résultat trouvé dans ${current.label}`)
+      const payload = await fetchSearch(active, normalized)
+      const nextResults = payload.results ?? []
+      setResults(nextResults)
+      setNextPageToken(payload.next_page_token ?? null)
+      setTotalResults(payload.total_results ?? null)
+      setFallbackUrl(payload.fallback_url ?? null)
+
+      if (payload.ok === false) {
+        setMessage(payload.message ?? `${current.label} est temporairement indisponible`)
+      } else if (!nextResults.length) {
+        setMessage(`Aucun résultat trouvé dans ${current.label}`)
+      }
     } catch (error) {
       setMessage(error instanceof Error ? error.message : `Impossible de joindre ${current.label}`)
     } finally {
       setLoading(false)
+    }
+  }
+
+  async function loadMoreYoutube() {
+    if (active !== 'youtube' || !nextPageToken || !lastQuery || loadingMore) return
+
+    setLoadingMore(true)
+    setMessage(null)
+    try {
+      const payload = await fetchSearch('youtube', lastQuery, nextPageToken)
+      setResults((currentResults) => [...currentResults, ...(payload.results ?? [])])
+      setNextPageToken(payload.next_page_token ?? null)
+      setTotalResults(payload.total_results ?? totalResults)
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Impossible de charger la suite')
+    } finally {
+      setLoadingMore(false)
     }
   }
 
@@ -137,7 +201,12 @@ export default function ResourcesPage() {
             </form>
           )}
 
-          {message && <div className="resources-message">{message}</div>}
+          {message && (
+            <div className="resources-message">
+              <span>{message}</span>
+              {fallbackUrl && <a href={fallbackUrl} target="_blank" rel="noreferrer">Ouvrir la recherche dans Gallica <ExternalLink size={14} /></a>}
+            </div>
+          )}
 
           {active === 'chess' && (
             <div className="resource-programs">
@@ -157,15 +226,26 @@ export default function ResourcesPage() {
           )}
 
           {results.length > 0 && (
-            <div className="resource-results">
-              {results.map((item, index) => (
-                <a key={`${item.url}-${index}`} href={item.url} target="_blank" rel="noreferrer">
-                  {item.thumbnail && <img src={item.thumbnail} alt="" />}
-                  <div><b>{item.title ?? 'Résultat'}</b><span>{item.channel ?? item.creators?.join(', ') ?? item.description ?? item.dates?.join(', ') ?? ''}</span></div>
-                  <ExternalLink size={16} />
-                </a>
-              ))}
-            </div>
+            <>
+              <div className="resources-results-meta">
+                <span>{results.length} résultat{results.length > 1 ? 's' : ''} affiché{results.length > 1 ? 's' : ''}</span>
+                {totalResults !== null && <small>sur environ {totalResults.toLocaleString('fr-FR')}</small>}
+              </div>
+              <div className="resource-results">
+                {results.map((item, index) => (
+                  <a key={`${item.url}-${index}`} href={item.url} target="_blank" rel="noreferrer">
+                    {item.thumbnail && <img src={item.thumbnail} alt="" />}
+                    <div><b>{item.title ?? 'Résultat'}</b><span>{item.channel ?? item.creators?.join(', ') ?? item.description ?? item.dates?.join(', ') ?? ''}</span></div>
+                    <ExternalLink size={16} />
+                  </a>
+                ))}
+              </div>
+              {active === 'youtube' && nextPageToken && (
+                <button className="resources-load-more" type="button" onClick={() => void loadMoreYoutube()} disabled={loadingMore}>
+                  {loadingMore ? 'Chargement…' : 'Charger 25 résultats de plus'}
+                </button>
+              )}
+            </>
           )}
         </div>
       </section>
