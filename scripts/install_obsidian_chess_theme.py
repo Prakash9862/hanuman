@@ -7,6 +7,17 @@ from pathlib import Path
 from typing import Any
 
 THEME_NAME = "hanuman-chess"
+GRAPH_GROUPS = [
+    {"query": "path:Echecs/Dashboard", "color": {"a": 1, "rgb": 14070603}},
+    {"query": "path:Echecs/_Index/Annees", "color": {"a": 1, "rgb": 6866904}},
+    {"query": "path:Echecs/_Index/Mois", "color": {"a": 1, "rgb": 11044567}},
+    {"query": "path:Echecs/_Index/Ouvertures", "color": {"a": 1, "rgb": 14051946}},
+    {"query": "path:Echecs/_Index/Adversaires", "color": {"a": 1, "rgb": 6534268}},
+    {"query": "tag:#chess/analysis/analysed", "color": {"a": 1, "rgb": 5814416}},
+    {"query": "tag:#chess/analysis/pending", "color": {"a": 1, "rgb": 14197719}},
+    {"query": "path:Echecs -path:Echecs/_Index -path:Echecs/Dashboard", "color": {"a": 1, "rgb": 5814448}},
+]
+HANUMAN_GRAPH_QUERIES = {str(group["query"]) for group in GRAPH_GROUPS}
 
 
 def _vault_root() -> Path:
@@ -28,6 +39,31 @@ def _read_json(path: Path) -> dict[str, Any]:
     except (OSError, json.JSONDecodeError):
         return {}
     return loaded if isinstance(loaded, dict) else {}
+
+
+def _write_json(path: Path, data: dict[str, Any]) -> None:
+    path.write_text(
+        json.dumps(data, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
+
+
+def _install_graph_groups(path: Path) -> None:
+    graph = _read_json(path)
+    current = graph.get("colorGroups", [])
+    if not isinstance(current, list):
+        current = []
+
+    preserved = [
+        item
+        for item in current
+        if isinstance(item, dict) and str(item.get("query", "")) not in HANUMAN_GRAPH_QUERIES
+    ]
+    graph["colorGroups"] = [*GRAPH_GROUPS, *preserved]
+    graph.setdefault("showTags", True)
+    graph.setdefault("showAttachments", False)
+    graph.setdefault("showOrphans", False)
+    _write_json(path, graph)
 
 
 def install() -> dict[str, str]:
@@ -54,16 +90,20 @@ def install() -> dict[str, str]:
     if THEME_NAME not in enabled_names:
         enabled_names.append(THEME_NAME)
     appearance["enabledCssSnippets"] = enabled_names
-    appearance_path.write_text(
-        json.dumps(appearance, ensure_ascii=False, indent=2) + "\n",
-        encoding="utf-8",
-    )
+    _write_json(appearance_path, appearance)
+
+    graph_path = obsidian_dir / "graph.json"
+    local_graph_path = obsidian_dir / "local-graph.json"
+    _install_graph_groups(graph_path)
+    _install_graph_groups(local_graph_path)
 
     return {
         "status": "ok",
         "vault": str(vault),
         "snippet": str(destination),
         "appearance": str(appearance_path),
+        "graph": str(graph_path),
+        "local_graph": str(local_graph_path),
         "enabled": THEME_NAME,
     }
 
