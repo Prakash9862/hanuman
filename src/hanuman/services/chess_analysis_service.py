@@ -4,7 +4,7 @@ import io
 import shutil
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, Self
 
 import chess
 import chess.engine
@@ -80,9 +80,7 @@ def resolve_stockfish_path(configured_path: str | None = None) -> str:
 
 def score_to_cp(score: chess.engine.PovScore, color: chess.Color) -> int:
     value = score.pov(color).score(mate_score=MATE_SCORE)
-    if value is None:
-        return 0
-    return int(value)
+    return int(value or 0)
 
 
 def classify_loss(loss_cp: int, config: AnalysisConfig) -> tuple[str, str]:
@@ -106,25 +104,16 @@ def _pv_to_san(board: chess.Board, pv: list[chess.Move], limit: int = 6) -> list
     return result
 
 
+def _position_zone(score_cp: int) -> int:
+    if score_cp >= 100:
+        return 1
+    if score_cp <= -100:
+        return -1
+    return 0
+
+
 def _is_turning_point(before_cp: int, after_cp: int) -> bool:
-    before_zone = 1 if before_cp >= 100 else -1 if before_cp <= -100 else 0
-    after_zone = 1 if after_cp >= 100 else -1 if after_cp <= -100 else 0
-    return before_zone != after_zone
-
-
-def _is_excellent(
-    played_loss_cp: int,
-    best_cp: int,
-    second_cp: int | None,
-    material_delta: int,
-    config: AnalysisConfig,
-) -> bool:
-    if played_loss_cp > 20:
-        return False
-    unique_gap = second_cp is not None and best_cp - second_cp >= config.excellent_gap_cp
-    tactical_gain = best_cp >= config.brilliant_gain_cp
-    sound_sacrifice = material_delta < 0 and best_cp >= 80
-    return bool(unique_gap and (tactical_gain or sound_sacrifice))
+    return _position_zone(before_cp) != _position_zone(after_cp)
 
 
 def _material_balance(board: chess.Board, color: chess.Color) -> int:
@@ -142,42 +131,86 @@ def _material_balance(board: chess.Board, color: chess.Color) -> int:
     return own - other
 
 
-def analyse_pgn(pgn: str, config: AnalysisConfig | None = None) -> GameAnalysis:
-    cfg = config or AnalysisConfig()
-    game = chess.pgn.read_game(io.StringIO(pgn))
-    if game is None:
-        raise ValueError("PGN vide ou invalide")
+def _is_excellent(
+    played_loss_cp: int,
+    best_cp: int,
+    second_cp: int | None,
+    material_delta: int,
+    config: AnalysisConfig,
+) -> bool:
+    if played_loss_cp > 20:
+        return False
+    unique_gap = second_cp is not None and best_cp - second_cp >= config.excellent_gap_cp
+    tactical_gain = best_cp >= config.brilliant_gain_cp
+    sound_sacrifice = material_delta < 0 and best_cp >= 80
+    return bool(unique_gap and (tactical_gain or sound_sacrifice))
 
-    engine_path = resolve_stockfish_path(cfg.engine_path)
-    board = game.board()
-    analysed_moves: list[MoveAnalysis] = []
 
-    with chess.engine.SimpleEngine.popen_uci(engine_path) as engine:
-        engine_name = str(engine.id.get("name", "Stockfish"))
+class StockfishAnalyzer:
+    """Analyse plusieurs parties avec une seule instance persistante de Stockfish."""
+
+    def __init__(self, config: AnalysisConfig | None = None) -> None:
+        self.config = config or AnalysisConfig()
+        self.engine: chess.engine.SimpleEngine | None = None
+        self.engine_name = "Stockfish"
+
+    def __enter__(self) -> Self:
+        engine_path = resolve_stockfish_path(self.config.engine_path)
+        self.engine = chess.engine.SimpleEngine.popen_uci(engine_path)
+        self.engine_name = str(self.engine.id.get("name", "Stockfish"))
+        return self
+
+    def __exit__(self, *_: object) -> None:
+        if self.engine is not None:
+            self.engine.quit()
+            self.engine = None
+
+    def analyse_pgn(self, pgn: str) -> GameAnalysis:
+        if self.engine is None:
+            raise RuntimeError("StockfishAnalyzer doit être utilisé dans un bloc with")
+        game = chess.pgn.read_game(io.StringIO(pgn))
+        if game is None:
+            raise ValueError("PGN vide ou invalide")
+        return self._analyse_game(game)
+
+    def _analyse_game(self, game: chess.pgn.Game) -> GameAnalysis:
+        assert self.engine is not None
+        cfg = self.config
+        board = game.board()
+        analysed_moves: list[MoveAnalysis] = []
+
         for ply, move in enumerate(game.mainline_moves(), start=1):
             mover = board.turn
             san = board.san(move)
             material_before = _material_balance(board, mover)
 
-            infos = engine.analyse(
+            infos = self.engine.analyse(
                 board,
                 chess.engine.Limit(depth=cfg.depth),
                 multipv=max(2, cfg.multipv),
             )
-            if isinstance(infos, dict):
-                infos = [infos]
-
-            best_info = infos[0]
+            info_list = infos if isinstance(infos, list) else [infos]
+            best_info = info_list[0]
             best_cp = score_to_cp(best_info["score"], mover)
             best_pv = list(best_info.get("pv", []))
+            principal_variation = _pv_to_san(board, best_pv)
             best_move = best_pv[0] if best_pv else None
-            best_move_san = board.san(best_move) if best_move in board.legal_moves else None
+            best_move_san = (
+                board.san(best_move)
+                if best_move is not None and best_move in board.legal_moves
+                else None
+            )
             second_cp = (
-                score_to_cp(infos[1]["score"], mover) if len(infos) > 1 else None
+                score_to_cp(info_list[1]["score"], mover)
+                if len(info_list) > 1
+                else None
             )
 
             board.push(move)
-            played_info = engine.analyse(board, chess.engine.Limit(depth=cfg.depth))
+            played_info = self.engine.analyse(
+                board,
+                chess.engine.Limit(depth=cfg.depth),
+            )
             after_cp = score_to_cp(played_info["score"], mover)
             loss_cp = max(0, best_cp - after_cp)
             annotation, classification = classify_loss(loss_cp, cfg)
@@ -215,7 +248,7 @@ def analyse_pgn(pgn: str, config: AnalysisConfig | None = None) -> GameAnalysis:
                     classification=classification,
                     best_move_san=best_move_san,
                     best_move_uci=best_move.uci() if best_move else None,
-                    principal_variation=_pv_to_san(board.copy(stack=False), []),
+                    principal_variation=principal_variation,
                     turning_point=_is_turning_point(best_cp, after_cp),
                     excellent=excellent,
                     missed_excellent=missed_excellent,
@@ -223,30 +256,39 @@ def analyse_pgn(pgn: str, config: AnalysisConfig | None = None) -> GameAnalysis:
                 )
             )
 
-    significant = [move for move in analysed_moves if move.classification != "normal"]
-    losses = [move.loss_cp for move in analysed_moves]
-    worst = max(analysed_moves, key=lambda item: item.loss_cp, default=None)
-    turning = next((move.ply for move in analysed_moves if move.turning_point), None)
-    counts = {
-        "blunders": sum(move.classification == "blunder" for move in analysed_moves),
-        "mistakes": sum(move.classification == "mistake" for move in analysed_moves),
-        "dubious": sum(move.classification == "dubious" for move in analysed_moves),
-        "excellent": sum(move.excellent for move in analysed_moves),
-        "missed_excellent": sum(move.missed_excellent for move in analysed_moves),
-        "significant": len(significant),
-    }
+        significant = [move for move in analysed_moves if move.classification != "normal"]
+        losses = [move.loss_cp for move in analysed_moves]
+        worst = max(analysed_moves, key=lambda item: item.loss_cp, default=None)
+        turning = next((move.ply for move in analysed_moves if move.turning_point), None)
+        counts = {
+            "blunders": sum(move.classification == "blunder" for move in analysed_moves),
+            "mistakes": sum(move.classification == "mistake" for move in analysed_moves),
+            "dubious": sum(move.classification == "dubious" for move in analysed_moves),
+            "excellent": sum(move.excellent for move in analysed_moves),
+            "missed_excellent": sum(move.missed_excellent for move in analysed_moves),
+            "significant": len(significant),
+        }
+        worst_move = None
+        if worst is not None:
+            separator = "." if worst.color == "white" else "..."
+            worst_move = f"{worst.move_number}{separator}{worst.san}{worst.annotation}"
 
-    return GameAnalysis(
-        white=game.headers.get("White", "White"),
-        black=game.headers.get("Black", "Black"),
-        result=game.headers.get("Result", "*"),
-        eco=game.headers.get("ECO", "UNK"),
-        opening=game.headers.get("Opening", "Ouverture inconnue"),
-        engine=engine_name,
-        depth=cfg.depth,
-        moves=analysed_moves,
-        counts=counts,
-        average_centipawn_loss=round(sum(losses) / len(losses), 1) if losses else 0.0,
-        worst_move=(f"{worst.move_number}{'.' if worst.color == 'white' else '...'}{worst.san}{worst.annotation}" if worst else None),
-        turning_point_ply=turning,
-    )
+        return GameAnalysis(
+            white=game.headers.get("White", "White"),
+            black=game.headers.get("Black", "Black"),
+            result=game.headers.get("Result", "*"),
+            eco=game.headers.get("ECO", "UNK"),
+            opening=game.headers.get("Opening", "Ouverture inconnue"),
+            engine=self.engine_name,
+            depth=cfg.depth,
+            moves=analysed_moves,
+            counts=counts,
+            average_centipawn_loss=round(sum(losses) / len(losses), 1) if losses else 0.0,
+            worst_move=worst_move,
+            turning_point_ply=turning,
+        )
+
+
+def analyse_pgn(pgn: str, config: AnalysisConfig | None = None) -> GameAnalysis:
+    with StockfishAnalyzer(config) as analyzer:
+        return analyzer.analyse_pgn(pgn)
