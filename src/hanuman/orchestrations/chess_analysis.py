@@ -17,13 +17,14 @@ from hanuman.services.chess_analysis_service import (
 PGN_PATTERN = re.compile(r"```pgn\s*(.*?)```", re.DOTALL | re.IGNORECASE)
 START_MARKER = "<!-- HANUMAN_CHESS_ANALYSIS_START -->"
 END_MARKER = "<!-- HANUMAN_CHESS_ANALYSIS_END -->"
+LEGACY_ANALYSIS_PATTERN = re.compile(r"\n## Analyse personnelle\s*.*\Z", re.DOTALL)
 
 
 def _vault_root() -> Path:
     configured = os.environ.get("OBSIDIAN_VAULT_PATH")
     if configured:
         return Path(configured).expanduser().resolve()
-    return Path("/home/vince/Prakash/projets/Obsidian_Priv").resolve()
+    return Path("/home/vince/Prakash/projets/Obsidian_Priv-").resolve()
 
 
 def _chess_root() -> Path:
@@ -43,47 +44,105 @@ def _move_label(move: Any) -> str:
     return f"{move.move_number}{separator}{move.san}{move.annotation}"
 
 
-def render_analysis_markdown(analysis: GameAnalysis) -> str:
-    critical = [
+def _format_eval(value_cp: int) -> str:
+    value = value_cp / 100
+    return f"{value:+.2f}"
+
+
+def _critical_moves(analysis: GameAnalysis) -> list[Any]:
+    return [
         move
         for move in analysis.moves
-        if move.classification in {"blunder", "mistake", "excellent"}
+        if move.classification in {"blunder", "mistake", "dubious", "excellent"}
         or move.missed_excellent
     ]
+
+
+def render_analysis_markdown(analysis: GameAnalysis) -> str:
+    critical = _critical_moves(analysis)
+    turning_point = (
+        f"demi-coup {analysis.turning_point_ply}"
+        if analysis.turning_point_ply is not None
+        else "aucune bascule détectée"
+    )
     lines = [
         START_MARKER,
-        "## Analyse Hanuman / Stockfish",
+        "## Analyse Stockfish",
+        "",
+        "### Résumé",
         "",
         f"- **Moteur :** {analysis.engine}",
         f"- **Profondeur :** {analysis.depth}",
-        f"- **Perte moyenne :** {analysis.average_centipawn_loss} cp/coup",
+        f"- **Perte moyenne sur la partie :** {analysis.average_centipawn_loss} cp/coup",
         f"- **Pire coup :** {analysis.worst_move or '—'}",
-        f"- **Gaffes `??` :** {analysis.counts['blunders']}",
-        f"- **Erreurs `?` :** {analysis.counts['mistakes']}",
-        f"- **Coups douteux `?!` :** {analysis.counts['dubious']}",
-        f"- **Excellents `!!` :** {analysis.counts['excellent']}",
-        f"- **Excellents coups manqués :** {analysis.counts['missed_excellent']}",
+        f"- **Moment de bascule :** {turning_point}",
         "",
-        "### Moments critiques",
+        "| Qualité | Nombre |",
+        "|---|---:|",
+        f"| `??` Gaffes | {analysis.counts['blunders']} |",
+        f"| `?` Erreurs | {analysis.counts['mistakes']} |",
+        f"| `?!` Coups douteux | {analysis.counts['dubious']} |",
+        f"| `!!` Excellents coups | {analysis.counts['excellent']} |",
+        f"| Excellents coups manqués | {analysis.counts['missed_excellent']} |",
+        "",
+        "### Chronologie des coups critiques",
         "",
     ]
+
     if not critical:
-        lines.append("- Aucun moment critique détecté avec les seuils actuels.")
-    for move in critical:
-        detail = f"perte {move.loss_cp} cp"
-        if move.excellent:
-            detail = "coup excellent détecté"
-        elif move.missed_excellent:
-            detail += " · occasion tactique forte manquée"
-        best = f" · meilleur : `{move.best_move_san}`" if move.best_move_san else ""
-        opening = " · phase d’ouverture" if move.opening_phase else ""
-        pv = (
-            f" · ligne : `{' '.join(move.principal_variation)}`"
-            if move.principal_variation
-            else ""
+        lines.append("Aucun coup critique détecté avec les seuils actuels.")
+    else:
+        lines.extend(
+            [
+                "| Coup | Qualité | Éval. avant | Éval. après | Perte | Meilleur coup |",
+                "|---|:---:|---:|---:|---:|---|",
+            ]
         )
-        lines.append(f"- **{_move_label(move)}** — {detail}{best}{opening}{pv}")
-    lines.extend(["", END_MARKER])
+        for move in critical:
+            quality = move.annotation or "—"
+            if move.missed_excellent and not move.excellent:
+                quality = f"{quality} · occasion manquée" if quality != "—" else "occasion manquée"
+            best = f"`{move.best_move_san}`" if move.best_move_san else "—"
+            lines.append(
+                f"| **{_move_label(move)}** | {quality} | "
+                f"{_format_eval(move.eval_before_cp)} | {_format_eval(move.eval_after_cp)} | "
+                f"{move.loss_cp} cp | {best} |"
+            )
+
+    lines.extend(["", "### Variantes critiques", ""])
+    variants = [move for move in critical if move.principal_variation]
+    if not variants:
+        lines.append("Aucune variante critique disponible.")
+    else:
+        for move in variants:
+            label = _move_label(move)
+            lines.extend(
+                [
+                    f"#### {label}",
+                    "",
+                    f"- **Meilleur coup :** `{move.best_move_san or '—'}`",
+                    f"- **Perte :** {move.loss_cp} cp",
+                    f"- **Phase :** {'ouverture' if move.opening_phase else 'milieu/finale'}",
+                    "",
+                    "```text",
+                    " ".join(move.principal_variation),
+                    "```",
+                    "",
+                ]
+            )
+
+    lines.extend(
+        [
+            "### Seuils utilisés",
+            "",
+            "- `??` : perte d’au moins 200 cp",
+            "- `?` : perte de 100 à 199 cp",
+            "- `?!` : perte de 50 à 99 cp",
+            "- `!!` : coup quasi unique, tactique ou sacrifice correct détecté avec forte confiance",
+            "",
+            END_MARKER,
+        ]
+    )
     return "\n".join(lines)
 
 
@@ -92,7 +151,9 @@ def inject_analysis(markdown: str, rendered: str) -> str:
         before, rest = markdown.split(START_MARKER, 1)
         _, after = rest.split(END_MARKER, 1)
         return before.rstrip() + "\n\n" + rendered + after
-    return markdown.rstrip() + "\n\n" + rendered + "\n"
+
+    without_legacy = LEGACY_ANALYSIS_PATTERN.sub("", markdown).rstrip()
+    return without_legacy + "\n\n" + rendered + "\n"
 
 
 def analyse_note(path: Path, analyzer: StockfishAnalyzer) -> GameAnalysis | None:
