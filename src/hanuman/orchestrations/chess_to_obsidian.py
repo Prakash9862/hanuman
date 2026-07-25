@@ -17,6 +17,7 @@ from hanuman.services.core.chess_service import ChessService
 CHESS_USERNAME = "prakasch"
 ANALYSIS_START = "<!-- HANUMAN_CHESS_ANALYSIS_START -->"
 ANALYSIS_END = "<!-- HANUMAN_CHESS_ANALYSIS_END -->"
+OBSIDIAN_ROOT = Path("/home/vince/Prakash/projets/Obsidian_Priv-/Echecs")
 
 
 @dataclass(frozen=True)
@@ -42,13 +43,12 @@ def _chess_root() -> Path:
     configured = os.environ.get("CHESS_OBSIDIAN_PATH")
     if configured:
         return Path(configured).expanduser().resolve()
-    vault = Path(
-        os.environ.get(
-            "OBSIDIAN_VAULT_PATH",
-            "/home/vince/Prakash/projets/Obsidian_Priv-",
-        )
-    ).expanduser()
-    return (vault / "Echecs").resolve()
+
+    configured_vault = os.environ.get("OBSIDIAN_VAULT_PATH")
+    if configured_vault:
+        return (Path(configured_vault).expanduser() / "Echecs").resolve()
+
+    return OBSIDIAN_ROOT.expanduser().resolve()
 
 
 def _safe(value: str) -> str:
@@ -99,14 +99,18 @@ def _filename(game: ChessGame) -> str:
 
 
 def _default_analysis() -> str:
-    return f"{ANALYSIS_START}\n## Analyse Stockfish\n\nAnalyse non encore lancée.\n{ANALYSIS_END}"
+    return (
+        f"{ANALYSIS_START}\n"
+        "## Analyse Stockfish\n\n"
+        "Analyse non encore lancée.\n"
+        f"{ANALYSIS_END}"
+    )
 
 
 def _extract_analysis(markdown: str) -> str | None:
     if ANALYSIS_START not in markdown or ANALYSIS_END not in markdown:
         return None
-    before, rest = markdown.split(ANALYSIS_START, 1)
-    del before
+    _, rest = markdown.split(ANALYSIS_START, 1)
     body, _ = rest.split(ANALYSIS_END, 1)
     return f"{ANALYSIS_START}{body}{ANALYSIS_END}"
 
@@ -235,7 +239,11 @@ def main(argv: list[str] | None = None) -> None:
         help="Supprime tout le contenu actuel du dossier Echecs avant reconstruction.",
     )
     args = parser.parse_args(argv)
-    print(sync_chess_to_obsidian(limit=args.limit, reset=args.reset))
+    if args.reset:
+        result = sync_chess_to_obsidian(limit=args.limit, reset=True)
+    else:
+        result = sync_chess_to_obsidian(limit=args.limit)
+    print(result)
 
 
 if __name__ == "__main__":
