@@ -90,13 +90,13 @@ export default function ResourcesPage() {
   }
 
   async function fetchSearch(
-    source: 'youtube' | 'gallica',
+    source: 'youtube' | 'gallica' | 'imslp',
     normalized: string,
     pageToken?: string,
   ): Promise<SearchPayload> {
     const params = new URLSearchParams({
       q: normalized,
-      max_results: source === 'youtube' ? '25' : '12',
+      max_results: source === 'youtube' ? '25' : source === 'imslp' ? '20' : '12',
     })
     if (pageToken) params.set('page_token', pageToken)
 
@@ -123,14 +123,6 @@ export default function ResourcesPage() {
         const response = await fetch(`${API_BASE}/resources/maps/directions?location=${encodeURIComponent(normalized)}`)
         const payload = await response.json()
         if (!response.ok || !payload.url) throw new Error(payload.detail ?? 'Google Maps indisponible')
-        window.open(payload.url, '_blank', 'noopener,noreferrer')
-        return
-      }
-
-      if (active === 'imslp') {
-        const response = await fetch(`${API_BASE}/resources/imslp/search?q=${encodeURIComponent(normalized)}`)
-        const payload = await response.json()
-        if (!response.ok || !payload.url) throw new Error(payload.detail ?? 'IMSLP indisponible')
         window.open(payload.url, '_blank', 'noopener,noreferrer')
         return
       }
@@ -197,7 +189,7 @@ export default function ResourcesPage() {
             <form className="resources-search" onSubmit={handleSubmit}>
               <Search size={19} />
               <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={current.placeholder} autoFocus />
-              <button type="submit" disabled={loading}>{loading ? 'Recherche…' : active === 'maps' ? 'Itinéraire' : active === 'imslp' ? 'Ouvrir' : 'Rechercher'}</button>
+              <button type="submit" disabled={loading}>{loading ? 'Recherche…' : active === 'maps' ? 'Itinéraire' : 'Rechercher'}</button>
             </form>
           )}
 
@@ -222,7 +214,7 @@ export default function ResourcesPage() {
           )}
 
           {active !== 'chess' && !message && !loading && results.length === 0 && (
-            <div className="resources-empty"><ActiveIcon size={28} /><b>{active === 'maps' ? 'Prépare un trajet' : active === 'imslp' ? 'Ouvre la bibliothèque de partitions' : `Recherche dans ${current.label}`}</b><span>{current.placeholder}</span></div>
+            <div className="resources-empty"><ActiveIcon size={28} /><b>{active === 'maps' ? 'Prépare un trajet' : `Recherche dans ${current.label}`}</b><span>{current.placeholder}</span></div>
           )}
 
           {results.length > 0 && (
