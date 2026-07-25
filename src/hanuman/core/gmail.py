@@ -23,7 +23,13 @@ TOKEN_PATH = Path(os.environ.get("GMAIL_TOKEN_PATH", ".secrets/gmail-token.json"
 CREDENTIALS_PATH = Path(os.environ.get("GMAIL_CREDENTIALS_PATH", "config/gmail_credentials.json"))
 
 
-def _json_request(url: str, *, method: str = "GET", data: dict[str, Any] | None = None, headers: dict[str, str] | None = None) -> dict[str, Any]:
+def _json_request(
+    url: str,
+    *,
+    method: str = "GET",
+    data: dict[str, Any] | None = None,
+    headers: dict[str, str] | None = None,
+) -> dict[str, Any]:
     payload = None
     request_headers = dict(headers or {})
     if data is not None:
@@ -51,7 +57,9 @@ def _credentials() -> tuple[str, str]:
         config = payload.get("installed") or payload.get("web") or payload
         if isinstance(config, dict) and config.get("client_id") and config.get("client_secret"):
             return str(config["client_id"]), str(config["client_secret"])
-    raise RuntimeError("Identifiants Gmail absents. Ajoute config/gmail_credentials.json ou GMAIL_CLIENT_ID/GMAIL_CLIENT_SECRET.")
+    raise RuntimeError(
+        "Identifiants Gmail absents. Ajoute config/gmail_credentials.json ou GMAIL_CLIENT_ID/GMAIL_CLIENT_SECRET."
+    )
 
 
 def _load_token() -> dict[str, Any]:
@@ -73,27 +81,33 @@ def _save_token(token: dict[str, Any]) -> None:
 def authorization_url(state: str | None = None) -> tuple[str, str]:
     client_id, _ = _credentials()
     resolved_state = state or secrets.token_urlsafe(24)
-    query = urllib.parse.urlencode({
-        "client_id": client_id,
-        "redirect_uri": os.environ.get("GMAIL_REDIRECT_URI", DEFAULT_REDIRECT_URI),
-        "response_type": "code",
-        "scope": GMAIL_SCOPE,
-        "access_type": "offline",
-        "prompt": "consent",
-        "state": resolved_state,
-    })
+    query = urllib.parse.urlencode(
+        {
+            "client_id": client_id,
+            "redirect_uri": os.environ.get("GMAIL_REDIRECT_URI", DEFAULT_REDIRECT_URI),
+            "response_type": "code",
+            "scope": GMAIL_SCOPE,
+            "access_type": "offline",
+            "prompt": "consent",
+            "state": resolved_state,
+        }
+    )
     return f"{AUTH_URL}?{query}", resolved_state
 
 
 def exchange_code(code: str) -> None:
     client_id, client_secret = _credentials()
-    token = _json_request(TOKEN_URL, method="POST", data={
-        "code": code,
-        "client_id": client_id,
-        "client_secret": client_secret,
-        "redirect_uri": os.environ.get("GMAIL_REDIRECT_URI", DEFAULT_REDIRECT_URI),
-        "grant_type": "authorization_code",
-    })
+    token = _json_request(
+        TOKEN_URL,
+        method="POST",
+        data={
+            "code": code,
+            "client_id": client_id,
+            "client_secret": client_secret,
+            "redirect_uri": os.environ.get("GMAIL_REDIRECT_URI", DEFAULT_REDIRECT_URI),
+            "grant_type": "authorization_code",
+        },
+    )
     _save_token(token)
 
 
@@ -109,12 +123,16 @@ def _access_token() -> str:
     if not refresh_token:
         raise RuntimeError("Le jeton Gmail a expiré et ne contient aucun refresh_token.")
     client_id, client_secret = _credentials()
-    refreshed = _json_request(TOKEN_URL, method="POST", data={
-        "client_id": client_id,
-        "client_secret": client_secret,
-        "refresh_token": refresh_token,
-        "grant_type": "refresh_token",
-    })
+    refreshed = _json_request(
+        TOKEN_URL,
+        method="POST",
+        data={
+            "client_id": client_id,
+            "client_secret": client_secret,
+            "refresh_token": refresh_token,
+            "grant_type": "refresh_token",
+        },
+    )
     refreshed["refresh_token"] = refresh_token
     _save_token(refreshed)
     return str(refreshed["access_token"])
@@ -138,7 +156,11 @@ def _decode(value: str | None) -> str:
 
 def _headers(payload: dict[str, Any]) -> dict[str, str]:
     headers = payload.get("headers") or []
-    return {str(item.get("name", "")).lower(): _decode(str(item.get("value", ""))) for item in headers if isinstance(item, dict)}
+    return {
+        str(item.get("name", "")).lower(): _decode(str(item.get("value", "")))
+        for item in headers
+        if isinstance(item, dict)
+    }
 
 
 def _body(part: dict[str, Any]) -> str:
@@ -189,7 +211,9 @@ def status() -> GmailStatus:
         return GmailStatus(configured=True, connected=False, message=str(exc))
 
 
-def list_messages(query: str = "in:inbox", max_results: int = 30, page_token: str | None = None) -> tuple[list[GmailMessageSummary], str | None]:
+def list_messages(
+    query: str = "in:inbox", max_results: int = 30, page_token: str | None = None
+) -> tuple[list[GmailMessageSummary], str | None]:
     params: dict[str, Any] = {"q": query, "maxResults": max(1, min(max_results, 100))}
     if page_token:
         params["pageToken"] = page_token
@@ -198,7 +222,10 @@ def list_messages(query: str = "in:inbox", max_results: int = 30, page_token: st
     for ref in listed.get("messages") or []:
         if not isinstance(ref, dict) or not ref.get("id"):
             continue
-        raw = _api(f"messages/{ref['id']}", {"format": "metadata", "metadataHeaders": ["Subject", "From", "Date"]})
+        raw = _api(
+            f"messages/{ref['id']}",
+            {"format": "metadata", "metadataHeaders": ["Subject", "From", "Date"]},
+        )
         messages.append(_summary(raw))
     return messages, listed.get("nextPageToken")
 

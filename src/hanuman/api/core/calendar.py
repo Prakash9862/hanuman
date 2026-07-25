@@ -29,10 +29,7 @@ def calendar_auth(request: Request) -> RedirectResponse:
         "prompt": "consent",
     }
 
-    auth_url = (
-        "https://accounts.google.com/o/oauth2/v2/auth?"
-        + urlencode(params)
-    )
+    auth_url = "https://accounts.google.com/o/oauth2/v2/auth?" + urlencode(params)
 
     return RedirectResponse(auth_url)
 

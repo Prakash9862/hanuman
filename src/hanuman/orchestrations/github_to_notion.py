@@ -54,6 +54,8 @@ def _find_issue_page_by_number(
     notion: NotionService,
     issue_number: int,
 ) -> str | None:
+    if not NOTION_ISSUES_DB_ID:
+        return None
     results = notion.query_database(
         NOTION_ISSUES_DB_ID,
         filter_={

@@ -51,9 +51,7 @@ def exchange_code_for_token(code: str) -> bool:
     if response.status_code == 400:
         raise ValueError(f"Code OAuth expiré ou invalide : {response.text}")
 
-    raise RuntimeError(
-        f"Erreur OAuth Calendar : {response.status_code} {response.text}"
-    )
+    raise RuntimeError(f"Erreur OAuth Calendar : {response.status_code} {response.text}")
 
 
 def get_calendars() -> list[dict[str, Any]]:
@@ -90,7 +88,7 @@ def get_upcoming_events(
 ) -> list[dict[str, Any]]:
     now = datetime.now(UTC).isoformat().replace("+00:00", "Z")
 
-    params = {
+    params: dict[str, str | int] = {
         "timeMin": now,
         "maxResults": max(1, min(max_results, 100)),
         "singleEvents": "true",

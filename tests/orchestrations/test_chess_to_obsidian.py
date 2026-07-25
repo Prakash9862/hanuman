@@ -1,6 +1,4 @@
 import datetime as dt
-from pathlib import Path
-from types import SimpleNamespace
 
 from hanuman.orchestrations import chess_to_obsidian as mod
 
@@ -15,7 +13,6 @@ class FakeChessService:
         self.calls.append((username, limit))
         base = dt.datetime(2024, 1, 1, 12, 0, tzinfo=dt.timezone.utc)
 
-        # Deux parties avec la même ouverture (B20 Sicilian Defense)
         return [
             {
                 "id": "g1",
@@ -46,90 +43,70 @@ class FakeChessService:
         ]
 
 
-def test_sync_chess_to_obsidian_writes_notes(tmp_path, monkeypatch, capsys) -> None:
-    """sync_chess_to_obsidian doit écrire les fichiers Markdown attendus."""
-
-    # 1) Rediriger Path(...) vers un dossier de test
-    #    → /home/.../Echecs devient tmp_path / "Echecs"
-    def fake_path(_path_str: str) -> Path:
-        return tmp_path / "Echecs"
-
-    monkeypatch.setattr(mod, "Path", fake_path)
-
-    # 2) Mock du ChessService
-    fake_service = FakeChessService()
-    monkeypatch.setattr(mod, "ChessService", lambda: fake_service)
-
-    # 3) Faux settings avec un username connu
-    fake_settings = SimpleNamespace(chess_com_username="prakasch")
-    monkeypatch.setattr(mod, "settings", fake_settings)
-
-    # 4) Appel de l'orchestration
-    mod.sync_chess_to_obsidian(limit=50)
-
-    # 5) Vérifications sur le service appelé
-    assert fake_service.calls == [("prakasch", 50)]
+def test_sync_chess_to_obsidian_writes_notes(tmp_path, monkeypatch) -> None:
+    """L'orchestration écrit les parties, les ouvertures et le tableau de bord."""
 
     obsidian_root = tmp_path / "Echecs"
-    openings_dir = obsidian_root / "Openings"
+    fake_service = FakeChessService()
 
-    # 6) Overview.md doit exister
-    overview_path = obsidian_root / "Overview.md"
-    assert overview_path.is_file()
+    monkeypatch.setattr(mod, "OBSIDIAN_ROOT", obsidian_root)
+    monkeypatch.setattr(mod, "CHESS_USERNAME", "prakasch")
+    monkeypatch.setattr(mod, "ChessService", lambda: fake_service)
 
-    overview_content = overview_path.read_text(encoding="utf-8")
-    # Une seule ouverture (B20 Sicilian Defense), 2 parties
-    assert "openings_count: 1" in overview_content
-    assert "B20 Sicilian Defense (2 parties)" in overview_content
+    result = mod.sync_chess_to_obsidian(limit=50)
 
-    # 7) Fichier d'ouverture pour B20 Sicilian Defense
-    slug = mod._slugify("B20 Sicilian Defense")
-    opening_path = openings_dir / f"{slug}.md"
+    assert fake_service.calls == [("prakasch", 50)]
+
+    assert result == {
+        "status": "ok",
+        "username": "prakasch",
+        "destination": str(obsidian_root),
+        "games_received": 2,
+        "games_created": 2,
+        "games_skipped": 0,
+        "openings_updated": 1,
+    }
+
+    first_game = obsidian_root / "Parties" / "2024" / "2024-01-01 - B20 - prakasch vs Opponent1.md"
+    second_game = obsidian_root / "Parties" / "2024" / "2024-01-02 - B20 - Opponent2 vs prakasch.md"
+
+    assert first_game.is_file()
+    assert second_game.is_file()
+
+    first_content = first_game.read_text(encoding="utf-8")
+    assert "type: chess-game" in first_content
+    assert "result: win" in first_content
+    assert "Opponent1" in first_content
+    assert '[Event "Game1"]' in first_content
+
+    opening_path = obsidian_root / "Openings" / "B" / "B20 - Sicilian Defense.md"
     assert opening_path.is_file()
 
     opening_content = opening_path.read_text(encoding="utf-8")
-
-    # Métadonnées YAML
-    assert 'title: "B20 Sicilian Defense"' in opening_content
-    assert "tags:" in opening_content
+    assert "type: chess-opening" in opening_content
+    assert "eco: B20" in opening_content
     assert "games_count: 2" in opening_content
+    assert "Victoires :** 1" in opening_content
+    assert "Défaites :** 1" in opening_content
 
-    # Tableau des parties
-    assert (
-        "| Date | Couleur | Résultat | Cadence | ECO / Ouverture | Adversaire | Lien |"
-        in opening_content
-    )
-    assert "Sicilian Defense" in opening_content
-    assert "Opponent1" in opening_content
-    assert "Opponent2" in opening_content
+    dashboard_path = obsidian_root / "Dashboard.md"
+    assert dashboard_path.is_file()
 
-    # Section PGN
-    assert "## PGN des parties" in opening_content
-    assert "```pgn" in opening_content
-    assert '[Event "Game1"]' in opening_content
-    assert '[Event "Game2"]' in opening_content
-
-    # 8) Message console
-    captured = capsys.readouterr()
-    assert "[chess→obsidian]" in captured.out
-    assert "2 parties traitées" in captured.out
-    assert "1 ouvertures" in captured.out
-    assert str(obsidian_root) in captured.out
-
-
-def test_build_parser_default_limit() -> None:
-    """Le parser CLI doit avoir une valeur par défaut cohérente pour --limit."""
-    parser = mod.build_parser()
-    args = parser.parse_args([])
-    assert args.limit == 200
+    dashboard_content = dashboard_path.read_text(encoding="utf-8")
+    assert 'title: "Chess.com → Obsidian"' in dashboard_content
+    assert "games_count: 2" in dashboard_content
+    assert "openings_count: 1" in dashboard_content
+    assert "B20 · Sicilian Defense" in dashboard_content
 
 
 def test_main_calls_sync_with_custom_limit(monkeypatch) -> None:
-    """main() doit transmettre le --limit à sync_chess_to_obsidian."""
+    """main() transmet correctement --limit à l'orchestration."""
+
     called_with: list[int] = []
 
-    def fake_sync(limit: int) -> None:
+    def fake_sync(limit: int) -> dict[str, object]:
         called_with.append(limit)
+        return {"status": "ok"}
 
     monkeypatch.setattr(mod, "sync_chess_to_obsidian", fake_sync)
 
