@@ -12,6 +12,8 @@ from hanuman.services.core.chess_service import ChessService
 
 CHESS_USERNAME = "prakasch"
 OBSIDIAN_ROOT = Path("/home/vince/Prakash/projets/Obsidian_Priv-/Echecs")
+START_MARKER = "<!-- HANUMAN_CHESS_ANALYSIS_START -->"
+END_MARKER = "<!-- HANUMAN_CHESS_ANALYSIS_END -->"
 
 
 @dataclass(frozen=True)
@@ -92,13 +94,11 @@ tags:
 {game.pgn.strip()}
 ```
 
-## Analyse personnelle
+{START_MARKER}
+## Analyse Stockfish
 
-### Moment critique
-
-### Erreurs
-
-### Ce que je dois retenir
+Analyse non encore lancée.
+{END_MARKER}
 '''
 
 
