@@ -7,8 +7,8 @@ from hanuman.services.resources_service import (
     build_gallica_search_url,
     build_google_maps_directions_url,
     build_google_maps_search_url,
-    build_imslp_search_url,
     search_gallica,
+    search_imslp,
     search_youtube,
     youtube_configured,
 )
@@ -85,12 +85,19 @@ def gallica_search(
 
 @router.get("/imslp/status")
 def imslp_status() -> dict[str, object]:
-    return {"ok": True, "configured": True, "mode": "search_link"}
+    return {"ok": True, "configured": True, "mode": "mediawiki_api"}
 
 
 @router.get("/imslp/search")
-def imslp_search(q: str = Query(min_length=1)) -> dict[str, object]:
-    return {"ok": True, "query": q, "url": build_imslp_search_url(q)}
+def imslp_search(
+    q: str = Query(min_length=1),
+    max_results: int = Query(default=20, ge=1, le=50),
+) -> dict[str, object]:
+    try:
+        results = search_imslp(q, max_results=max_results)
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Erreur IMSLP : {exc}") from exc
+    return {"ok": True, "count": len(results), "results": results}
 
 
 @router.get("/maps/status")
