@@ -6,7 +6,9 @@ import urllib.request
 from pathlib import Path
 from typing import Any, Dict, Iterable
 
-from hanuman.orchestrations.notion_markdown_sanitizer import sanitize_markdown_for_notion
+from hanuman.orchestrations.notion_markdown_sanitizer import (
+    sanitize_markdown_for_notion,
+)
 from hanuman.orchestrations.obsidian_to_notion import (
     _notion_headers,
     build_notion_body,

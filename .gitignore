@@ -37,3 +37,12 @@ coverage.xml
 frontend/node_modules/
 frontend/dist/
 *.tsbuildinfo
+
+credentials.json
+token.json
+
+# Google OAuth
+credentials.json
+token.json
+secrets/*.json
+.venv/

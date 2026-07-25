@@ -111,7 +111,9 @@ def _opening_note(eco: str, name: str, games: list[ChessGame]) -> str:
     for game in sorted(games, key=lambda item: item.end_time, reverse=True):
         date = game.end_time.strftime("%Y-%m-%d")
         filename = f"{date} - {game.eco} - {_safe(game.white)} vs {_safe(game.black)}"
-        links.append(f"- [[Parties/{game.end_time.year}/{filename}|{date} · {game.opponent} · {game.result}]]")
+        links.append(
+            f"- [[Parties/{game.end_time.year}/{filename}|{date} · {game.opponent} · {game.result}]]"
+        )
     return f'''---
 type: chess-opening
 eco: {eco}
@@ -151,9 +153,13 @@ def _dashboard(games: list[ChessGame], openings: dict[tuple[str, str], list[Ches
     draws = sum(g.result == "draw" for g in games)
     losses = sum(g.result == "loss" for g in games)
     rows = []
-    for (eco, name), grouped in sorted(openings.items(), key=lambda item: (-len(item[1]), item[0][0])):
+    for (eco, name), grouped in sorted(
+        openings.items(), key=lambda item: (-len(item[1]), item[0][0])
+    ):
         letter = eco[0] if eco != "UNK" else "Autres"
-        rows.append(f"| [[Openings/{letter}/{eco} - {_safe(name)}|{eco} · {name}]] | {len(grouped)} |")
+        rows.append(
+            f"| [[Openings/{letter}/{eco} - {_safe(name)}|{eco} · {name}]] | {len(grouped)} |"
+        )
     return f'''---
 title: "Chess.com → Obsidian"
 username: {CHESS_USERNAME}
