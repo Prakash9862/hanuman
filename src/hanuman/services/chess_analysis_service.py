@@ -125,9 +125,7 @@ def _material_balance(board: chess.Board, color: chess.Color) -> int:
         chess.QUEEN: 900,
     }
     own = sum(len(board.pieces(piece, color)) * value for piece, value in values.items())
-    other = sum(
-        len(board.pieces(piece, not color)) * value for piece, value in values.items()
-    )
+    other = sum(len(board.pieces(piece, not color)) * value for piece, value in values.items())
     return own - other
 
 
@@ -200,11 +198,7 @@ class StockfishAnalyzer:
                 if best_move is not None and best_move in board.legal_moves
                 else None
             )
-            second_cp = (
-                score_to_cp(info_list[1]["score"], mover)
-                if len(info_list) > 1
-                else None
-            )
+            second_cp = score_to_cp(info_list[1]["score"], mover) if len(info_list) > 1 else None
 
             board.push(move)
             played_info = self.engine.analyse(

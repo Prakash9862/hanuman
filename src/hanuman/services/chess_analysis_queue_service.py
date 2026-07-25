@@ -58,14 +58,22 @@ def get_analysis_queue_status() -> dict[str, Any]:
     path = _state_path()
     if not path.exists():
         return _default_state()
+
     try:
-        state = json.loads(path.read_text(encoding="utf-8"))
+        loaded = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
         return _default_state()
+
+    if not isinstance(loaded, dict):
+        return _default_state()
+
+    state: dict[str, Any] = loaded
+
     if state.get("status") == "running" and (_WORKER is None or not _WORKER.is_alive()):
         state["status"] = "interrupted"
         state["current"] = None
         _write_state(state)
+
     return state
 
 
