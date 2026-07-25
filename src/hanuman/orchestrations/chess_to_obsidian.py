@@ -48,7 +48,6 @@ class ChessGame:
         return self.end_time.strftime("%Y-%m")
 
 
-
 def _chess_root() -> Path:
     configured = os.environ.get("CHESS_OBSIDIAN_PATH")
     if configured:
@@ -61,16 +60,13 @@ def _chess_root() -> Path:
     return OBSIDIAN_ROOT.expanduser().resolve()
 
 
-
 def _safe(value: str) -> str:
     value = re.sub(r"[^\w\-. ]+", "", value, flags=re.UNICODE).strip()
     return re.sub(r"\s+", " ", value) or "partie"
 
 
-
 def _yaml_quote(value: str) -> str:
     return '"' + value.replace("\\", "\\\\").replace('"', '\\"') + '"'
-
 
 
 def _game_from_raw(raw: dict[str, Any]) -> ChessGame:
@@ -89,13 +85,11 @@ def _game_from_raw(raw: dict[str, Any]) -> ChessGame:
     )
 
 
-
 def _parse_headers(pgn: str) -> dict[str, str]:
     game = chess.pgn.read_game(io.StringIO(pgn))
     if game is None:
         return {}
     return {str(key): str(value) for key, value in game.headers.items()}
-
 
 
 def _headers_table(headers: dict[str, str]) -> str:
@@ -108,28 +102,29 @@ def _headers_table(headers: dict[str, str]) -> str:
     return "\n".join(rows)
 
 
-
 def _filename(game: ChessGame) -> str:
     date = game.end_time.strftime("%Y-%m-%d")
     return f"{date} - {game.eco} - {_safe(game.opponent)}.md"
 
 
-
 def _game_link(game: ChessGame) -> str:
     path = f"Echecs/{game.year}/{game.end_time.strftime('%m')}/{_filename(game)[:-3]}"
-    label = f"{game.end_time.strftime('%Y-%m-%d')} · {game.eco} · {game.opponent} · {game.result}"
+    label = (
+        f"{game.end_time.strftime('%Y-%m-%d')} · {game.eco} · "
+        f"{game.opponent} · {game.result}"
+    )
     return f"[[{path}|{label}]]"
-
 
 
 def _default_analysis() -> str:
     return (
         f"{ANALYSIS_START}\n"
         "## Analyse Stockfish\n\n"
+        "> [!stockfish] 🟡 Analyse en attente\n"
+        "> Cette partie n’a pas encore été analysée.\n\n"
         "Analyse non encore lancée.\n"
         f"{ANALYSIS_END}"
     )
-
 
 
 def _extract_analysis(markdown: str) -> str | None:
@@ -139,6 +134,25 @@ def _extract_analysis(markdown: str) -> str | None:
     body, _ = rest.split(ANALYSIS_END, 1)
     return f"{ANALYSIS_START}{body}{ANALYSIS_END}"
 
+
+def _analysis_done(analysis: str) -> bool:
+    return "Analyse non encore lancée." not in analysis and "### Ton bilan" in analysis
+
+
+def _result_label(result: str) -> str:
+    return {
+        "win": "🟢 Victoire",
+        "loss": "🔴 Défaite",
+        "draw": "🟡 Nulle",
+    }.get(result, f"⚪ {result}")
+
+
+def _color_label(color: str) -> str:
+    return "⚪ Blancs" if color == "white" else "⚫ Noirs"
+
+
+def _quoted_block(markdown: str) -> str:
+    return "\n".join(f"> {line}" if line else ">" for line in markdown.splitlines())
 
 
 def _game_note(game: ChessGame, analysis_block: str | None = None) -> str:
@@ -150,10 +164,18 @@ def _game_note(game: ChessGame, analysis_block: str | None = None) -> str:
     black_elo = headers.get("BlackElo", "")
     termination = headers.get("Termination", "")
     analysis = analysis_block or _default_analysis()
+    analysed = _analysis_done(analysis)
     opponent_slug = _safe(game.opponent)
+    status = "analysed" if analysed else "pending"
+    status_label = "🟢 Analyse terminée" if analysed else "🟡 Analyse en attente"
+    headers_block = _quoted_block(_headers_table(headers))
+    pgn_block = _quoted_block(game.pgn.strip())
 
     return f'''---
 type: chess-game
+cssclasses:
+  - hanuman-chess
+  - hanuman-chess-game
 date: {date}
 year: {game.year}
 month: {game.month}
@@ -171,6 +193,7 @@ eco: {game.eco}
 opening: {_yaml_quote(opening)}
 time_control: {_yaml_quote(game.time_control)}
 termination: {_yaml_quote(termination)}
+analysis_status: {status}
 chess_url: {_yaml_quote(game.url)}
 tags:
   - chess/game
@@ -180,49 +203,59 @@ tags:
   - chess/opening/{game.eco}
   - chess/year/{game.year}
   - chess/month/{game.month}
+  - chess/analysis/{status}
 ---
 
-# {title}
+# ♟️ {title}
 
-## Connexions
+> [!chess] Partie
+> **{_result_label(game.result)}** · **{_color_label(game.color)}** · **{game.time_control}**  
+> **{game.white}{f' ({white_elo})' if white_elo else ''}** contre **{game.black}{f' ({black_elo})' if black_elo else ''}**  
+> **{game.eco} — {opening}**
 
-- **Tableau de bord :** [[Dashboard|Échecs]]
-- **Année :** [[_Index/Annees/{game.year}|{game.year}]]
-- **Mois :** [[_Index/Mois/{game.month}|{game.month}]]
-- **Ouverture :** [[_Index/Ouvertures/{game.eco}|{game.eco} — {opening}]]
-- **Adversaire :** [[_Index/Adversaires/{opponent_slug}|{game.opponent}]]
+> [!hanuman-nav] Navigation
+> 🏠 [[Dashboard|Tableau de bord]] · 📅 [[_Index/Annees/{game.year}|{game.year}]] · 🗓️ [[_Index/Mois/{game.month}|{game.month}]] · ♟️ [[_Index/Ouvertures/{game.eco}|{game.eco}]] · 👤 [[_Index/Adversaires/{opponent_slug}|{game.opponent}]]
+
+> [!stockfish] {status_label}
+> **Statut :** {status_label}
 
 ## Résumé
 
-- **Résultat :** {game.result}
-- **Couleur :** {game.color}
-- **Adversaire :** {game.opponent}
-- **Blancs :** {game.white}{f' ({white_elo})' if white_elo else ''}
-- **Noirs :** {game.black}{f' ({black_elo})' if black_elo else ''}
-- **Cadence :** {game.time_control}
-- **Ouverture :** {game.eco} — {opening}
-- **Fin de partie :** {termination or 'non précisée'}
-- **Chess.com :** [ouvrir la partie]({game.url})
+| Élément | Détail |
+|---|---|
+| Résultat | {_result_label(game.result)} |
+| Couleur | {_color_label(game.color)} |
+| Adversaire | {game.opponent} |
+| Cadence | {game.time_control} |
+| Ouverture | {game.eco} — {opening} |
+| Fin | {termination or 'non précisée'} |
+| Partie | [Ouvrir sur Chess.com]({game.url}) |
 
-## En-têtes PGN
+> [!info]- En-têtes PGN
+>
+{headers_block}
 
-{_headers_table(headers)}
-
-## PGN complet
-
-```pgn
-{game.pgn.strip()}
-```
+> [!note]- PGN complet
+>
+> ```pgn
+{pgn_block}
+> ```
 
 {analysis}
 '''
 
 
-
 def _index_note(kind: str, key: str, title: str, games: list[ChessGame]) -> str:
     links = "\n".join(f"- {_game_link(game)}" for game in games)
+    wins = sum(game.result == "win" for game in games)
+    draws = sum(game.result == "draw" for game in games)
+    losses = sum(game.result == "loss" for game in games)
     return f'''---
 type: chess-index
+cssclasses:
+  - hanuman-chess
+  - hanuman-chess-index
+  - hanuman-index-{kind}
 index_kind: {kind}
 index_key: {_yaml_quote(key)}
 games_count: {len(games)}
@@ -232,14 +265,14 @@ tags:
 
 # {title}
 
-- **Parties :** {len(games)}
-- **Retour :** [[Dashboard|Tableau de bord Échecs]]
+> [!chess] Vue d’ensemble
+> **{len(games)} parties** · 🟢 {wins} victoires · 🟡 {draws} nulles · 🔴 {losses} défaites  
+> 🏠 [[Dashboard|Retour au tableau de bord]]
 
 ## Parties
 
 {links}
 '''
-
 
 
 def _dashboard(games: list[ChessGame]) -> str:
@@ -248,40 +281,40 @@ def _dashboard(games: list[ChessGame]) -> str:
     openings = sorted({game.eco for game in games})
     opponents = sorted({_safe(game.opponent) for game in games}, key=str.lower)
     recent = "\n".join(f"- {_game_link(game)}" for game in games[:30])
+    wins = sum(game.result == "win" for game in games)
+    draws = sum(game.result == "draw" for game in games)
+    losses = sum(game.result == "loss" for game in games)
     return f'''---
 type: chess-dashboard
+cssclasses:
+  - hanuman-chess
+  - hanuman-chess-dashboard
 games_count: {len(games)}
 tags:
   - chess/dashboard
 ---
 
-# Tableau de bord Échecs
+# ♛ Tableau de bord Échecs
 
-- **Parties :** {len(games)}
-- **Années :** {len(years)}
-- **Mois :** {len(months)}
-- **Ouvertures ECO :** {len(openings)}
-- **Adversaires :** {len(opponents)}
+> [!chess] Bibliothèque Caïssa
+> **{len(games)} parties** · **{len(openings)} ouvertures** · **{len(opponents)} adversaires**  
+> 🟢 {wins} victoires · 🟡 {draws} nulles · 🔴 {losses} défaites
 
 ## Navigation
 
-### Années
+> [!hanuman-nav] Années
+> {' · '.join(f'[[_Index/Annees/{year}|{year}]]' for year in years)}
 
-{' · '.join(f'[[_Index/Annees/{year}|{year}]]' for year in years)}
+> [!hanuman-nav] Mois
+> {' · '.join(f'[[_Index/Mois/{month}|{month}]]' for month in months)}
 
-### Mois
-
-{' · '.join(f'[[_Index/Mois/{month}|{month}]]' for month in months)}
-
-### Ouvertures
-
-{' · '.join(f'[[_Index/Ouvertures/{eco}|{eco}]]' for eco in openings)}
+> [!hanuman-nav] Ouvertures
+> {' · '.join(f'[[_Index/Ouvertures/{eco}|{eco}]]' for eco in openings)}
 
 ## Parties récentes
 
 {recent}
 '''
-
 
 
 def _write_indexes(root: Path, games: list[ChessGame]) -> int:
@@ -334,7 +367,6 @@ def _write_indexes(root: Path, games: list[ChessGame]) -> int:
     return written + 1
 
 
-
 def _reset_root(root: Path) -> None:
     root.mkdir(parents=True, exist_ok=True)
     for child in root.iterdir():
@@ -342,7 +374,6 @@ def _reset_root(root: Path) -> None:
             shutil.rmtree(child)
         else:
             child.unlink()
-
 
 
 def sync_chess_to_obsidian(limit: int = 200, reset: bool = False) -> dict[str, Any]:
@@ -386,7 +417,6 @@ def sync_chess_to_obsidian(limit: int = 200, reset: bool = False) -> dict[str, A
         "reset": reset,
         "structure": "Echecs/YYYY/MM/date - ECO - adversaire.md + _Index",
     }
-
 
 
 def main(argv: list[str] | None = None) -> None:
