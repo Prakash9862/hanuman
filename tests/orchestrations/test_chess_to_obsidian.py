@@ -310,10 +310,23 @@ def test_sync_disambiguates_colliding_games_deterministically(tmp_path, monkeypa
     assert second_state == first_state
 
 
-@pytest.mark.parametrize("game_id", ["", "   "])
-def test_select_game_paths_refuses_empty_game_id(tmp_path, game_id: str) -> None:
+@pytest.mark.parametrize("game_id", [None, "", "   "])
+def test_select_game_paths_refuses_invalid_game_id_without_writing(
+    tmp_path, game_id: str | None
+) -> None:
+    root = tmp_path / "Echecs"
+    sentinel = tmp_path / "sentinel"
+    sentinel.write_text("intact", encoding="utf-8")
+    before = {path: path.read_bytes() for path in tmp_path.rglob("*") if path.is_file()}
+
     with pytest.raises(mod.ChessGameNoteUpdateError, match="Identifiant Chess vide"):
-        mod._select_game_paths(tmp_path / "Echecs", [replace(_sample_game(), game_id=game_id)])
+        mod._select_game_paths(
+            root,
+            [replace(_sample_game(), game_id=game_id)],  # type: ignore[arg-type]
+        )
+
+    assert not root.exists()
+    assert {path: path.read_bytes() for path in tmp_path.rglob("*") if path.is_file()} == before
 
 
 def test_select_game_paths_refuses_real_suffix_collision_before_writing(tmp_path) -> None:
@@ -359,7 +372,8 @@ def test_select_game_paths_accepts_identical_duplicate_identity_in_any_order(tmp
     second = mod._select_game_paths(root, [game, game][::-1])
 
     assert first == second
-    assert len(first) == 1
+    assert len(first.games) == 1
+    assert first.protected_notes == ()
 
 
 def test_select_game_paths_refuses_contradictory_duplicate_identity(tmp_path) -> None:
@@ -378,6 +392,67 @@ def test_select_game_paths_refuses_contradictory_duplicate_identity(tmp_path) ->
                 ),
             ],
         )
+
+
+def test_historical_identity_has_three_distinct_states() -> None:
+    valid = mod._historical_identity('---\ngame_id: "g1"\n---\n')
+    absent = mod._historical_identity("---\ntype: chess-game\n---\n")
+    invalid = mod._historical_identity('---\ngame_id: "g1"\n')
+
+    assert valid == mod.HistoricalChessIdentity("valid", game_id="g1")
+    assert absent == mod.HistoricalChessIdentity("absent")
+    assert invalid.state == "invalid"
+    assert invalid.reason == "Frontmatter Chess incomplet."
+
+
+@pytest.mark.parametrize(
+    ("ambiguous_content", "reason"),
+    [
+        ("Note humaine sans frontmatter.\n", "Frontmatter Chess absent ou invalide."),
+        ('---\ngame_id: "g1"\n', "Frontmatter Chess incomplet."),
+    ],
+)
+@pytest.mark.parametrize("reverse", [False, True])
+def test_sync_protects_invalid_historical_identity_without_duplicate(
+    tmp_path,
+    monkeypatch,
+    ambiguous_content: str,
+    reason: str,
+    reverse: bool,
+) -> None:
+    root = tmp_path / "Echecs"
+    monkeypatch.setenv("CHESS_OBSIDIAN_PATH", str(root))
+    monkeypatch.setattr(mod, "ChessService", FakeChessService)
+    mod.sync_chess_to_obsidian(limit=2)
+    protected = root / "2024/01/2024-01-01 - B20 - Opponent1.md"
+    safe = root / "2024/01/2024-01-02 - B20 - Opponent2.md"
+    protected.write_text(ambiguous_content, encoding="utf-8")
+    protected_before = protected.read_bytes()
+    safe_before = safe.read_bytes()
+    received = FakeChessService().get_latest_games("prakasch", 2)
+
+    class OrderedService:
+        def get_latest_games(self, username: str, limit: int) -> list[dict]:
+            return list(reversed(received)) if reverse else received
+
+    monkeypatch.setattr(mod, "ChessService", OrderedService)
+    result = mod.sync_chess_to_obsidian(limit=2)
+
+    assert protected.read_bytes() == protected_before
+    assert safe.read_bytes() == safe_before
+    assert result["games_written"] == 1
+    assert result["games_protected"] == 1
+    assert result["protected_game_files"] == ["2024/01/2024-01-01 - B20 - Opponent1.md"]
+    assert result["protected_game_diagnostics"] == [
+        {
+            "path": "2024/01/2024-01-01 - B20 - Opponent1.md",
+            "reason": reason,
+        }
+    ]
+    assert sorted(path.name for path in (root / "2024/01").glob("*.md")) == [
+        "2024-01-01 - B20 - Opponent1.md",
+        "2024-01-02 - B20 - Opponent2.md",
+    ]
 
 
 def test_updated_game_note_refreshes_owned_frontmatter_and_preserves_human_bytes() -> None:

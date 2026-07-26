@@ -3,9 +3,9 @@ from __future__ import annotations
 import argparse
 import io
 import os
-from dataclasses import replace
+from dataclasses import dataclass, replace
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 import chess.pgn
 
@@ -76,6 +76,25 @@ class UnsafeChessResetError(RuntimeError):
 
 class ChessGameNoteUpdateError(ValueError):
     """Signale une note de partie impossible à mettre à jour sans ambiguïté."""
+
+
+@dataclass(frozen=True)
+class HistoricalChessIdentity:
+    state: Literal["valid", "absent", "invalid"]
+    game_id: str | None = None
+    reason: str | None = None
+
+
+@dataclass(frozen=True)
+class ProtectedHistoricalChessNote:
+    path: Path
+    reason: str
+
+
+@dataclass(frozen=True)
+class ChessGamePathSelection:
+    games: tuple[tuple[ChessGame, Path], ...]
+    protected_notes: tuple[ProtectedHistoricalChessNote, ...] = ()
 
 
 def _chess_root() -> Path:
@@ -275,16 +294,25 @@ def _game_note(
     return f"{_game_generated(game, analysis)}\n\n{analysis}{technical_block}\n"
 
 
-def _existing_game_id(markdown: str) -> str | None:
+def _historical_identity(markdown: str) -> HistoricalChessIdentity:
+    if not markdown.startswith("---\n"):
+        return HistoricalChessIdentity("invalid", reason="Frontmatter Chess absent ou invalide.")
     try:
-        return parse_chess_note_insight_metadata(markdown).game_id
-    except ValueError:
-        return None
+        game_id = parse_chess_note_insight_metadata(markdown).game_id
+    except ValueError as exc:
+        return HistoricalChessIdentity("invalid", reason=str(exc))
+    if game_id is None:
+        return HistoricalChessIdentity("absent")
+    if not game_id.strip():
+        return HistoricalChessIdentity("invalid", reason="Identifiant Chess historique vide.")
+    return HistoricalChessIdentity("valid", game_id=game_id.strip())
 
 
-def _select_game_paths(root: Path, games: list[ChessGame]) -> list[tuple[ChessGame, Path]]:
+def _select_game_paths(root: Path, games: list[ChessGame]) -> ChessGamePathSelection:
     identities: dict[str, ChessGame] = {}
     for game in games:
+        if not isinstance(game.game_id, str):
+            raise ChessGameNoteUpdateError("Identifiant Chess vide ou invalide.")
         normalized_id = game.game_id.strip()
         if not normalized_id:
             raise ChessGameNoteUpdateError("Identifiant Chess vide ou invalide.")
@@ -302,17 +330,30 @@ def _select_game_paths(root: Path, games: list[ChessGame]) -> list[tuple[ChessGa
         groups.setdefault(historical, []).append(game)
 
     selected: list[tuple[ChessGame, Path]] = []
+    protected: list[ProtectedHistoricalChessNote] = []
     for historical, grouped in sorted(groups.items(), key=lambda item: str(item[0])):
         unique = {game.game_id: game for game in grouped}
         ordered = [unique[game_id] for game_id in sorted(unique)]
         historical = resolve_safe_destination(root, historical)
-        existing_id = None
+        historical_identity = HistoricalChessIdentity("absent")
         if historical.exists():
             if not historical.is_file():
                 raise ChessGameNoteUpdateError(f"Destination de note non régulière : {historical}")
-            existing_id = _existing_game_id(historical.read_text(encoding="utf-8"))
+            historical_identity = _historical_identity(historical.read_text(encoding="utf-8"))
+            if historical_identity.state == "invalid":
+                protected.append(
+                    ProtectedHistoricalChessNote(
+                        historical,
+                        historical_identity.reason or "Note Chess historique invalide.",
+                    )
+                )
+                continue
 
-        base_id = existing_id if existing_id in unique else None
+        base_id = (
+            historical_identity.game_id
+            if historical_identity.state == "valid" and historical_identity.game_id in unique
+            else None
+        )
         if not historical.exists() and ordered:
             base_id = ordered[0].game_id
 
@@ -325,10 +366,11 @@ def _select_game_paths(root: Path, games: list[ChessGame]) -> list[tuple[ChessGa
             if path.exists():
                 if not path.is_file():
                     raise ChessGameNoteUpdateError(f"Destination de note non régulière : {path}")
-                stored_id = _existing_game_id(path.read_text(encoding="utf-8"))
-                if stored_id != game.game_id:
+                stored_identity = _historical_identity(path.read_text(encoding="utf-8"))
+                if stored_identity.state != "valid" or stored_identity.game_id != game.game_id:
                     raise ChessGameNoteUpdateError(
-                        f"Collision d’identité Chess : {path} contient {stored_id!r}, "
+                        f"Collision d’identité Chess : {path} contient "
+                        f"{stored_identity.game_id!r} ({stored_identity.state}), "
                         f"partie reçue {game.game_id!r}."
                     )
             selected.append((replace(game, note_filename=path.name), path))
@@ -341,7 +383,7 @@ def _select_game_paths(root: Path, games: list[ChessGame]) -> list[tuple[ChessGa
                 f"{previous_id!r} et {game.game_id!r}."
             )
         destinations[path] = game.game_id
-    return selected
+    return ChessGamePathSelection(tuple(selected), tuple(protected))
 
 
 def _updated_game_note(existing: str, game: ChessGame) -> str | None:
@@ -391,10 +433,14 @@ def sync_chess_to_obsidian(limit: int = 200, reset: bool = False) -> dict[str, A
 
     written = 0
     preserved_analyses = 0
-    protected_notes: list[str] = []
-    protected_diagnostics: list[dict[str, str]] = []
+    selection = _select_game_paths(root, games)
+    protected_notes = [str(item.path.relative_to(root)) for item in selection.protected_notes]
+    protected_diagnostics = [
+        {"path": str(item.path.relative_to(root)), "reason": item.reason}
+        for item in selection.protected_notes
+    ]
     planned_notes: list[tuple[Path, str]] = []
-    for game, path in _select_game_paths(root, games):
+    for game, path in selection.games:
         if path.exists():
             previous_markdown = path.read_text(encoding="utf-8")
             try:
