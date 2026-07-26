@@ -13,7 +13,10 @@ from hanuman.services.chess_analysis_service import (
     StockfishAnalyzer,
 )
 
-CHESS_USERNAME = "prakasch"
+CHESS_USERNAME = os.environ.get("CHESS_COM_USERNAME", "").strip()
+if not CHESS_USERNAME:
+    raise RuntimeError("CHESS_COM_USERNAME manquant dans l'environnement")
+
 PGN_PATTERN = re.compile(r"```pgn\s*(.*?)```", re.DOTALL | re.IGNORECASE)
 START_MARKER = "<!-- HANUMAN_CHESS_ANALYSIS_START -->"
 END_MARKER = "<!-- HANUMAN_CHESS_ANALYSIS_END -->"
@@ -36,7 +39,17 @@ def _chess_root() -> Path:
 
 def extract_pgn(markdown: str) -> str | None:
     match = PGN_PATTERN.search(markdown)
-    return match.group(1).strip() if match else None
+    if not match:
+        return None
+
+    raw_pgn = match.group(1).strip()
+
+    # Les PGN importés dans Obsidian peuvent être placés dans une citation
+    # Markdown, ce qui préfixe chaque ligne par "> ". Ce préfixe ne fait pas
+    # partie du format PGN et doit être retiré avant le parsing python-chess.
+    cleaned_lines = [re.sub(r"^\s*>\s?", "", line) for line in raw_pgn.splitlines()]
+
+    return "\n".join(cleaned_lines).strip()
 
 
 def _move_label(move: Any) -> str:
