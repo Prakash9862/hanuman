@@ -201,7 +201,7 @@ def test_analyse_note_persists_structured_insights_atomically(
     personal_notes = """## Notes personnelles
 
 - Garder [[ce lien]].
-- Préserver les accents : échec, Caïssa.
+- Préserver les accents : échec, défense sicilienne.
 """
     original = f"""---
 type: chess-game

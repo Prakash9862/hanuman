@@ -113,12 +113,17 @@ def test_write_chess_indexes_generates_adr_views(tmp_path: Path) -> None:
     assert dashboard.startswith("---\ntype: chess-dashboard\ncssclasses:\n")
     assert "  - hanuman-chess-dashboard\n" in dashboard
     assert "# ♛ Tableau de bord Échecs" in dashboard
-    assert "> [!chess] Bibliothèque Caïssa" in dashboard
-    assert "> **2 parties** · **1 ouvertures** · **2 adversaires**  " in dashboard
+    assert "> [!chess] Résumé global" in dashboard
+    assert "> **2 parties**" in dashboard
     assert "> 🟢 1 victoires · 🟡 0 nulles · 🔴 1 défaites" in dashboard
     assert "**0 parties analysées sur 2**" in dashboard
-    assert "🟡 2 en attente · ⚠️ 0 illisibles" in dashboard
-    assert "`??` 0 gaffes · `!!` 0 excellents coups" in dashboard
+    assert "⏳ 2 en attente · ⚠️ 0 illisibles" in dashboard
+    assert "## Tendances actives" in dashboard
+    assert "### Signaux émergents" in dashboard
+    assert "### Tendances confirmées" in dashboard
+    assert "### Synthèses durables actives" in dashboard
+    assert "## Dernières parties analysées\n\nAucune." in dashboard
+    assert "## Avertissements de cohérence" in dashboard
     assert "[[Echecs/_Index/Profil échiquéen|Profil échiquéen]]" in dashboard
     assert "[[Echecs/_Index/Ouvertures/B20|B20]]" in dashboard
     assert "[[Echecs/_Index/Motifs/Index|Motifs]]" in dashboard
@@ -128,7 +133,7 @@ def test_write_chess_indexes_generates_adr_views(tmp_path: Path) -> None:
     assert "_Index/Annees" not in dashboard
     assert "_Index/Mois" not in dashboard
     assert "_Index/Adversaires" not in dashboard
-    assert dashboard.index("2024-01-02 · B20") < dashboard.index("2024-01-01 · B20")
+    assert "## Parties récentes" not in dashboard
 
     opening = (root / "_Index/Ouvertures/B20.md").read_text(encoding="utf-8")
     assert "type: chess-index" in opening
@@ -145,7 +150,9 @@ def test_write_chess_indexes_generates_adr_views(tmp_path: Path) -> None:
     assert "  - hanuman-chess-profile" in profile
     assert "# 👤 Profil échiquéen" in profile
     assert "**2 parties** · 🟢 1 victoires · 🟡 0 nulles · 🔴 1 défaites" in profile
-    assert "⚪ 1 avec les Blancs · ⚫ 1 avec les Noirs" in profile
+    assert "**Avec les Blancs :** 1 parties · 1 victoires · 0 nulles · 0 défaites" in profile
+    assert "**Avec les Noirs :** 1 parties · 0 victoires · 0 nulles · 1 défaites" in profile
+    assert "**Analyse :** 0 analysées · 2 en attente · 0 illisibles" in profile
     assert "## Cadences principales\n\n**blitz** (2)" in profile
     assert "## Ouvertures principales\n\n" "**[[Echecs/_Index/Ouvertures/B20|B20]]** (2)" in profile
     assert "<!-- HANUMAN:GENERATED:START -->" in profile
@@ -155,13 +162,17 @@ def test_write_chess_indexes_generates_adr_views(tmp_path: Path) -> None:
     assert "**0 parties analysées sur 2** · **0.0 %** de couverture" in profile
     assert "🟡 2 en attente · ⚠️ 0 illisibles" in profile
     assert "**Perte moyenne globale :** indisponible" in profile
+    assert "## Motifs récurrents" in profile
+    assert "## Gaffes récurrentes" in profile
+    assert "## Excellents coups récurrents" in profile
+    assert "## Opportunités manquées récurrentes" in profile
 
     for directory in ("Motifs", "Gaffes", "Excellents coups", "Opportunités"):
         content = (root / "_Index" / directory / "Index.md").read_text(encoding="utf-8")
         assert f"# {directory}" in content
         assert "[[Echecs/_Index/Dashboard|Retour au tableau de bord]]" in content
         if directory == "Motifs":
-            assert "Aucun détecteur de motifs échiquéens" in content
+            assert "aucun détecteur de motifs échiquéens déterministe" in content
         else:
             assert "Groupes calculés exclusivement depuis les blocs ChessInsight" in content
 
@@ -190,6 +201,8 @@ def test_write_chess_indexes_preserves_unknown_human_file(tmp_path: Path) -> Non
 def test_write_chess_indexes_preserves_legacy_files(tmp_path: Path) -> None:
     root = tmp_path / "Echecs"
     legacy_files = {
+        root / "Dashboard.md": "Dashboard historique humain",
+        root / "Openings/B20.md": "Ancienne ouverture humaine",
         root / "_Index/Annees/2024.md": "Index annuel historique",
         root / "_Index/Mois/2024-01.md": "Index mensuel historique",
         root / "_Index/Adversaires/Opponent1.md": "Index adversaire historique",
@@ -202,6 +215,11 @@ def test_write_chess_indexes_preserves_legacy_files(tmp_path: Path) -> None:
 
     for path, content in legacy_files.items():
         assert path.read_text(encoding="utf-8") == content
+    dashboard = (root / "_Index/Dashboard.md").read_text(encoding="utf-8")
+    for path in legacy_files:
+        assert f"`{path.relative_to(root)}`" in dashboard
+    assert "[[Echecs/Dashboard" not in dashboard
+    assert "[[Echecs/Openings/" not in dashboard
 
 
 def test_write_chess_indexes_preserves_profile_personal_notes(tmp_path: Path) -> None:
@@ -540,7 +558,28 @@ def test_write_chess_indexes_integrates_thresholds_without_touching_sources(
         root / "_Index/Gaffes/Index.md"
     ).read_text(encoding="utf-8")
     assert human_summary.read_text(encoding="utf-8") == "Synthèse humaine préservée"
+    dashboard = (root / "_Index/Dashboard.md").read_text(encoding="utf-8")
+    profile = (root / "_Index/Profil échiquéen.md").read_text(encoding="utf-8")
+    assert "### Synthèses durables actives" in dashboard
+    assert "**Gaffes — En ouverture** — 5 parties uniques" in dashboard
+    assert "**Opportunités — Excellents coups manqués** — 5 parties uniques" in dashboard
+    assert "### Tendances confirmées" in dashboard
+    assert "**Gaffes — Milieu de jeu ou finale** — 4 parties uniques" in dashboard
+    assert "### Signaux émergents" in dashboard
+    assert "**Excellents coups — En ouverture** — 3 parties uniques" in dashboard
+    assert "## Gaffes récurrentes" in profile
+    assert "**Gaffes — En ouverture** — 5 parties uniques" in profile
+    assert "## Opportunités manquées récurrentes" in profile
     assert "Annotation durable avec [[un lien]]." in blunder.read_text(encoding="utf-8")
     assert legacy.read_text(encoding="utf-8") == "Legacy intact"
     assert {path: path.read_bytes() for path in source_bytes} == source_bytes
     assert second_views == first_views
+
+    write_chess_indexes(root, games[:2])
+
+    regressed_dashboard = (root / "_Index/Dashboard.md").read_text(encoding="utf-8")
+    regressed_summary = blunder.read_text(encoding="utf-8")
+    assert "## Synthèses inactives" in regressed_dashboard
+    assert "Inactive — seuil actuellement non atteint" in regressed_dashboard
+    assert "Inactive — seuil actuellement non atteint" in regressed_summary
+    assert "Annotation durable avec [[un lien]]." in regressed_summary

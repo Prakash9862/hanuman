@@ -22,7 +22,20 @@ class ChessViewRebuildReport:
     unknown_schema_versions: int
     duplicates_ignored: int
     human_files_protected: int
+    legacy_files: tuple[str, ...]
     errors: tuple[str, ...]
+
+
+def _legacy_files(root: Path) -> tuple[str, ...]:
+    paths = [root / "Dashboard.md"]
+    openings = root / "Openings"
+    if openings.is_dir() and not openings.is_symlink():
+        paths.extend(sorted(openings.glob("*.md")))
+    for directory in ("Années", "Annees", "Mois", "Adversaires"):
+        legacy_directory = root / "_Index" / directory
+        if legacy_directory.is_dir() and not legacy_directory.is_symlink():
+            paths.extend(sorted(legacy_directory.rglob("*.md")))
+    return tuple(str(path.relative_to(root)) for path in paths if path.is_file())
 
 
 def rebuild_chess_views(root: Path) -> ChessViewRebuildReport:
@@ -69,6 +82,7 @@ def rebuild_chess_views(root: Path) -> ChessViewRebuildReport:
         unknown_schema_versions=diagnostics.versions_unknown,
         duplicates_ignored=diagnostics.duplicates_ignored,
         human_files_protected=write_report.human_files_protected,
+        legacy_files=_legacy_files(root),
         errors=tuple(
             f"{item.path.relative_to(root)} : {item.reason}" for item in read_result.ignored_notes
         ),

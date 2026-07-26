@@ -112,6 +112,8 @@ def test_command_rebuilds_views_reports_and_preserves_every_source(
     assert '"notes_usable": 1' in first_output
     assert '"human_files_protected": 1' in first_output
     assert '"insight_blocks_absent": 1' in first_output
+    assert '"legacy_files": [' in first_output
+    assert '"_Index/Annees/sentinel.md"' in first_output
     assert first_output == second_output
     assert first_files == second_files
     assert {path: _digest(path) for path in before} == before
