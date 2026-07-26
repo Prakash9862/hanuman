@@ -6,6 +6,7 @@ from hanuman.main import app
 
 client = TestClient(app)
 
+
 def test_list_connectors() -> None:
     response = client.get("/connectors")
 
@@ -14,10 +15,7 @@ def test_list_connectors() -> None:
 
     assert payload["total"] == len(payload["connectors"])
 
-    connector_ids = {
-        connector["id"]
-        for connector in payload["connectors"]
-    }
+    connector_ids = {connector["id"] for connector in payload["connectors"]}
 
     assert {
         "gmail",

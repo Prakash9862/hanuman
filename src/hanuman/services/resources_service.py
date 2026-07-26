@@ -126,7 +126,9 @@ def search_gallica(query: str, max_results: int = 10) -> list[dict[str, Any]]:
         creators = [element.text for element in record_data.iter(f"{dc}creator") if element.text]
         dates = [element.text for element in record_data.iter(f"{dc}date") if element.text]
         types = [element.text for element in record_data.iter(f"{dc}type") if element.text]
-        identifiers = [element.text for element in record_data.iter(f"{dc}identifier") if element.text]
+        identifiers = [
+            element.text for element in record_data.iter(f"{dc}identifier") if element.text
+        ]
         ark = next((value for value in identifiers if "gallica.bnf.fr/ark:" in value), None)
         records.append(
             {

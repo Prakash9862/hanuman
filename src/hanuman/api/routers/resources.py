@@ -118,7 +118,11 @@ def maps_directions(location: str = Query(min_length=1)) -> dict[str, object]:
 @router.get("/programs/status")
 def programs_status() -> dict[str, object]:
     programs = inspect_programs()
-    return {"ok": all(item["ok"] for item in programs), "count": len(programs), "programs": programs}
+    return {
+        "ok": all(item["ok"] for item in programs),
+        "count": len(programs),
+        "programs": programs,
+    }
 
 
 @router.get("/programs/{program_id}/status")
