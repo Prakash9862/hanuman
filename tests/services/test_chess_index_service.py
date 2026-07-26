@@ -1,7 +1,11 @@
 import datetime as dt
 from pathlib import Path
 
-from hanuman.models.chess import ChessGame
+from hanuman.models.chess import ChessGame, chess_game_path
+from hanuman.services.chess_analysis_summary_service import (
+    ANALYSIS_END,
+    ANALYSIS_START,
+)
 from hanuman.services.chess_index_service import write_chess_indexes
 
 
@@ -42,6 +46,39 @@ def _markdown_files(root: Path) -> dict[Path, str]:
     }
 
 
+def _analysed_note(
+    *,
+    blunders: int = 2,
+    mistakes: int = 3,
+    dubious: int = 4,
+    excellent: int = 5,
+    missed: int = 6,
+    average_loss: float = 42.5,
+) -> str:
+    return f"""# Partie
+
+{ANALYSIS_START}
+## Analyse Stockfish
+
+### Ton bilan
+
+- **Moteur :** Stockfish 17
+- **Profondeur :** 18
+- **Perte moyenne :** {average_loss} cp par coup joué
+- **Pire coup :** 12.Dxe4??
+- **Moment de bascule :** 12.Dxe4??
+
+| Qualité | Nombre |
+|---|---:|
+| `??` Gaffes | {blunders} |
+| `?` Erreurs | {mistakes} |
+| `?!` Coups douteux | {dubious} |
+| `!!` Excellents coups | {excellent} |
+| Excellents coups manqués | {missed} |
+{ANALYSIS_END}
+"""
+
+
 def test_write_chess_indexes_generates_adr_views(tmp_path: Path) -> None:
     root = tmp_path / "Echecs"
 
@@ -70,6 +107,9 @@ def test_write_chess_indexes_generates_adr_views(tmp_path: Path) -> None:
     assert "> [!chess] Bibliothèque Caïssa" in dashboard
     assert "> **2 parties** · **1 ouvertures** · **2 adversaires**  " in dashboard
     assert "> 🟢 1 victoires · 🟡 0 nulles · 🔴 1 défaites" in dashboard
+    assert "**0 parties analysées sur 2**" in dashboard
+    assert "🟡 2 en attente · ⚠️ 0 illisibles" in dashboard
+    assert "`??` 0 gaffes · `!!` 0 excellents coups" in dashboard
     assert "[[Echecs/_Index/Profil échiquéen|Profil échiquéen]]" in dashboard
     assert "[[Echecs/_Index/Ouvertures/B20|B20]]" in dashboard
     assert "[[Echecs/_Index/Motifs/Index|Motifs]]" in dashboard
@@ -102,6 +142,10 @@ def test_write_chess_indexes_generates_adr_views(tmp_path: Path) -> None:
     assert "<!-- HANUMAN:GENERATED:START -->" in profile
     assert "<!-- HANUMAN:GENERATED:END -->" in profile
     assert "## Notes personnelles" in profile
+    assert "## Analyse Stockfish globale" in profile
+    assert "**0 parties analysées sur 2** · **0.0 %** de couverture" in profile
+    assert "🟡 2 en attente · ⚠️ 0 illisibles" in profile
+    assert "**Perte moyenne globale :** indisponible" in profile
 
     for directory in ("Motifs", "Gaffes", "Excellents coups", "Opportunités"):
         content = (root / "_Index" / directory / "Index.md").read_text(encoding="utf-8")
@@ -152,17 +196,65 @@ def test_write_chess_indexes_preserves_profile_personal_notes(tmp_path: Path) ->
     root = tmp_path / "Echecs"
     write_chess_indexes(root, _games())
     profile = root / "_Index/Profil échiquéen.md"
-    annotated = profile.read_text(encoding="utf-8").replace(
-        "Cette section sera préservée lors des prochaines générations.",
-        "Travailler mes finales de tours.",
+    personal_notes = """## Notes personnelles
+
+### Priorités à revoir
+
+- Travailler mes finales de tours.
+- Revoir [[Echecs/_Index/Ouvertures/B20|la Sicilienne]].
+
+Éviter les décisions précipitées avec les pièces légères.
+"""
+    annotated = (
+        profile.read_text(encoding="utf-8").split("## Notes personnelles", 1)[0] + personal_notes
     )
     profile.write_text(annotated, encoding="utf-8")
+    before_personal = profile.read_text(encoding="utf-8").split("## Notes personnelles", 1)[1]
 
+    write_chess_indexes(root, _games()[:1])
     write_chess_indexes(root, _games()[:1])
 
     updated = profile.read_text(encoding="utf-8")
+    after_personal = updated.split("## Notes personnelles", 1)[1]
     assert "**1 parties**" in updated
-    assert "Travailler mes finales de tours." in updated
+    assert after_personal == before_personal
+
+
+def test_write_chess_indexes_aggregates_existing_notes_without_modifying_them(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "Echecs"
+    games = _games()
+    analysed_path = chess_game_path(root, games[0])
+    unreadable_path = chess_game_path(root, games[1])
+    analysed_path.parent.mkdir(parents=True)
+    analysed_path.write_text(_analysed_note(), encoding="utf-8")
+    unreadable_path.write_text(
+        f"{ANALYSIS_START}\n### Ton bilan\nbloc incomplet\n{ANALYSIS_END}",
+        encoding="utf-8",
+    )
+    before = {
+        analysed_path: analysed_path.read_bytes(),
+        unreadable_path: unreadable_path.read_bytes(),
+    }
+
+    write_chess_indexes(root, games)
+
+    profile = (root / "_Index/Profil échiquéen.md").read_text(encoding="utf-8")
+    dashboard = (root / "_Index/Dashboard.md").read_text(encoding="utf-8")
+    assert "**1 parties analysées sur 2** · **50.0 %** de couverture" in profile
+    assert "🟡 0 en attente · ⚠️ 1 illisibles" in profile
+    assert "| `??` Gaffes | 2 | 2.00 |" in profile
+    assert "| `?` Erreurs | 3 | 3.00 |" in profile
+    assert "| `?!` Coups douteux | 4 | 4.00 |" in profile
+    assert "| `!!` Excellents coups | 5 | 5.00 |" in profile
+    assert "| Excellents coups manqués | 6 | 6.00 |" in profile
+    assert "**Perte moyenne globale :** 42.5 cp par coup joué" in profile
+    assert "**1 parties analysées sur 2**" in dashboard
+    assert "`??` 2 gaffes · `!!` 5 excellents coups" in dashboard
+    assert {path: path.read_bytes() for path in before} == before
+    assert list(root.glob("_Index/Gaffes/*.md")) == [root / "_Index/Gaffes/Index.md"]
+    assert list(root.glob("_Index/Motifs/*.md")) == [root / "_Index/Motifs/Index.md"]
 
 
 def test_write_chess_indexes_does_not_overwrite_unmarked_profile(

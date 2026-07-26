@@ -1,33 +1,30 @@
 from __future__ import annotations
 
-import re
 from collections import Counter, defaultdict
 from pathlib import Path
 
-from hanuman.models.chess import ChessGame
+from hanuman.models.chess import (
+    ChessGame,
+    chess_game_filename,
+    safe_chess_filename_part,
+)
 from hanuman.services.atomic_write_service import atomic_write_text
+from hanuman.services.chess_analysis_summary_service import (
+    ChessProfileStats,
+    build_chess_profile_stats,
+)
 
 GENERATED_START = "<!-- HANUMAN:GENERATED:START -->"
 GENERATED_END = "<!-- HANUMAN:GENERATED:END -->"
 THEMATIC_DIRECTORIES = ("Motifs", "Gaffes", "Excellents coups", "Opportunités")
 
 
-def _safe(value: str) -> str:
-    value = re.sub(r"[^\w\-. ]+", "", value, flags=re.UNICODE).strip()
-    return re.sub(r"\s+", " ", value) or "partie"
-
-
 def _yaml_quote(value: str) -> str:
     return '"' + value.replace("\\", "\\\\").replace('"', '\\"') + '"'
 
 
-def _filename(game: ChessGame) -> str:
-    date = game.end_time.strftime("%Y-%m-%d")
-    return f"{date} - {game.eco} - {_safe(game.opponent)}.md"
-
-
 def _game_link(game: ChessGame) -> str:
-    path = f"Echecs/{game.year}/{game.end_time.strftime('%m')}/{_filename(game)[:-3]}"
+    path = f"Echecs/{game.year}/{game.end_time.strftime('%m')}/" f"{chess_game_filename(game)[:-3]}"
     label = (
         f"{game.end_time.strftime('%Y-%m-%d')} · {game.eco} · " f"{game.opponent} · {game.result}"
     )
@@ -64,9 +61,9 @@ tags:
 '''
 
 
-def _dashboard(games: list[ChessGame]) -> str:
+def _dashboard(games: list[ChessGame], stats: ChessProfileStats) -> str:
     openings = sorted({game.eco for game in games})
-    opponents = sorted({_safe(game.opponent) for game in games}, key=str.lower)
+    opponents = sorted({safe_chess_filename_part(game.opponent) for game in games}, key=str.lower)
     recent = "\n".join(f"- {_game_link(game)}" for game in games[:30])
     wins = sum(game.result == "win" for game in games)
     draws = sum(game.result == "draw" for game in games)
@@ -86,6 +83,10 @@ tags:
 > [!chess] Bibliothèque Caïssa
 > **{len(games)} parties** · **{len(openings)} ouvertures** · **{len(opponents)} adversaires**  
 > 🟢 {wins} victoires · 🟡 {draws} nulles · 🔴 {losses} défaites
+
+> [!stockfish] Couverture Stockfish
+> **{stats.games_analysed} parties analysées sur {stats.games_total}** · 🟡 {stats.games_pending} en attente · ⚠️ {stats.games_unreadable} illisibles{"  "}
+> `??` {stats.total_blunders} gaffes · `!!` {stats.total_excellent} excellents coups · 👤 [[Echecs/_Index/Profil échiquéen|Voir le profil détaillé]]
 
 ## Navigation
 
@@ -110,7 +111,7 @@ def _ranked_counts(values: list[str]) -> str:
     )
 
 
-def _profile_generated(games: list[ChessGame]) -> str:
+def _profile_generated(games: list[ChessGame], stats: ChessProfileStats) -> str:
     wins = sum(game.result == "win" for game in games)
     draws = sum(game.result == "draw" for game in games)
     losses = sum(game.result == "loss" for game in games)
@@ -133,10 +134,30 @@ def _profile_generated(games: list[ChessGame]) -> str:
 ## Ouvertures principales
 
 {_ranked_counts([f"[[Echecs/_Index/Ouvertures/{game.eco}|{game.eco}]]" for game in games])}
+
+## Analyse Stockfish globale
+
+> [!stockfish] Couverture de l’analyse
+> **{stats.games_analysed} parties analysées sur {stats.games_total}** · **{stats.analysis_coverage_percent:.1f} %** de couverture{"  "}
+> 🟡 {stats.games_pending} en attente · ⚠️ {stats.games_unreadable} illisibles
+
+| Mesure | Total | Moyenne par partie analysée |
+|---|---:|---:|
+| `??` Gaffes | {stats.total_blunders} | {stats.average_blunders_per_analysed_game:.2f} |
+| `?` Erreurs | {stats.total_mistakes} | {stats.average_mistakes_per_analysed_game:.2f} |
+| `?!` Coups douteux | {stats.total_dubious} | {stats.average_dubious_per_analysed_game:.2f} |
+| `!!` Excellents coups | {stats.total_excellent} | {stats.average_excellent_per_analysed_game:.2f} |
+| Excellents coups manqués | {stats.total_missed_excellent} | {stats.average_missed_excellent_per_analysed_game:.2f} |
+
+**Perte moyenne globale :** {_format_average_loss(stats.average_loss_cp)}
 {GENERATED_END}"""
 
 
-def _profile(games: list[ChessGame]) -> str:
+def _format_average_loss(value: float | None) -> str:
+    return f"{value:.1f} cp par coup joué" if value is not None else "indisponible"
+
+
+def _profile(games: list[ChessGame], stats: ChessProfileStats) -> str:
     return f"""---
 type: chess-profile
 cssclasses:
@@ -147,7 +168,7 @@ tags:
   - chess/profile
 ---
 
-{_profile_generated(games)}
+{_profile_generated(games, stats)}
 
 ## Notes personnelles
 
@@ -210,6 +231,7 @@ def write_chess_indexes(root: Path, games: list[ChessGame]) -> int:
     """Génère les vues ADR-0005 sans supprimer les fichiers existants."""
 
     index_root = root / "_Index"
+    stats = build_chess_profile_stats(root, games)
 
     by_opening: dict[str, list[ChessGame]] = defaultdict(list)
 
@@ -228,12 +250,12 @@ def write_chess_indexes(root: Path, games: list[ChessGame]) -> int:
         )
         written += 1
 
-    atomic_write_text(index_root / "Dashboard.md", _dashboard(games))
+    atomic_write_text(index_root / "Dashboard.md", _dashboard(games, stats))
     written += 1
     if _write_protected(
         index_root / "Profil échiquéen.md",
-        _profile(games),
-        _profile_generated(games),
+        _profile(games, stats),
+        _profile_generated(games, stats),
     ):
         written += 1
 

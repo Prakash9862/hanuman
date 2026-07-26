@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import datetime as dt
+import re
 from dataclasses import dataclass
+from pathlib import Path
 
 
 @dataclass(frozen=True)
@@ -29,3 +31,17 @@ class ChessGame:
     @property
     def month(self) -> str:
         return self.end_time.strftime("%Y-%m")
+
+
+def safe_chess_filename_part(value: str) -> str:
+    value = re.sub(r"[^\w\-. ]+", "", value, flags=re.UNICODE).strip()
+    return re.sub(r"\s+", " ", value) or "partie"
+
+
+def chess_game_filename(game: ChessGame) -> str:
+    date = game.end_time.strftime("%Y-%m-%d")
+    return f"{date} - {game.eco} - {safe_chess_filename_part(game.opponent)}.md"
+
+
+def chess_game_path(root: Path, game: ChessGame) -> Path:
+    return root / game.year / game.end_time.strftime("%m") / chess_game_filename(game)

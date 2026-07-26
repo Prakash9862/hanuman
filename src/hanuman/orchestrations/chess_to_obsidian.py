@@ -3,13 +3,17 @@ from __future__ import annotations
 import argparse
 import io
 import os
-import re
 from pathlib import Path
 from typing import Any
 
 import chess.pgn
 
-from hanuman.models.chess import ChessGame
+from hanuman.models.chess import (
+    ChessGame,
+    chess_game_filename,
+    chess_game_path,
+    safe_chess_filename_part,
+)
 from hanuman.services.atomic_write_service import atomic_write_text
 from hanuman.services.chess_index_service import write_chess_indexes
 from hanuman.services.core.chess_service import ChessService
@@ -34,11 +38,6 @@ def _chess_root() -> Path:
         return (Path(configured_vault).expanduser() / "Echecs").resolve()
 
     return OBSIDIAN_ROOT.expanduser().resolve()
-
-
-def _safe(value: str) -> str:
-    value = re.sub(r"[^\w\-. ]+", "", value, flags=re.UNICODE).strip()
-    return re.sub(r"\s+", " ", value) or "partie"
 
 
 def _yaml_quote(value: str) -> str:
@@ -76,11 +75,6 @@ def _headers_table(headers: dict[str, str]) -> str:
         clean = value.replace("|", "\\|").replace("\n", " ")
         rows.append(f"| **{key}** | {clean} |")
     return "\n".join(rows)
-
-
-def _filename(game: ChessGame) -> str:
-    date = game.end_time.strftime("%Y-%m-%d")
-    return f"{date} - {game.eco} - {_safe(game.opponent)}.md"
 
 
 def _default_analysis() -> str:
@@ -165,7 +159,7 @@ tags:
   - chess/game
   - chess/result/{game.result}
   - chess/color/{game.color}
-  - chess/time/{_safe(game.time_control).replace(' ', '-').lower()}
+  - chess/time/{safe_chess_filename_part(game.time_control).replace(' ', '-').lower()}
   - chess/opening/{game.eco}
   - chess/year/{game.year}
   - chess/month/{game.month}
@@ -230,9 +224,9 @@ def sync_chess_to_obsidian(limit: int = 200, reset: bool = False) -> dict[str, A
     written = 0
     preserved_analyses = 0
     for game in games:
-        month_dir = root / game.end_time.strftime("%Y") / game.end_time.strftime("%m")
+        month_dir = chess_game_path(root, game).parent
         month_dir.mkdir(parents=True, exist_ok=True)
-        path = month_dir / _filename(game)
+        path = month_dir / chess_game_filename(game)
         previous_analysis = None
         if path.exists():
             previous_analysis = _extract_analysis(path.read_text(encoding="utf-8"))
