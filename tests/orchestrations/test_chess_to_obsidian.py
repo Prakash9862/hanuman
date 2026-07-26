@@ -208,6 +208,26 @@ def test_sync_preserves_legacy_indexes(tmp_path, monkeypatch) -> None:
     assert legacy.read_text(encoding="utf-8") == "Annotation humaine"
 
 
+def test_sync_delegates_view_generation(tmp_path, monkeypatch) -> None:
+    obsidian_root = tmp_path / "Echecs"
+    received: list[tuple[object, list[mod.ChessGame]]] = []
+    monkeypatch.setenv("CHESS_OBSIDIAN_PATH", str(obsidian_root))
+    monkeypatch.setattr(mod, "ChessService", FakeChessService)
+
+    def fake_write_indexes(root, games):
+        received.append((root, games))
+        return 17
+
+    monkeypatch.setattr(mod, "write_chess_indexes", fake_write_indexes)
+
+    result = mod.sync_chess_to_obsidian(limit=1)
+
+    assert len(received) == 1
+    assert received[0][0] == obsidian_root
+    assert [game.game_id for game in received[0][1]] == ["g2"]
+    assert result["index_files_written"] == 17
+
+
 def test_sync_refuses_reset_before_calling_chess_service(monkeypatch) -> None:
     monkeypatch.setattr(
         mod,
