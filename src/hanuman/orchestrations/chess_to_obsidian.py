@@ -17,11 +17,13 @@ from hanuman.models.chess import (
 )
 from hanuman.services.atomic_write_service import atomic_write_text
 from hanuman.services.chess_generated_frontmatter_service import (
+    CHESS_MANAGED_TAG_PREFIXES,
     ChessGeneratedFrontmatterError,
     update_generated_frontmatter,
 )
 from hanuman.services.chess_index_service import write_chess_indexes
 from hanuman.services.chess_insight_storage_service import (
+    ChessInsightBlockError,
     extract_insight_block,
     parse_chess_note_insight_metadata,
 )
@@ -359,6 +361,7 @@ def _updated_game_note(existing: str, game: ChessGame) -> str | None:
             generated_note,
             owned_keys=GAME_FRONTMATTER_KEYS,
             label="de note Chess",
+            managed_tag_prefixes=CHESS_MANAGED_TAG_PREFIXES,
         )
         updated = replace_delimited_zone(
             updated_frontmatter,
@@ -389,17 +392,31 @@ def sync_chess_to_obsidian(limit: int = 200, reset: bool = False) -> dict[str, A
     written = 0
     preserved_analyses = 0
     protected_notes: list[str] = []
+    protected_diagnostics: list[dict[str, str]] = []
     planned_notes: list[tuple[Path, str]] = []
     for game, path in _select_game_paths(root, games):
         if path.exists():
             previous_markdown = path.read_text(encoding="utf-8")
-            previous_analysis = _extract_analysis(previous_markdown)
+            try:
+                previous_analysis = _extract_analysis(previous_markdown)
+                updated = _updated_game_note(previous_markdown, game)
+            except (ChessGameNoteUpdateError, ChessInsightBlockError, UnicodeError) as exc:
+                relative_path = str(path.relative_to(root))
+                protected_notes.append(relative_path)
+                protected_diagnostics.append({"path": relative_path, "reason": str(exc)})
+                continue
+            if updated is None:
+                relative_path = str(path.relative_to(root))
+                protected_notes.append(relative_path)
+                protected_diagnostics.append(
+                    {
+                        "path": relative_path,
+                        "reason": "Zone de partie Hanuman absente ; migration sûre requise.",
+                    }
+                )
+                continue
             if previous_analysis:
                 preserved_analyses += 1
-            updated = _updated_game_note(previous_markdown, game)
-            if updated is None:
-                protected_notes.append(str(path.relative_to(root)))
-                continue
             planned_notes.append((path, updated))
         else:
             planned_notes.append((path, _game_note(game)))
@@ -419,6 +436,7 @@ def sync_chess_to_obsidian(limit: int = 200, reset: bool = False) -> dict[str, A
         "games_written": written,
         "games_protected": len(protected_notes),
         "protected_game_files": protected_notes,
+        "protected_game_diagnostics": protected_diagnostics,
         "vault_games_usable": read_result.notes_usable,
         "vault_notes_ignored": read_result.notes_ignored,
         "analyses_preserved": preserved_analyses,

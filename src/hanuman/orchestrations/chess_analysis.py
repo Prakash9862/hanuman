@@ -45,15 +45,20 @@ class ChessAnalysisBlockError(ValueError):
 def _vault_root() -> Path:
     configured = os.environ.get("OBSIDIAN_VAULT_PATH")
     if configured:
-        return Path(configured).expanduser().resolve()
-    return Path("/home/vince/Prakash/projets/Obsidian_Priv-").resolve()
+        return Path(configured).expanduser()
+    return Path("/home/vince/Prakash/projets/Obsidian_Priv-")
 
 
 def _chess_root() -> Path:
     configured = os.environ.get("CHESS_OBSIDIAN_PATH")
     if configured:
-        return Path(configured).expanduser().resolve()
+        return Path(configured).expanduser()
     return _vault_root() / "Echecs"
+
+
+def _validated_chess_root() -> Path:
+    root = _chess_root()
+    return resolve_safe_destination(root, root)
 
 
 def extract_pgn(markdown: str) -> str | None:
@@ -265,7 +270,8 @@ def analyse_note(
     *,
     root: Path | None = None,
 ) -> GameAnalysis | None:
-    markdown = path.read_text(encoding="utf-8")
+    safe_path = resolve_safe_destination(root or path.parent, path)
+    markdown = safe_path.read_text(encoding="utf-8")
     pgn = extract_pgn(markdown)
     if not pgn:
         return None
@@ -287,7 +293,6 @@ def analyse_note(
         insights=insights,
     )
     with_analysis = inject_analysis(markdown, render_analysis_markdown(analysis))
-    safe_path = resolve_safe_destination(root or path.parent, path)
     atomic_write_text(
         safe_path,
         inject_insight_block(with_analysis, envelope),
@@ -301,7 +306,7 @@ def _game_paths(root: Path) -> list[Path]:
 
 
 def analyse_vault(limit: int | None = None, depth: int = 18) -> dict[str, Any]:
-    root = _chess_root()
+    root = _validated_chess_root()
     if not root.exists():
         raise FileNotFoundError(f"Dossier Echecs introuvable : {root}")
 

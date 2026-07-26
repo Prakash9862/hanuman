@@ -5,6 +5,7 @@ from pathlib import Path
 
 from hanuman.services.atomic_write_service import atomic_write_text
 from hanuman.services.chess_generated_frontmatter_service import (
+    CHESS_MANAGED_TAG_PREFIXES,
     update_generated_frontmatter,
 )
 from hanuman.services.chess_path_safety_service import resolve_safe_destination
@@ -88,6 +89,7 @@ def plan_generated_view(
                 initial,
                 owned_keys=owned_frontmatter_keys,
                 label="de vue Hanuman",
+                managed_tag_prefixes=CHESS_MANAGED_TAG_PREFIXES,
             )
             if owned_frontmatter_keys
             else existing_with_generated_zone

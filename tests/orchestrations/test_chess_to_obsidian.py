@@ -144,6 +144,7 @@ def test_sync_writes_games_and_graph_indexes(tmp_path, monkeypatch) -> None:
         "games_written": 2,
         "games_protected": 0,
         "protected_game_files": [],
+        "protected_game_diagnostics": [],
         "vault_games_usable": 2,
         "vault_notes_ignored": 0,
         "analyses_preserved": 0,
@@ -391,6 +392,10 @@ def test_updated_game_note_refreshes_owned_frontmatter_and_preserves_human_bytes
         "game_id: \"g1\"\n",
         'game_id: "g1"\nhuman_key: "Échec personnalisé"\n',
     )
+    existing = existing.replace(
+        "tags:\n",
+        "tags:\n  - humain/premier\n  - échec-humain\n",
+    )
     suffix = "\n## Notes humaines\n\nTexte Unicode conservé.\n"
     existing += suffix
     updated_game = replace(
@@ -410,6 +415,7 @@ def test_updated_game_note_refreshes_owned_frontmatter_and_preserves_human_bytes
     assert 'chess_url: "https://chess.com/game/corrected"\n' in updated
     assert "analysis_status: analysed\n" in updated
     assert "  - chess/analysis/analysed\n" in updated
+    assert "  - humain/premier\n  - échec-humain\n" in updated
     assert 'human_key: "Échec personnalisé"\n' in updated
     assert analysis in updated
     assert updated.endswith(suffix)
@@ -456,6 +462,64 @@ Intouchable.
     assert path.read_text(encoding="utf-8") == historical
     assert result["games_protected"] == 1
     assert result["protected_game_files"] == [str(path.relative_to(root))]
+    assert result["protected_game_diagnostics"] == [
+        {
+            "path": str(path.relative_to(root)),
+            "reason": "Zone de partie Hanuman absente ; migration sûre requise.",
+        }
+    ]
+
+
+@pytest.mark.parametrize("reverse", [False, True])
+def test_sync_isolates_ambiguous_note_and_writes_safe_games(
+    tmp_path, monkeypatch, reverse: bool
+) -> None:
+    root = tmp_path / "Echecs"
+    monkeypatch.setenv("CHESS_OBSIDIAN_PATH", str(root))
+    monkeypatch.setattr(mod, "ChessService", FakeChessService)
+    mod.sync_chess_to_obsidian(limit=2)
+    ambiguous = root / "2024/01/2024-01-01 - B20 - Opponent1.md"
+    safe_existing = root / "2024/01/2024-01-02 - B20 - Opponent2.md"
+    ambiguous.write_text(
+        ambiguous.read_text(encoding="utf-8").replace(
+            "tags:\n",
+            "tags: {chess/game: true, humain: true}\n",
+        ),
+        encoding="utf-8",
+    )
+    ambiguous_before = ambiguous.read_bytes()
+    safe_before = safe_existing.read_bytes()
+    games = FakeChessService().get_latest_games("prakasch", 2)
+    third = {
+        **games[0],
+        "id": "g3",
+        "end_time": games[1]["end_time"] + dt.timedelta(days=1),
+        "black": "Opponent3",
+        "url": "https://chess.com/game/3",
+        "pgn": '[Event "Game3"]\n\n1. d4 d5',
+    }
+    received = [*games, third]
+
+    class MixedService:
+        def get_latest_games(self, username: str, limit: int) -> list[dict]:
+            return list(reversed(received)) if reverse else received
+
+    monkeypatch.setattr(mod, "ChessService", MixedService)
+    result = mod.sync_chess_to_obsidian(limit=3)
+    new_note = root / "2024/01/2024-01-03 - B20 - Opponent3.md"
+
+    assert ambiguous.read_bytes() == ambiguous_before
+    assert safe_existing.read_bytes() == safe_before
+    assert new_note.is_file()
+    assert result["games_written"] == 2
+    assert result["games_protected"] == 1
+    assert result["protected_game_files"] == ["2024/01/2024-01-01 - B20 - Opponent1.md"]
+    assert result["protected_game_diagnostics"] == [
+        {
+            "path": "2024/01/2024-01-01 - B20 - Opponent1.md",
+            "reason": "Format de tags non pris en charge dans de note Chess.",
+        }
+    ]
 
 
 def test_limited_sync_rebuilds_views_from_complete_vault(tmp_path, monkeypatch) -> None:

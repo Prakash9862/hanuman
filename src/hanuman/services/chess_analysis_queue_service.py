@@ -10,8 +10,8 @@ from typing import Any
 from hanuman.orchestrations.chess_analysis import (
     END_MARKER,
     START_MARKER,
-    _chess_root,
     _game_paths,
+    _validated_chess_root,
     analyse_note,
 )
 from hanuman.services.atomic_write_service import atomic_write_text
@@ -32,8 +32,8 @@ def _now() -> str:
     return datetime.now(UTC).isoformat()
 
 
-def _state_path() -> Path:
-    return _chess_root() / _STATE_FILENAME
+def _state_path(root: Path) -> Path:
+    return root / _STATE_FILENAME
 
 
 def _default_state() -> dict[str, Any]:
@@ -53,15 +53,16 @@ def _default_state() -> dict[str, Any]:
     }
 
 
-def _write_state(state: dict[str, Any]) -> None:
+def _write_state(state: dict[str, Any], root: Path | None = None) -> None:
     state["updated_at"] = _now()
-    root = _chess_root()
-    path = resolve_safe_destination(root, _state_path())
+    safe_root = root or _validated_chess_root()
+    path = resolve_safe_destination(safe_root, _state_path(safe_root))
     atomic_write_text(path, json.dumps(state, ensure_ascii=False, indent=2))
 
 
 def get_analysis_queue_status() -> dict[str, Any]:
-    path = _state_path()
+    root = _validated_chess_root()
+    path = resolve_safe_destination(root, _state_path(root))
     if not path.exists():
         return _default_state()
 
@@ -78,7 +79,7 @@ def get_analysis_queue_status() -> dict[str, Any]:
     if state.get("status") == "running" and (_WORKER is None or not _WORKER.is_alive()):
         state["status"] = "interrupted"
         state["current"] = None
-        _write_state(state)
+        _write_state(state, root)
 
     return state
 
@@ -104,12 +105,12 @@ def _is_analysed(path: Path) -> bool:
 
 
 def count_analysis_queue() -> dict[str, int]:
-    paths = _game_paths(_chess_root())
+    paths = _game_paths(_validated_chess_root())
     analysed = sum(_is_analysed(path) for path in paths)
     return {"total": len(paths), "analysed": analysed, "pending": len(paths) - analysed}
 
 
-def _run_queue(paths: list[Path], depth: int, batch_limit: int | None) -> None:
+def _run_queue(paths: list[Path], root: Path, depth: int, batch_limit: int | None) -> None:
     global _WORKER
     state = _default_state()
     state.update(
@@ -123,7 +124,7 @@ def _run_queue(paths: list[Path], depth: int, batch_limit: int | None) -> None:
             "errors": [],
         }
     )
-    _write_state(state)
+    _write_state(state, root)
 
     config = AnalysisConfig(engine_path=os.environ.get("STOCKFISH_PATH"), depth=depth)
     try:
@@ -132,11 +133,11 @@ def _run_queue(paths: list[Path], depth: int, batch_limit: int | None) -> None:
                 if _STOP_EVENT.is_set():
                     state["status"] = "stopped"
                     break
-                state["current"] = str(path.relative_to(_chess_root()))
+                state["current"] = str(path.relative_to(root))
                 state["remaining"] = len(paths) - index + 1
-                _write_state(state)
+                _write_state(state, root)
                 try:
-                    analysis = analyse_note(path, analyzer, root=_chess_root())
+                    analysis = analyse_note(path, analyzer, root=root)
                     if analysis is None:
                         raise ValueError("PGN absent ou illisible")
                     state["completed"] += 1
@@ -147,7 +148,7 @@ def _run_queue(paths: list[Path], depth: int, batch_limit: int | None) -> None:
                         {"path": str(path), "error": str(exc)},
                     ]
                 state["remaining"] = len(paths) - index
-                _write_state(state)
+                _write_state(state, root)
         if state["status"] == "running":
             state["status"] = "done"
     except Exception as exc:  # noqa: BLE001 - état persistant pour diagnostic UI
@@ -156,13 +157,14 @@ def _run_queue(paths: list[Path], depth: int, batch_limit: int | None) -> None:
     finally:
         state["current"] = None
         state["finished_at"] = _now()
-        _write_state(state)
+        _write_state(state, root)
         with _LOCK:
             _WORKER = None
 
 
 def start_analysis_queue(depth: int = 12, limit: int | None = 25) -> dict[str, Any]:
     global _WORKER
+    root = _validated_chess_root()
     with _LOCK:
         if _WORKER is not None and _WORKER.is_alive():
             return {
@@ -171,19 +173,19 @@ def start_analysis_queue(depth: int = 12, limit: int | None = 25) -> dict[str, A
                 "state": get_analysis_queue_status(),
             }
 
-        pending = [path for path in _game_paths(_chess_root()) if not _is_analysed(path)]
+        pending = [path for path in _game_paths(root) if not _is_analysed(path)]
         if limit is not None:
             pending = pending[:limit]
         if not pending:
             state = _default_state()
             state.update({"status": "done", "finished_at": _now()})
-            _write_state(state)
+            _write_state(state, root)
             return {"ok": True, "message": "Toutes les parties sont déjà analysées", "state": state}
 
         _STOP_EVENT.clear()
         _WORKER = threading.Thread(
             target=_run_queue,
-            args=(pending, depth, limit),
+            args=(pending, root, depth, limit),
             name="hanuman-stockfish-queue",
             daemon=True,
         )
@@ -205,5 +207,5 @@ def stop_analysis_queue() -> dict[str, Any]:
     _STOP_EVENT.set()
     state = get_analysis_queue_status()
     state["status"] = "stopping"
-    _write_state(state)
+    _write_state(state, _validated_chess_root())
     return {"ok": True, "message": "Arrêt demandé après la position en cours", "state": state}
