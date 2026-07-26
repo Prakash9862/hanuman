@@ -63,6 +63,16 @@ def test_missing_path_and_file_are_refused(tmp_path: Path) -> None:
         mod.validate_chess_vault_path(str(file_path))
 
 
+def test_symbolic_vault_root_is_refused(tmp_path: Path) -> None:
+    real_root = tmp_path / "real"
+    symbolic_root = tmp_path / "symbolic"
+    real_root.mkdir()
+    symbolic_root.symlink_to(real_root, target_is_directory=True)
+
+    with pytest.raises(mod.UnsafeChessVaultPathError, match="lien symbolique"):
+        mod.validate_chess_vault_path(str(symbolic_root))
+
+
 def test_home_and_repository_paths_are_refused() -> None:
     with pytest.raises(mod.UnsafeChessVaultPathError, match="personnel"):
         mod.validate_chess_vault_path(str(Path.home()))

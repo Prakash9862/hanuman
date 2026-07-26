@@ -317,6 +317,40 @@ def test_dashboard_and_opening_preserve_personal_notes(tmp_path: Path) -> None:
     assert all(path.read_text(encoding="utf-8").endswith(notes) for path in targets)
 
 
+def test_dashboard_and_opening_refresh_owned_frontmatter_deterministically(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "Echecs"
+    games = [
+        replace(
+            _games()[0],
+            game_id=f"g-{index}",
+            end_time=dt.datetime(2024, 1, index + 1, tzinfo=dt.timezone.utc),
+        )
+        for index in range(8)
+    ]
+    write_chess_indexes(root, games[:2])
+    dashboard = root / "_Index/Dashboard.md"
+    opening = root / "_Index/Ouvertures/B20.md"
+    human = 'human_key: "Valeur Échec"\n'
+    for path in (dashboard, opening):
+        path.write_text(
+            path.read_text(encoding="utf-8").replace("tags:\n", human + "tags:\n"),
+            encoding="utf-8",
+        )
+
+    write_chess_indexes(root, games)
+    first = {path: path.read_bytes() for path in (dashboard, opening)}
+    write_chess_indexes(root, list(reversed(games)))
+
+    assert {path: path.read_bytes() for path in (dashboard, opening)} == first
+    assert "games_count: 8\n" in dashboard.read_text(encoding="utf-8")
+    assert "**8 parties**" in dashboard.read_text(encoding="utf-8")
+    assert "games_count: 8\n" in opening.read_text(encoding="utf-8")
+    assert "**8 parties**" in opening.read_text(encoding="utf-8")
+    assert all(human in path.read_text(encoding="utf-8") for path in (dashboard, opening))
+
+
 def test_global_validation_failure_changes_no_existing_view(tmp_path: Path) -> None:
     root = tmp_path / "Echecs"
     write_chess_indexes(root, _games())

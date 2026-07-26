@@ -4,6 +4,9 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from hanuman.services.atomic_write_service import atomic_write_text
+from hanuman.services.chess_generated_frontmatter_service import (
+    update_generated_frontmatter,
+)
 from hanuman.services.chess_path_safety_service import resolve_safe_destination
 from hanuman.services.delimited_zone_service import replace_delimited_zone
 
@@ -54,6 +57,7 @@ def plan_generated_view(
     generated: str,
     start_marker: str,
     end_marker: str,
+    owned_frontmatter_keys: frozenset[str] = frozenset(),
 ) -> ChessViewWritePlan:
     safe_path = resolve_safe_destination(root, path)
     if not safe_path.exists():
@@ -61,22 +65,34 @@ def plan_generated_view(
     if not safe_path.is_file():
         raise ChessViewValidationError(f"Destination Chess non régulière : {safe_path}")
     try:
-        updated = replace_delimited_zone(
-            safe_path.read_text(encoding="utf-8"),
+        existing = safe_path.read_text(encoding="utf-8")
+        existing_with_generated_zone = replace_delimited_zone(
+            existing,
             generated,
             start_marker,
             end_marker,
             label="de vue Hanuman",
         )
+        if existing_with_generated_zone is None:
+            return ChessViewWritePlan(
+                protected_files=(
+                    ChessProtectedFile(
+                        safe_path,
+                        "Fichier humain sans marqueurs Hanuman, laissé intact.",
+                    ),
+                )
+            )
+        updated_frontmatter = (
+            update_generated_frontmatter(
+                existing_with_generated_zone,
+                initial,
+                owned_keys=owned_frontmatter_keys,
+                label="de vue Hanuman",
+            )
+            if owned_frontmatter_keys
+            else existing_with_generated_zone
+        )
+        updated = updated_frontmatter
     except (OSError, UnicodeError, ValueError) as exc:
         raise ChessViewValidationError(f"Vue Chess invalide {safe_path} : {exc}") from exc
-    if updated is None:
-        return ChessViewWritePlan(
-            protected_files=(
-                ChessProtectedFile(
-                    safe_path,
-                    "Fichier humain sans marqueurs Hanuman, laissé intact.",
-                ),
-            )
-        )
     return ChessViewWritePlan(writes=(ChessPlannedWrite(safe_path, updated),))

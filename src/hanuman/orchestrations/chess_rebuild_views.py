@@ -16,7 +16,12 @@ class UnsafeChessVaultPathError(ValueError):
 def validate_chess_vault_path(raw_path: str) -> Path:
     if not raw_path.strip():
         raise UnsafeChessVaultPathError("Le chemin de vault ne peut pas être vide.")
-    path = Path(raw_path).expanduser().resolve()
+    expanded_path = Path(raw_path).expanduser()
+    if expanded_path.is_symlink():
+        raise UnsafeChessVaultPathError(
+            f"La racine Chess ne peut pas être un lien symbolique : {expanded_path}"
+        )
+    path = expanded_path.resolve()
     if not path.exists():
         raise UnsafeChessVaultPathError(f"Le chemin n’existe pas : {path}")
     if not path.is_dir():

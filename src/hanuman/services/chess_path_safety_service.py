@@ -9,7 +9,10 @@ class UnsafeChessDestinationError(ValueError):
 
 
 def resolve_safe_destination(root: Path, destination: Path) -> Path:
-    resolved_root = root.expanduser().resolve()
+    expanded_root = root.expanduser()
+    if expanded_root.is_symlink():
+        raise UnsafeChessDestinationError(f"Racine Chess symbolique interdite : {expanded_root}")
+    resolved_root = expanded_root.resolve()
     candidate = destination if destination.is_absolute() else resolved_root / destination
     lexical_candidate = Path(os.path.abspath(candidate))
     try:
@@ -20,8 +23,6 @@ def resolve_safe_destination(root: Path, destination: Path) -> Path:
         ) from exc
 
     current = resolved_root
-    if current.is_symlink():
-        raise UnsafeChessDestinationError(f"Racine Chess symbolique interdite : {current}")
     for part in relative.parts:
         current = current / part
         if current.is_symlink():

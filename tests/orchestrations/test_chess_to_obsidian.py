@@ -1,5 +1,6 @@
 import datetime as dt
 import hashlib
+from dataclasses import replace
 
 import pytest
 
@@ -306,6 +307,129 @@ def test_sync_disambiguates_colliding_games_deterministically(tmp_path, monkeypa
     assert b'[Event "A"]' in b"".join(first_state.values())
     assert b'[Event "B"]' in b"".join(first_state.values())
     assert second_state == first_state
+
+
+@pytest.mark.parametrize("game_id", ["", "   "])
+def test_select_game_paths_refuses_empty_game_id(tmp_path, game_id: str) -> None:
+    with pytest.raises(mod.ChessGameNoteUpdateError, match="Identifiant Chess vide"):
+        mod._select_game_paths(tmp_path / "Echecs", [replace(_sample_game(), game_id=game_id)])
+
+
+def test_select_game_paths_refuses_real_suffix_collision_before_writing(tmp_path) -> None:
+    root = tmp_path / "Echecs"
+    sentinel = tmp_path / "sentinel.txt"
+    sentinel.write_text("intact", encoding="utf-8")
+    sample = _sample_game()
+    games = [
+        replace(sample, game_id="!", pgn='[Event "base"]'),
+        replace(sample, game_id="collision-55045", pgn='[Event "first"]'),
+        replace(sample, game_id="collision-70885", pgn='[Event "second"]'),
+    ]
+    before = {path: path.read_bytes() for path in tmp_path.rglob("*") if path.is_file()}
+
+    with pytest.raises(mod.ChessGameNoteUpdateError, match="Collision de destination"):
+        mod._select_game_paths(root, games)
+
+    assert {path: path.read_bytes() for path in tmp_path.rglob("*") if path.is_file()} == before
+    assert not root.exists()
+    assert hashlib.sha256(b"collision-55045").hexdigest()[:8] == "45560c60"
+    assert hashlib.sha256(b"collision-70885").hexdigest()[:8] == "45560c60"
+
+
+def test_sync_refuses_symbolic_chess_root_before_writing(tmp_path, monkeypatch) -> None:
+    real_root = tmp_path / "real"
+    symbolic_root = tmp_path / "symbolic"
+    real_root.mkdir()
+    symbolic_root.symlink_to(real_root, target_is_directory=True)
+    monkeypatch.setenv("CHESS_OBSIDIAN_PATH", str(symbolic_root))
+    monkeypatch.setattr(mod, "ChessService", FakeChessService)
+
+    with pytest.raises(ValueError, match="Racine Chess symbolique"):
+        mod.sync_chess_to_obsidian(limit=1)
+
+    assert list(real_root.iterdir()) == []
+
+
+def test_select_game_paths_accepts_identical_duplicate_identity_in_any_order(tmp_path) -> None:
+    root = tmp_path / "Echecs"
+    game = _sample_game()
+
+    first = mod._select_game_paths(root, [game, game])
+    second = mod._select_game_paths(root, [game, game][::-1])
+
+    assert first == second
+    assert len(first) == 1
+
+
+def test_select_game_paths_refuses_contradictory_duplicate_identity(tmp_path) -> None:
+    game = _sample_game()
+
+    with pytest.raises(mod.ChessGameNoteUpdateError, match="Identité Chess contradictoire"):
+        mod._select_game_paths(
+            tmp_path / "Echecs",
+            [
+                game,
+                replace(
+                    game,
+                    black="Autre adversaire",
+                    eco="C20",
+                    pgn='[Event "contradictoire"]',
+                ),
+            ],
+        )
+
+
+def test_updated_game_note_refreshes_owned_frontmatter_and_preserves_human_bytes() -> None:
+    game = _sample_game()
+    analysis = (
+        f"{mod.ANALYSIS_START}\n## Analyse Stockfish\n\n"
+        "### Ton bilan\n\nAnalyse terminée.\n"
+        f"{mod.ANALYSIS_END}"
+    )
+    existing = mod._game_note(game, analysis)
+    existing = existing.replace(
+        "game_id: \"g1\"\n",
+        'game_id: "g1"\nhuman_key: "Échec personnalisé"\n',
+    )
+    suffix = "\n## Notes humaines\n\nTexte Unicode conservé.\n"
+    existing += suffix
+    updated_game = replace(
+        game,
+        result="loss",
+        eco="C20",
+        url="https://chess.com/game/corrected",
+        black="Nouvel adversaire",
+    )
+
+    updated = mod._updated_game_note(existing, updated_game)
+
+    assert updated is not None
+    assert "result: loss\n" in updated
+    assert "eco: C20\n" in updated
+    assert 'opponent: "Nouvel adversaire"\n' in updated
+    assert 'chess_url: "https://chess.com/game/corrected"\n' in updated
+    assert "analysis_status: analysed\n" in updated
+    assert "  - chess/analysis/analysed\n" in updated
+    assert 'human_key: "Échec personnalisé"\n' in updated
+    assert analysis in updated
+    assert updated.endswith(suffix)
+    assert mod._updated_game_note(updated, updated_game) == updated
+
+
+@pytest.mark.parametrize(
+    "existing",
+    [
+        "sans frontmatter",
+        "---\ntype: chess-game\n",
+        "---\ntype: chess-game\ntype: duplicate\n---\n",
+        "---\ntype: chess-game # commentaire\n---\n",
+    ],
+)
+def test_updated_game_note_refuses_ambiguous_frontmatter(existing: str) -> None:
+    marked = f"{existing}\n{mod.GAME_START}\ncontenu\n{mod.GAME_END}\n"
+
+    with pytest.raises(mod.ChessGameNoteUpdateError, match="Frontmatter|frontmatter|Commentaire"):
+        mod._updated_game_note(marked, _sample_game())
 
 
 def test_sync_protects_historical_note_without_game_markers(tmp_path, monkeypatch) -> None:

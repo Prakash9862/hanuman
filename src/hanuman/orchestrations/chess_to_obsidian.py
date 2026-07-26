@@ -16,6 +16,10 @@ from hanuman.models.chess import (
     safe_chess_filename_part,
 )
 from hanuman.services.atomic_write_service import atomic_write_text
+from hanuman.services.chess_generated_frontmatter_service import (
+    ChessGeneratedFrontmatterError,
+    update_generated_frontmatter,
+)
 from hanuman.services.chess_index_service import write_chess_indexes
 from hanuman.services.chess_insight_storage_service import (
     extract_insight_block,
@@ -35,6 +39,32 @@ ANALYSIS_START = "<!-- HANUMAN_CHESS_ANALYSIS_START -->"
 ANALYSIS_END = "<!-- HANUMAN_CHESS_ANALYSIS_END -->"
 GAME_START = "<!-- HANUMAN_CHESS_GAME_START -->"
 GAME_END = "<!-- HANUMAN_CHESS_GAME_END -->"
+GAME_FRONTMATTER_KEYS = frozenset(
+    {
+        "type",
+        "cssclasses",
+        "date",
+        "year",
+        "month",
+        "platform",
+        "username",
+        "game_id",
+        "result",
+        "color",
+        "opponent",
+        "white",
+        "black",
+        "white_elo",
+        "black_elo",
+        "eco",
+        "opening",
+        "time_control",
+        "termination",
+        "analysis_status",
+        "chess_url",
+        "tags",
+    }
+)
 OBSIDIAN_ROOT = Path("/home/vince/Prakash/projets/Obsidian_Priv-/Echecs")
 
 
@@ -49,13 +79,13 @@ class ChessGameNoteUpdateError(ValueError):
 def _chess_root() -> Path:
     configured = os.environ.get("CHESS_OBSIDIAN_PATH")
     if configured:
-        return Path(configured).expanduser().resolve()
+        return Path(configured).expanduser()
 
     configured_vault = os.environ.get("OBSIDIAN_VAULT_PATH")
     if configured_vault:
-        return (Path(configured_vault).expanduser() / "Echecs").resolve()
+        return Path(configured_vault).expanduser() / "Echecs"
 
-    return OBSIDIAN_ROOT.expanduser().resolve()
+    return OBSIDIAN_ROOT.expanduser()
 
 
 def _yaml_quote(value: str) -> str:
@@ -63,8 +93,12 @@ def _yaml_quote(value: str) -> str:
 
 
 def _game_from_raw(raw: dict[str, Any]) -> ChessGame:
+    raw_game_id = raw["id"]
+    game_id = "" if raw_game_id is None else str(raw_game_id).strip()
+    if not game_id:
+        raise ChessGameNoteUpdateError("Identifiant Chess vide ou invalide.")
     return ChessGame(
-        game_id=str(raw["id"]),
+        game_id=game_id,
         end_time=raw["end_time"],
         white=str(raw["white"]),
         black=str(raw["black"]),
@@ -247,8 +281,19 @@ def _existing_game_id(markdown: str) -> str | None:
 
 
 def _select_game_paths(root: Path, games: list[ChessGame]) -> list[tuple[ChessGame, Path]]:
-    groups: dict[Path, list[ChessGame]] = {}
+    identities: dict[str, ChessGame] = {}
     for game in games:
+        normalized_id = game.game_id.strip()
+        if not normalized_id:
+            raise ChessGameNoteUpdateError("Identifiant Chess vide ou invalide.")
+        normalized_game = replace(game, game_id=normalized_id)
+        previous = identities.get(normalized_id)
+        if previous is not None and previous != normalized_game:
+            raise ChessGameNoteUpdateError(f"Identité Chess contradictoire pour {normalized_id!r}.")
+        identities[normalized_id] = normalized_game
+
+    groups: dict[Path, list[ChessGame]] = {}
+    for game in identities.values():
         historical = (
             root / game.year / game.end_time.strftime("%m") / (chess_game_historical_filename(game))
         )
@@ -285,6 +330,15 @@ def _select_game_paths(root: Path, games: list[ChessGame]) -> list[tuple[ChessGa
                         f"partie reçue {game.game_id!r}."
                     )
             selected.append((replace(game, note_filename=path.name), path))
+    destinations: dict[Path, str] = {}
+    for game, path in selected:
+        previous_id = destinations.get(path)
+        if previous_id is not None and previous_id != game.game_id:
+            raise ChessGameNoteUpdateError(
+                f"Collision de destination Chess : {path} vise "
+                f"{previous_id!r} et {game.game_id!r}."
+            )
+        destinations[path] = game.game_id
     return selected
 
 
@@ -298,15 +352,22 @@ def _updated_game_note(existing: str, game: ChessGame) -> str | None:
         label="de note Chess",
     )
     assert generated_zone is not None
+    generated_note = _game_generated(game, analysis)
     try:
-        updated = replace_delimited_zone(
+        updated_frontmatter = update_generated_frontmatter(
             existing,
+            generated_note,
+            owned_keys=GAME_FRONTMATTER_KEYS,
+            label="de note Chess",
+        )
+        updated = replace_delimited_zone(
+            updated_frontmatter,
             generated_zone,
             GAME_START,
             GAME_END,
             label="de note Chess",
         )
-    except DelimitedZoneError as exc:
+    except (ChessGeneratedFrontmatterError, DelimitedZoneError) as exc:
         raise ChessGameNoteUpdateError(str(exc)) from exc
     return updated
 
@@ -324,8 +385,6 @@ def sync_chess_to_obsidian(limit: int = 200, reset: bool = False) -> dict[str, A
         key=lambda game: game.end_time,
         reverse=True,
     )[:limit]
-
-    root.mkdir(parents=True, exist_ok=True)
 
     written = 0
     preserved_analyses = 0

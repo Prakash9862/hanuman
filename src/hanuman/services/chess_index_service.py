@@ -26,6 +26,11 @@ from hanuman.services.chess_view_write_plan_service import (
 GENERATED_START = "<!-- HANUMAN:GENERATED:START -->"
 GENERATED_END = "<!-- HANUMAN:GENERATED:END -->"
 THEMATIC_DIRECTORIES = ("Motifs",)
+DASHBOARD_FRONTMATTER_KEYS = frozenset({"type", "cssclasses", "games_count", "tags"})
+PROFILE_FRONTMATTER_KEYS = frozenset({"type", "cssclasses", "games_count", "tags"})
+OPENING_FRONTMATTER_KEYS = frozenset(
+    {"type", "cssclasses", "index_kind", "index_key", "games_count", "tags"}
+)
 
 
 @dataclass(frozen=True)
@@ -281,6 +286,7 @@ def write_chess_indexes_report(root: Path, games: list[ChessGame]) -> ChessIndex
             generated=_index_note_generated("opening", eco, title, grouped_games),
             start_marker=GENERATED_START,
             end_marker=GENERATED_END,
+            owned_frontmatter_keys=OPENING_FRONTMATTER_KEYS,
         )
         plan = plan.merged(planned)
         opening_written += int(bool(planned.writes))
@@ -293,6 +299,7 @@ def write_chess_indexes_report(root: Path, games: list[ChessGame]) -> ChessIndex
         generated=_dashboard_generated(games, stats),
         start_marker=GENERATED_START,
         end_marker=GENERATED_END,
+        owned_frontmatter_keys=DASHBOARD_FRONTMATTER_KEYS,
     )
     plan = plan.merged(dashboard_plan)
     general_written = int(bool(dashboard_plan.writes))
@@ -305,6 +312,7 @@ def write_chess_indexes_report(root: Path, games: list[ChessGame]) -> ChessIndex
         generated=_profile_generated(games, stats),
         start_marker=GENERATED_START,
         end_marker=GENERATED_END,
+        owned_frontmatter_keys=PROFILE_FRONTMATTER_KEYS,
     )
     plan = plan.merged(profile_plan)
     general_written += int(bool(profile_plan.writes))
