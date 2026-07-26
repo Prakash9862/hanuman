@@ -70,4 +70,3 @@ Alertes uniquement sur action requise : token expiré, run bloqué, répétition
 ## Rétention
 
 Logs techniques courts (7–14 jours), preuves d’exécution plus longues mais minimales, contenu personnel jamais dupliqué « pour debug ». L’utilisateur doit pouvoir purger l’historique sans toucher aux systèmes sources.
-

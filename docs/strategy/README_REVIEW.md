@@ -59,4 +59,3 @@ Chaque document porte `statut`, `dernière vérification`, `propriétaire` et, s
 ## Plan prudent
 
 Ne pas réécrire le README maintenant. D’abord ajouter un bandeau d’état et un index, puis extraire une section à la fois en conservant les liens. Une « grande documentation propre » en un commit serait difficile à relire et risquerait de supprimer un contexte utile.
-

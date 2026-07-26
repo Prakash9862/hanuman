@@ -134,4 +134,3 @@ Une fonctionnalité n’entre en roadmap que si toutes les réponses bloquantes 
 10. Quel coût permanent d’exploitation crée-t-elle ?
 
 Un « non » aux questions 2, 3, 4 ou 6 impose le rejet ou la reformulation.
-

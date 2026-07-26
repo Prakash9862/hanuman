@@ -44,4 +44,3 @@ Aucun défaut observé ne justifie P0 tant que Hanuman reste strictement local e
 ## Règle de remboursement
 
 Ne pas lancer un « sprint dette ». Chaque évolution doit payer la dette qu’elle traverse. Les dettes P1 forment toutefois un verrou : aucune autonomie, exposition réseau ou planification récurrente avant leur traitement.
-

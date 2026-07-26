@@ -25,4 +25,3 @@ Ce sont des propositions, pas des modifications réalisées. ROI combine valeur 
 - Réécrire le README en une fois.
 
 Chacun ouvre des décisions d’architecture ou dépasse deux heures malgré une apparence simple.
-

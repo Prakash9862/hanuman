@@ -67,4 +67,3 @@ Le niveau 3 exige un historique de succès, un rayon d’impact faible et un bou
 ## Décision
 
 Les agents sont V4. Avant eux, Hanuman doit savoir exécuter et expliquer parfaitement un plan écrit par un humain. Ajouter un LLM au-dessus d’exécutions opaques amplifierait les défauts actuels.
-

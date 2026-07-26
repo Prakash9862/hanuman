@@ -58,4 +58,3 @@ flowchart LR
 ## Ce qui n’est pas recommandé
 
 Ajouter immédiatement un système complexe d’identités ou un coffre-fort maison serait prématuré. Utiliser le keyring/secret manager du système, ou un outil existant, est préférable. Hanuman doit orchestrer les politiques de secrets, pas devenir un gestionnaire de secrets.
-

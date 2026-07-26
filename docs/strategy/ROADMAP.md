@@ -81,4 +81,3 @@ Les versions sont des seuils de capacité, pas des promesses calendaires. Une ve
 - Multi-tenant SaaS.
 
 Ces idées augmentent davantage le périmètre et le risque que la valeur d’orchestration.
-

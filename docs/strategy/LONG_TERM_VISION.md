@@ -47,4 +47,3 @@ Une vision responsable inclut la possibilité que le meilleur Hanuman soit un en
 **Nombre mensuel d’intentions inter-outils accomplies correctement, sans reprise manuelle non prévue, avec provenance consultable.**
 
 Ni le nombre de tokens, de pages synchronisées, de connecteurs ni le temps passé dans l’interface ne sont des métriques de succès.
-

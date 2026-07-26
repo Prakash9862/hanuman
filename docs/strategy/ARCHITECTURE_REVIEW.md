@@ -70,4 +70,3 @@ La flèche `orchestrations → accès directs` est la principale entorse : elle 
 ## Décision recommandée
 
 Ne pas réarchitecturer maintenant. Stabiliser un **contrat d’orchestration** sur deux flux réels (Obsidian → Notion et GitHub → Notion), puis laisser l’architecture émerger de leurs invariants communs. C’est moins séduisant qu’un moteur générique, mais beaucoup plus probant.
-

@@ -39,4 +39,3 @@ Maturité évalue l’usage réel, pas la présence dans le registre. Couverture
 2. Faire de Gmail/Calendar un domaine Google cohérent sans fusionner leurs capacités.
 3. Garder YouTube/Gallica/IMSLP comme ressources de lecture; ne pas surinvestir avant un usage récurrent.
 4. Ne pas créer de SDK plugin tant que trois connecteurs n’implémentent pas naturellement le même contrat.
-

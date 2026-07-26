@@ -43,4 +43,3 @@ Chaque orchestration devrait déclarer : durée maximale, nombre d’appels, vol
 ## Conclusion
 
 La priorité performance est la **prévisibilité**, pas la vitesse. L’utilisateur tolère une synchronisation de 20 secondes s’il voit le progrès et peut la reprendre; il ne tolère pas une action rapide qui double ou perd ses données.
-

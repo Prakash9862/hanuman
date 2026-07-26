@@ -68,4 +68,3 @@ Une arête porte statut, fraîcheur, dernière exécution et politique. Sans cel
 ## Critique
 
 Le frontend actuel prouve plusieurs domaines mais risque de devenir une collection de pages par connecteur. La bonne unité UX est l’intention inter-outils. Il ne faut toutefois pas refaire l’interface avant d’avoir le modèle d’exécution V1.
-

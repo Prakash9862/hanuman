@@ -63,4 +63,3 @@ Les scores et priorités sont centralisés dans `FEATURE_PIPELINE.md` afin d’�
 Une orchestration devrait optimiser le nombre de décisions évitées et de no-op, pas le nombre d’actions. **Pourquoi ?** La meilleure automatisation est celle qui ne dérange que lorsque l’humain apporte une vraie décision. **Pourquoi pas ?** Une action silencieuse peut masquer une panne; l’absence d’action doit rester observable. **Alternative :** notifications systématiques, rejetées car elles déplacent la charge au lieu de la réduire.
 
 Évaluation associée à F03/F04 : U 9, D 7, L 9, C 6, R 4, O 8, H 10, priorité P1.
-
