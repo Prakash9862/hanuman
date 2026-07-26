@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections import Counter, defaultdict
+from dataclasses import dataclass
 from pathlib import Path
 
 from hanuman.models.chess import (
@@ -14,13 +15,37 @@ from hanuman.services.chess_analysis_summary_service import (
     build_chess_profile_stats,
 )
 from hanuman.services.chess_insight_aggregation_service import (
+    ChessInsightDiagnostics,
     aggregate_persisted_chess_insights,
 )
-from hanuman.services.chess_insight_view_service import write_chess_insight_views
+from hanuman.services.chess_insight_view_service import (
+    write_chess_insight_views_report,
+)
 
 GENERATED_START = "<!-- HANUMAN:GENERATED:START -->"
 GENERATED_END = "<!-- HANUMAN:GENERATED:END -->"
 THEMATIC_DIRECTORIES = ("Motifs",)
+
+
+@dataclass(frozen=True)
+class ChessIndexWriteReport:
+    general_views_written: int
+    opening_indexes_written: int
+    thematic_indexes_written: int
+    active_summaries_written: int
+    inactive_summaries_updated: int
+    human_files_protected: int
+    insight_diagnostics: ChessInsightDiagnostics
+
+    @property
+    def total_written(self) -> int:
+        return (
+            self.general_views_written
+            + self.opening_indexes_written
+            + self.thematic_indexes_written
+            + self.active_summaries_written
+            + self.inactive_summaries_updated
+        )
 
 
 def _yaml_quote(value: str) -> str:
@@ -209,11 +234,17 @@ Cette section sera préservée lors des prochaines générations.
 
 
 def _replace_generated(existing: str, generated: str) -> str | None:
-    if GENERATED_START not in existing or GENERATED_END not in existing:
+    starts = existing.count(GENERATED_START)
+    ends = existing.count(GENERATED_END)
+    if starts == 0 and ends == 0:
         return None
-    before, rest = existing.split(GENERATED_START, 1)
-    _, after = rest.split(GENERATED_END, 1)
-    return before + generated + after
+    if starts != 1 or ends != 1:
+        raise ValueError("Marqueurs de vue Hanuman incomplets ou dupliqués.")
+    start = existing.index(GENERATED_START)
+    end = existing.index(GENERATED_END)
+    if end < start:
+        raise ValueError("Marqueurs de vue Hanuman dans un ordre invalide.")
+    return existing[:start] + generated + existing[end + len(GENERATED_END) :]
 
 
 def _write_protected(path: Path, initial: str, generated: str) -> bool:
@@ -227,7 +258,7 @@ def _write_protected(path: Path, initial: str, generated: str) -> bool:
     return True
 
 
-def write_chess_indexes(root: Path, games: list[ChessGame]) -> int:
+def write_chess_indexes_report(root: Path, games: list[ChessGame]) -> ChessIndexWriteReport:
     """Génère les vues ADR-0005 sans supprimer les fichiers existants."""
 
     games = sorted(games, key=lambda game: game.end_time, reverse=True)
@@ -240,7 +271,7 @@ def write_chess_indexes(root: Path, games: list[ChessGame]) -> int:
     for game in games:
         by_opening[game.eco].append(game)
 
-    written = 0
+    opening_written = 0
     opening_root = index_root / "Ouvertures"
     opening_root.mkdir(parents=True, exist_ok=True)
     for eco, grouped_games in by_opening.items():
@@ -250,22 +281,42 @@ def write_chess_indexes(root: Path, games: list[ChessGame]) -> int:
             opening_root / f"{eco}.md",
             _index_note("opening", eco, title, grouped_games),
         )
-        written += 1
+        opening_written += 1
 
     atomic_write_text(index_root / "Dashboard.md", _dashboard(games, stats))
-    written += 1
+    general_written = 1
+    protected = 0
     if _write_protected(
         index_root / "Profil échiquéen.md",
         _profile(games, stats),
         _profile_generated(games, stats),
     ):
-        written += 1
+        general_written += 1
+    else:
+        protected += 1
 
+    thematic_written = 0
     for title in THEMATIC_DIRECTORIES:
         target = index_root / title / "Index.md"
         if _write_protected(target, _thematic_index(title), _thematic_generated(title)):
-            written += 1
+            thematic_written += 1
+        else:
+            protected += 1
 
-    written += write_chess_insight_views(root, insight_aggregation)
+    insight_report = write_chess_insight_views_report(root, insight_aggregation)
 
-    return written
+    return ChessIndexWriteReport(
+        general_views_written=general_written,
+        opening_indexes_written=opening_written,
+        thematic_indexes_written=(thematic_written + insight_report.thematic_indexes_written),
+        active_summaries_written=insight_report.active_summaries_written,
+        inactive_summaries_updated=insight_report.inactive_summaries_updated,
+        human_files_protected=protected + insight_report.human_files_protected,
+        insight_diagnostics=insight_aggregation.diagnostics,
+    )
+
+
+def write_chess_indexes(root: Path, games: list[ChessGame]) -> int:
+    """Génère les vues ADR-0005 et retourne le nombre de fichiers écrits."""
+
+    return write_chess_indexes_report(root, games).total_written

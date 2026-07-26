@@ -24,6 +24,22 @@ class ChessInsightViewError(ValueError):
 
 
 @dataclass(frozen=True)
+class ChessInsightViewWriteReport:
+    thematic_indexes_written: int
+    active_summaries_written: int
+    inactive_summaries_updated: int
+    human_files_protected: int
+
+    @property
+    def total_written(self) -> int:
+        return (
+            self.thematic_indexes_written
+            + self.active_summaries_written
+            + self.inactive_summaries_updated
+        )
+
+
+@dataclass(frozen=True)
 class InsightViewDefinition:
     category: InsightCategory
     subtype: str
@@ -334,15 +350,17 @@ Cette section sera préservée lors des prochaines générations.
 """
 
 
-def write_chess_insight_views(
+def write_chess_insight_views_report(
     root: Path,
     aggregation: ChessInsightAggregation,
-) -> int:
+) -> ChessInsightViewWriteReport:
     index_root = root / "_Index"
     groups = {(group.category, group.subtype): group for group in aggregation.groups}
     active_links: set[tuple[InsightCategory, str]] = set()
     inactive_links: set[tuple[InsightCategory, str]] = set()
-    written = 0
+    active_written = 0
+    inactive_written = 0
+    protected = 0
 
     for definition in INSIGHT_VIEW_DEFINITIONS:
         key = (definition.category, definition.subtype)
@@ -357,7 +375,9 @@ def write_chess_insight_views(
                 generated,
             ):
                 active_links.add(key)
-                written += 1
+                active_written += 1
+            else:
+                protected += 1
         elif existing_hanuman:
             generated = _summary_generated(definition, group, STATUS_INACTIVE)
             if _write_protected(
@@ -366,7 +386,7 @@ def write_chess_insight_views(
                 generated,
             ):
                 inactive_links.add(key)
-                written += 1
+                inactive_written += 1
 
     diagnostics = aggregation.diagnostics
     diagnostics_text = (
@@ -379,6 +399,7 @@ def write_chess_insight_views(
         "excellent",
         "opportunity",
     )
+    thematic_written = 0
     for category in categories:
         definitions = [item for item in INSIGHT_VIEW_DEFINITIONS if item.category == category]
         representative = definitions[0]
@@ -398,6 +419,20 @@ def write_chess_insight_views(
             _thematic_index_initial(representative, generated),
             generated,
         ):
-            written += 1
+            thematic_written += 1
+        else:
+            protected += 1
 
-    return written
+    return ChessInsightViewWriteReport(
+        thematic_indexes_written=thematic_written,
+        active_summaries_written=active_written,
+        inactive_summaries_updated=inactive_written,
+        human_files_protected=protected,
+    )
+
+
+def write_chess_insight_views(
+    root: Path,
+    aggregation: ChessInsightAggregation,
+) -> int:
+    return write_chess_insight_views_report(root, aggregation).total_written
