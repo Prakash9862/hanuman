@@ -132,7 +132,6 @@ def _game_note(game: ChessGame, analysis_block: str | None = None) -> str:
     termination = headers.get("Termination", "")
     analysis = analysis_block or _default_analysis()
     analysed = _analysis_done(analysis)
-    opponent_slug = _safe(game.opponent)
     status = "analysed" if analysed else "pending"
     status_label = "🟢 Analyse terminée" if analysed else "🟡 Analyse en attente"
     headers_block = _quoted_block(_headers_table(headers))
@@ -181,7 +180,7 @@ tags:
 > **{game.eco} — {opening}**
 
 > [!hanuman-nav] Navigation
-> 🏠 [[Dashboard|Tableau de bord]] · 📅 [[_Index/Annees/{game.year}|{game.year}]] · 🗓️ [[_Index/Mois/{game.month}|{game.month}]] · ♟️ [[_Index/Ouvertures/{game.eco}|{game.eco}]] · 👤 [[_Index/Adversaires/{opponent_slug}|{game.opponent}]]
+> 🏠 [[Echecs/_Index/Dashboard|Tableau de bord]] · 👤 [[Echecs/_Index/Profil échiquéen|Profil échiquéen]] · ♟️ [[Echecs/_Index/Ouvertures/{game.eco}|{game.eco}]]
 
 > [!stockfish] {status_label}
 > **Statut :** {status_label}
@@ -253,7 +252,10 @@ def sync_chess_to_obsidian(limit: int = 200, reset: bool = False) -> dict[str, A
         "analyses_preserved": preserved_analyses,
         "index_files_written": index_files,
         "reset": reset,
-        "structure": "Echecs/YYYY/MM/date - ECO - adversaire.md + _Index",
+        "structure": (
+            "Echecs/YYYY/MM/date - ECO - adversaire.md + "
+            "_Index/Dashboard, Profil et vues thématiques"
+        ),
     }
 
 

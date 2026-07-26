@@ -121,9 +121,12 @@ def test_sync_writes_games_and_graph_indexes(tmp_path, monkeypatch) -> None:
         "games_received": 2,
         "games_written": 2,
         "analyses_preserved": 0,
-        "index_files_written": 6,
+        "index_files_written": 7,
         "reset": False,
-        "structure": "Echecs/YYYY/MM/date - ECO - adversaire.md + _Index",
+        "structure": (
+            "Echecs/YYYY/MM/date - ECO - adversaire.md + "
+            "_Index/Dashboard, Profil et vues thématiques"
+        ),
     }
 
     first_game = obsidian_root / "2024" / "01" / "2024-01-01 - B20 - Opponent1.md"
@@ -143,10 +146,12 @@ def test_sync_writes_games_and_graph_indexes(tmp_path, monkeypatch) -> None:
     assert "chess/year/2024" in first_content
     assert "chess/month/2024-01" in first_content
     assert "chess/analysis/pending" in first_content
-    assert "[[_Index/Annees/2024|2024]]" in first_content
-    assert "[[_Index/Mois/2024-01|2024-01]]" in first_content
-    assert "[[_Index/Ouvertures/B20|B20]]" in first_content
-    assert "[[_Index/Adversaires/Opponent1|Opponent1]]" in first_content
+    assert "[[Echecs/_Index/Dashboard|Tableau de bord]]" in first_content
+    assert "[[Echecs/_Index/Profil échiquéen|Profil échiquéen]]" in first_content
+    assert "[[Echecs/_Index/Ouvertures/B20|B20]]" in first_content
+    assert "_Index/Annees" not in first_content
+    assert "_Index/Mois" not in first_content
+    assert "_Index/Adversaires" not in first_content
     assert "> [!info]- En-têtes PGN" in first_content
     assert "WhiteElo" in first_content
     assert "1800" in first_content
@@ -156,20 +161,22 @@ def test_sync_writes_games_and_graph_indexes(tmp_path, monkeypatch) -> None:
     assert "> [!stockfish] 🟡 Analyse en attente" in first_content
     assert "Analyse non encore lancée." in first_content
 
-    year_index = obsidian_root / "_Index" / "Annees" / "2024.md"
-    month_index = obsidian_root / "_Index" / "Mois" / "2024-01.md"
     opening_index = obsidian_root / "_Index" / "Ouvertures" / "B20.md"
-    opponent_index = obsidian_root / "_Index" / "Adversaires" / "Opponent1.md"
-    dashboard = obsidian_root / "Dashboard.md"
+    dashboard = obsidian_root / "_Index" / "Dashboard.md"
+    profile = obsidian_root / "_Index" / "Profil échiquéen.md"
 
-    for path in (year_index, month_index, opening_index, opponent_index, dashboard):
+    for path in (opening_index, dashboard, profile):
         assert path.is_file()
 
-    assert "2024-01-01 · B20 · Opponent1 · win" in year_index.read_text(encoding="utf-8")
     assert "2024-01-02 · B20 · Opponent2 · loss" in opening_index.read_text(encoding="utf-8")
     dashboard_content = dashboard.read_text(encoding="utf-8")
     assert "hanuman-chess-dashboard" in dashboard_content
-    assert "[[_Index/Ouvertures/B20|B20]]" in dashboard_content
+    assert "[[Echecs/_Index/Ouvertures/B20|B20]]" in dashboard_content
+    assert not (obsidian_root / "Dashboard.md").exists()
+    assert not (obsidian_root / "_Index/Annees").exists()
+    assert not (obsidian_root / "_Index/Mois").exists()
+    assert not (obsidian_root / "_Index/Adversaires").exists()
+    assert len(list(obsidian_root.glob("[0-9][0-9][0-9][0-9]/[0-9][0-9]/*.md"))) == 2
 
 
 def test_sync_preserves_existing_analysis(tmp_path, monkeypatch) -> None:
@@ -193,19 +200,26 @@ def test_sync_preserves_existing_analysis(tmp_path, monkeypatch) -> None:
 
     assert result["analyses_preserved"] == 1
     assert "Analyse déjà calculée." in path.read_text(encoding="utf-8")
+    assert len(list(obsidian_root.glob("2024/01/*.md"))) == 1
 
 
 def test_sync_preserves_legacy_indexes(tmp_path, monkeypatch) -> None:
     obsidian_root = tmp_path / "Echecs"
-    legacy = obsidian_root / "_Index" / "Adversaires" / "Annotation.md"
-    legacy.parent.mkdir(parents=True)
-    legacy.write_text("Annotation humaine", encoding="utf-8")
+    legacy_files = {
+        obsidian_root / "_Index" / "Annees" / "2024.md": "Année historique",
+        obsidian_root / "_Index" / "Mois" / "2024-01.md": "Mois historique",
+        obsidian_root / "_Index" / "Adversaires" / "Annotation.md": "Annotation humaine",
+    }
+    for path, content in legacy_files.items():
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(content, encoding="utf-8")
     monkeypatch.setenv("CHESS_OBSIDIAN_PATH", str(obsidian_root))
     monkeypatch.setattr(mod, "ChessService", FakeChessService)
 
     mod.sync_chess_to_obsidian(limit=1)
 
-    assert legacy.read_text(encoding="utf-8") == "Annotation humaine"
+    for path, content in legacy_files.items():
+        assert path.read_text(encoding="utf-8") == content
 
 
 def test_sync_delegates_view_generation(tmp_path, monkeypatch) -> None:
