@@ -118,4 +118,3 @@
 [CONTRE-ANALYSE] Cette réduction peut sembler diminuer l’ambition.
 
 [INFÉRENCE] Elle concentre en réalité l’ambition sur une propriété plus rare : des transformations inter-outils gouvernées et prouvables.
-

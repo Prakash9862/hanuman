@@ -66,4 +66,3 @@
 [FAIT] Les branches distantes ont été inspectées à partir des références locales; aucun `fetch` n’a été effectué.
 
 [HYPOTHÈSE] Des usages réels, incidents ou besoins connus du propriétaire peuvent invalider certaines priorités sans être visibles dans le dépôt.
-
