@@ -7,6 +7,7 @@ import re
 from pathlib import Path
 from typing import Any
 
+from hanuman.services.atomic_write_service import atomic_write_text
 from hanuman.services.chess_analysis_service import (
     AnalysisConfig,
     GameAnalysis,
@@ -238,9 +239,9 @@ def analyse_note(path: Path, analyzer: StockfishAnalyzer) -> GameAnalysis | None
     if not pgn:
         return None
     analysis = analyzer.analyse_pgn(pgn)
-    path.write_text(
+    atomic_write_text(
+        path,
         inject_analysis(markdown, render_analysis_markdown(analysis)),
-        encoding="utf-8",
     )
     return analysis
 

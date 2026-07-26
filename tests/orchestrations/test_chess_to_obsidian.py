@@ -1,5 +1,7 @@
 import datetime as dt
 
+import pytest
+
 from hanuman.orchestrations import chess_to_obsidian as mod
 
 
@@ -56,6 +58,47 @@ class FakeChessService:
                 ),
             },
         ]
+
+
+def _sample_game() -> mod.ChessGame:
+    return mod._game_from_raw(FakeChessService().get_latest_games("prakasch", 1)[0])
+
+
+def test_game_note_characterizes_existing_markdown() -> None:
+    """Le rendu historique reste protégé pendant l'extraction des vues."""
+
+    note = mod._game_note(_sample_game())
+
+    assert note.startswith("---\ntype: chess-game\ncssclasses:\n")
+    assert "  - hanuman-chess\n  - hanuman-chess-game\n" in note
+    assert "# ♟️ 2024-01-01 — B20 — Opponent1" in note
+    assert "> [!chess] Partie" in note
+    assert "## Résumé\n\n| Élément | Détail |" in note
+    assert "> [!info]- En-têtes PGN" in note
+    assert "> | **WhiteElo** | 1800 |" in note
+    assert "> [!note]- PGN complet" in note
+    assert '> [Event "Game1"]' in note
+    assert "> 1. e4 c5 2. Nf3" in note
+    assert "[Ouvrir sur Chess.com](https://chess.com/game/1)" in note
+    assert mod.ANALYSIS_START in note
+    assert "## Analyse Stockfish" in note
+    assert mod.ANALYSIS_END in note
+
+
+def test_game_note_preserves_existing_analysis_verbatim() -> None:
+    existing = (
+        f"{mod.ANALYSIS_START}\n"
+        "## Analyse Stockfish\n\n"
+        "> [!stockfish] Analyse humaine enrichie\n\n"
+        "### Ton bilan\n\nAnnotation conservée.\n"
+        f"{mod.ANALYSIS_END}"
+    )
+
+    note = mod._game_note(_sample_game(), existing)
+
+    assert existing in note
+    assert note.count(mod.ANALYSIS_START) == 1
+    assert note.count(mod.ANALYSIS_END) == 1
 
 
 def test_sync_writes_games_and_graph_indexes(tmp_path, monkeypatch) -> None:
@@ -150,6 +193,38 @@ def test_sync_preserves_existing_analysis(tmp_path, monkeypatch) -> None:
 
     assert result["analyses_preserved"] == 1
     assert "Analyse déjà calculée." in path.read_text(encoding="utf-8")
+
+
+def test_sync_preserves_legacy_indexes(tmp_path, monkeypatch) -> None:
+    obsidian_root = tmp_path / "Echecs"
+    legacy = obsidian_root / "_Index" / "Adversaires" / "Annotation.md"
+    legacy.parent.mkdir(parents=True)
+    legacy.write_text("Annotation humaine", encoding="utf-8")
+    monkeypatch.setenv("CHESS_OBSIDIAN_PATH", str(obsidian_root))
+    monkeypatch.setattr(mod, "ChessService", FakeChessService)
+
+    mod.sync_chess_to_obsidian(limit=1)
+
+    assert legacy.read_text(encoding="utf-8") == "Annotation humaine"
+
+
+def test_sync_refuses_reset_before_calling_chess_service(monkeypatch) -> None:
+    monkeypatch.setattr(
+        mod,
+        "ChessService",
+        lambda: pytest.fail("Chess.com ne doit pas être appelé"),
+    )
+
+    with pytest.raises(mod.UnsafeChessResetError, match="non destructive"):
+        mod.sync_chess_to_obsidian(reset=True)
+
+
+def test_main_refuses_reset(capsys) -> None:
+    with pytest.raises(SystemExit) as raised:
+        mod.main(["--reset"])
+
+    assert raised.value.code == 2
+    assert "non destructive" in capsys.readouterr().err
 
 
 def test_main_calls_sync_with_custom_limit(monkeypatch) -> None:

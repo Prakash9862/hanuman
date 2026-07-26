@@ -5,7 +5,6 @@ import datetime as dt
 import io
 import os
 import re
-import shutil
 from collections import defaultdict
 from dataclasses import dataclass
 from pathlib import Path
@@ -13,12 +12,17 @@ from typing import Any
 
 import chess.pgn
 
+from hanuman.services.atomic_write_service import atomic_write_text
 from hanuman.services.core.chess_service import ChessService
 
 CHESS_USERNAME = "prakasch"
 ANALYSIS_START = "<!-- HANUMAN_CHESS_ANALYSIS_START -->"
 ANALYSIS_END = "<!-- HANUMAN_CHESS_ANALYSIS_END -->"
 OBSIDIAN_ROOT = Path("/home/vince/Prakash/projets/Obsidian_Priv-/Echecs")
+
+
+class UnsafeChessResetError(RuntimeError):
+    """Levée lorsqu'une reconstruction destructive est demandée."""
 
 
 @dataclass(frozen=True)
@@ -318,8 +322,6 @@ tags:
 
 def _write_indexes(root: Path, games: list[ChessGame]) -> int:
     index_root = root / "_Index"
-    if index_root.exists():
-        shutil.rmtree(index_root)
 
     by_year: dict[str, list[ChessGame]] = defaultdict(list)
     by_month: dict[str, list[ChessGame]] = defaultdict(list)
@@ -356,26 +358,22 @@ def _write_indexes(root: Path, games: list[ChessGame]) -> int:
         for key, grouped_games in grouped_values.items():
             grouped_games.sort(key=lambda game: game.end_time, reverse=True)
             title = title_factory(key, grouped_games)
-            (target / f"{key}.md").write_text(
+            atomic_write_text(
+                target / f"{key}.md",
                 _index_note(kind, key, title, grouped_games),
-                encoding="utf-8",
             )
             written += 1
 
-    (root / "Dashboard.md").write_text(_dashboard(games), encoding="utf-8")
+    atomic_write_text(root / "Dashboard.md", _dashboard(games))
     return written + 1
 
 
-def _reset_root(root: Path) -> None:
-    root.mkdir(parents=True, exist_ok=True)
-    for child in root.iterdir():
-        if child.is_dir():
-            shutil.rmtree(child)
-        else:
-            child.unlink()
-
-
 def sync_chess_to_obsidian(limit: int = 200, reset: bool = False) -> dict[str, Any]:
+    if reset:
+        raise UnsafeChessResetError(
+            "Réinitialisation Chess refusée : la migration Obsidian est non destructive."
+        )
+
     root = _chess_root()
     raw_games = ChessService().get_latest_games(username=CHESS_USERNAME, limit=limit)
     games = sorted(
@@ -384,10 +382,7 @@ def sync_chess_to_obsidian(limit: int = 200, reset: bool = False) -> dict[str, A
         reverse=True,
     )[:limit]
 
-    if reset:
-        _reset_root(root)
-    else:
-        root.mkdir(parents=True, exist_ok=True)
+    root.mkdir(parents=True, exist_ok=True)
 
     written = 0
     preserved_analyses = 0
@@ -396,11 +391,11 @@ def sync_chess_to_obsidian(limit: int = 200, reset: bool = False) -> dict[str, A
         month_dir.mkdir(parents=True, exist_ok=True)
         path = month_dir / _filename(game)
         previous_analysis = None
-        if path.exists() and not reset:
+        if path.exists():
             previous_analysis = _extract_analysis(path.read_text(encoding="utf-8"))
             if previous_analysis is not None:
                 preserved_analyses += 1
-        path.write_text(_game_note(game, previous_analysis), encoding="utf-8")
+        atomic_write_text(path, _game_note(game, previous_analysis))
         written += 1
 
     index_files = _write_indexes(root, games)
@@ -430,9 +425,8 @@ def main(argv: list[str] | None = None) -> None:
     )
     args = parser.parse_args(argv)
     if args.reset:
-        result = sync_chess_to_obsidian(limit=args.limit, reset=True)
-    else:
-        result = sync_chess_to_obsidian(limit=args.limit)
+        parser.error("--reset est désactivé : la migration Chess Obsidian est non destructive.")
+    result = sync_chess_to_obsidian(limit=args.limit)
     print(result)
 
 
