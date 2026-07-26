@@ -2,7 +2,12 @@ import datetime as dt
 
 import pytest
 
+from hanuman.models.chess_insight import ChessInsightEnvelope
 from hanuman.orchestrations import chess_to_obsidian as mod
+from hanuman.services.chess_insight_storage_service import (
+    inject_insight_block,
+    parse_insight_block,
+)
 
 
 class FakeChessService:
@@ -201,6 +206,28 @@ def test_sync_preserves_existing_analysis(tmp_path, monkeypatch) -> None:
     assert result["analyses_preserved"] == 1
     assert "Analyse déjà calculée." in path.read_text(encoding="utf-8")
     assert len(list(obsidian_root.glob("2024/01/*.md"))) == 1
+
+
+def test_sync_preserves_existing_structured_insights(tmp_path, monkeypatch) -> None:
+    obsidian_root = tmp_path / "Echecs"
+    monkeypatch.setenv("CHESS_OBSIDIAN_PATH", str(obsidian_root))
+    monkeypatch.setattr(mod, "ChessService", FakeChessService)
+    mod.sync_chess_to_obsidian(limit=1)
+    path = obsidian_root / "2024" / "01" / "2024-01-02 - B20 - Opponent2.md"
+    envelope = ChessInsightEnvelope(
+        schema_version=1,
+        game_id="g2",
+        eco="B20",
+        insights=(),
+    )
+    path.write_text(
+        inject_insight_block(path.read_text(encoding="utf-8"), envelope),
+        encoding="utf-8",
+    )
+
+    mod.sync_chess_to_obsidian(limit=1)
+
+    assert parse_insight_block(path.read_text(encoding="utf-8")) == envelope
 
 
 def test_sync_preserves_legacy_indexes(tmp_path, monkeypatch) -> None:

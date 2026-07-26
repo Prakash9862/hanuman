@@ -5,13 +5,22 @@ import json
 import os
 import re
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
+from hanuman.models.chess_insight import (
+    CHESS_INSIGHT_SCHEMA_VERSION,
+    ChessInsightEnvelope,
+)
 from hanuman.services.atomic_write_service import atomic_write_text
 from hanuman.services.chess_analysis_service import (
     AnalysisConfig,
     GameAnalysis,
     StockfishAnalyzer,
+)
+from hanuman.services.chess_insight_service import build_chess_insights
+from hanuman.services.chess_insight_storage_service import (
+    inject_insight_block,
+    parse_chess_note_insight_metadata,
 )
 
 CHESS_USERNAME = os.environ.get("CHESS_COM_USERNAME", "").strip()
@@ -62,7 +71,7 @@ def _format_eval(value_cp: int) -> str:
     return f"{value_cp / 100:+.2f}"
 
 
-def _player_color(analysis: GameAnalysis) -> str:
+def _player_color(analysis: GameAnalysis) -> Literal["white", "black"]:
     if analysis.white.lower() == CHESS_USERNAME.lower():
         return "white"
     if analysis.black.lower() == CHESS_USERNAME.lower():
@@ -239,9 +248,26 @@ def analyse_note(path: Path, analyzer: StockfishAnalyzer) -> GameAnalysis | None
     if not pgn:
         return None
     analysis = analyzer.analyse_pgn(pgn)
+    metadata = parse_chess_note_insight_metadata(markdown)
+    player_color = metadata.player_color or _player_color(analysis)
+    game_id = metadata.game_id
+    eco = metadata.eco or analysis.eco
+    insights = build_chess_insights(
+        analysis,
+        player_color=player_color,
+        game_id=game_id,
+        eco=eco,
+    )
+    envelope = ChessInsightEnvelope(
+        schema_version=CHESS_INSIGHT_SCHEMA_VERSION,
+        game_id=game_id,
+        eco=eco,
+        insights=insights,
+    )
+    with_analysis = inject_analysis(markdown, render_analysis_markdown(analysis))
     atomic_write_text(
         path,
-        inject_analysis(markdown, render_analysis_markdown(analysis)),
+        inject_insight_block(with_analysis, envelope),
     )
     return analysis
 

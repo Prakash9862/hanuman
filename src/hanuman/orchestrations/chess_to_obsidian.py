@@ -16,6 +16,7 @@ from hanuman.models.chess import (
 )
 from hanuman.services.atomic_write_service import atomic_write_text
 from hanuman.services.chess_index_service import write_chess_indexes
+from hanuman.services.chess_insight_storage_service import extract_insight_block
 from hanuman.services.core.chess_service import ChessService
 
 CHESS_USERNAME = "prakasch"
@@ -116,7 +117,11 @@ def _quoted_block(markdown: str) -> str:
     return "\n".join(f"> {line}" if line else ">" for line in markdown.splitlines())
 
 
-def _game_note(game: ChessGame, analysis_block: str | None = None) -> str:
+def _game_note(
+    game: ChessGame,
+    analysis_block: str | None = None,
+    insight_block: str | None = None,
+) -> str:
     date = game.end_time.strftime("%Y-%m-%d")
     headers = _parse_headers(game.pgn)
     title = f"{date} — {game.eco} — {game.opponent}"
@@ -130,6 +135,7 @@ def _game_note(game: ChessGame, analysis_block: str | None = None) -> str:
     status_label = "🟢 Analyse terminée" if analysed else "🟡 Analyse en attente"
     headers_block = _quoted_block(_headers_table(headers))
     pgn_block = _quoted_block(game.pgn.strip())
+    technical_block = f"\n\n{insight_block}" if insight_block is not None else ""
 
     return f'''---
 type: chess-game
@@ -201,7 +207,7 @@ tags:
 {pgn_block}
 > ```
 
-{analysis}
+{analysis}{technical_block}
 '''
 
 
@@ -228,11 +234,17 @@ def sync_chess_to_obsidian(limit: int = 200, reset: bool = False) -> dict[str, A
         month_dir.mkdir(parents=True, exist_ok=True)
         path = month_dir / chess_game_filename(game)
         previous_analysis = None
+        previous_insights = None
         if path.exists():
-            previous_analysis = _extract_analysis(path.read_text(encoding="utf-8"))
+            previous_markdown = path.read_text(encoding="utf-8")
+            previous_analysis = _extract_analysis(previous_markdown)
+            previous_insights = extract_insight_block(previous_markdown)
             if previous_analysis is not None:
                 preserved_analyses += 1
-        atomic_write_text(path, _game_note(game, previous_analysis))
+        atomic_write_text(
+            path,
+            _game_note(game, previous_analysis, previous_insights),
+        )
         written += 1
 
     index_files = write_chess_indexes(root, games)

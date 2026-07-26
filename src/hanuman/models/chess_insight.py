@@ -1,7 +1,8 @@
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
-from typing import Literal
+from typing import Any, Literal, cast
 
 InsightCategory = Literal["blunder", "excellent", "opportunity", "motif"]
 ChessColor = Literal["white", "black"]
@@ -10,6 +11,15 @@ PlayerRole = Literal["player", "opponent"]
 ALLOWED_CATEGORIES = frozenset({"blunder", "excellent", "opportunity", "motif"})
 ALLOWED_COLORS = frozenset({"white", "black"})
 ALLOWED_PLAYER_ROLES = frozenset({"player", "opponent"})
+CHESS_INSIGHT_SCHEMA_VERSION = 1
+
+
+class ChessInsightEnvelopeError(ValueError):
+    """Signale une enveloppe d'insights invalide."""
+
+
+class UnsupportedChessInsightSchemaError(ChessInsightEnvelopeError):
+    """Signale une version de schéma inconnue."""
 
 
 @dataclass(frozen=True)
@@ -64,3 +74,124 @@ class ChessInsight:
             "eco": self.eco,
             "player_role": self.player_role,
         }
+
+    @classmethod
+    def from_dict(cls, payload: object) -> ChessInsight:
+        if not isinstance(payload, dict):
+            raise ChessInsightEnvelopeError("Un insight doit être un objet JSON.")
+
+        def required_string(name: str) -> str:
+            value = payload.get(name)
+            if not isinstance(value, str):
+                raise ChessInsightEnvelopeError(f"Champ insight invalide : {name}")
+            return value
+
+        def optional_string(name: str) -> str | None:
+            value = payload.get(name)
+            if value is not None and not isinstance(value, str):
+                raise ChessInsightEnvelopeError(f"Champ insight invalide : {name}")
+            return value
+
+        def required_int(name: str) -> int:
+            value = payload.get(name)
+            if type(value) is not int:
+                raise ChessInsightEnvelopeError(f"Champ insight invalide : {name}")
+            return value
+
+        opening_phase = payload.get("opening_phase")
+        variation = payload.get("principal_variation")
+        if not isinstance(opening_phase, bool):
+            raise ChessInsightEnvelopeError("Champ insight invalide : opening_phase")
+        if not isinstance(variation, list) or not all(isinstance(move, str) for move in variation):
+            raise ChessInsightEnvelopeError("Champ insight invalide : principal_variation")
+
+        try:
+            return cls(
+                insight_id=required_string("insight_id"),
+                game_id=optional_string("game_id"),
+                category=cast(InsightCategory, required_string("category")),
+                subtype=optional_string("subtype"),
+                ply=required_int("ply"),
+                move_number=required_int("move_number"),
+                color=cast(ChessColor, required_string("color")),
+                san=required_string("san"),
+                annotation=optional_string("annotation"),
+                fen_before=optional_string("fen_before"),
+                fen_after=optional_string("fen_after"),
+                eval_before_cp=required_int("eval_before_cp"),
+                eval_after_cp=required_int("eval_after_cp"),
+                loss_cp=required_int("loss_cp"),
+                best_move_san=optional_string("best_move_san"),
+                principal_variation=tuple(variation),
+                opening_phase=opening_phase,
+                eco=optional_string("eco"),
+                player_role=cast(PlayerRole, required_string("player_role")),
+            )
+        except ValueError as exc:
+            if isinstance(exc, ChessInsightEnvelopeError):
+                raise
+            raise ChessInsightEnvelopeError(str(exc)) from exc
+
+
+@dataclass(frozen=True)
+class ChessInsightEnvelope:
+    schema_version: int
+    game_id: str | None
+    eco: str | None
+    insights: tuple[ChessInsight, ...]
+
+    def __post_init__(self) -> None:
+        if self.schema_version != CHESS_INSIGHT_SCHEMA_VERSION:
+            raise UnsupportedChessInsightSchemaError(
+                f"Version ChessInsight non prise en charge : {self.schema_version}"
+            )
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "schema_version": self.schema_version,
+            "game_id": self.game_id,
+            "eco": self.eco,
+            "insights": [insight.to_dict() for insight in self.insights],
+        }
+
+    def to_json(self) -> str:
+        return json.dumps(
+            self.to_dict(),
+            ensure_ascii=False,
+            indent=2,
+            sort_keys=True,
+        )
+
+    @classmethod
+    def from_json(cls, raw_json: str) -> ChessInsightEnvelope:
+        try:
+            payload: Any = json.loads(raw_json)
+        except json.JSONDecodeError as exc:
+            raise ChessInsightEnvelopeError("JSON ChessInsight invalide.") from exc
+        if not isinstance(payload, dict):
+            raise ChessInsightEnvelopeError("L'enveloppe ChessInsight doit être un objet JSON.")
+
+        version = payload.get("schema_version")
+        if type(version) is not int:
+            raise ChessInsightEnvelopeError("schema_version doit être un entier.")
+        if version != CHESS_INSIGHT_SCHEMA_VERSION:
+            raise UnsupportedChessInsightSchemaError(
+                f"Version ChessInsight non prise en charge : {version}"
+            )
+
+        game_id = payload.get("game_id")
+        eco = payload.get("eco")
+        raw_insights = payload.get("insights")
+        if game_id is not None and not isinstance(game_id, str):
+            raise ChessInsightEnvelopeError("game_id doit être une chaîne ou null.")
+        if eco is not None and not isinstance(eco, str):
+            raise ChessInsightEnvelopeError("eco doit être une chaîne ou null.")
+        if not isinstance(raw_insights, list):
+            raise ChessInsightEnvelopeError("insights doit être une liste.")
+
+        return cls(
+            schema_version=version,
+            game_id=game_id,
+            eco=eco,
+            insights=tuple(ChessInsight.from_dict(insight) for insight in raw_insights),
+        )
