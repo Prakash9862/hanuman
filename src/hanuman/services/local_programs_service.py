@@ -17,7 +17,9 @@ class ProgramDefinition:
 
 
 PROGRAMS: tuple[ProgramDefinition, ...] = (
-    ProgramDefinition("stockfish", "Stockfish", ("stockfish", "/usr/games/stockfish"), (), "quit\n"),
+    ProgramDefinition(
+        "stockfish", "Stockfish", ("stockfish", "/usr/games/stockfish"), (), "quit\n"
+    ),
     ProgramDefinition("scid", "SCID", ("scid", "/usr/games/scid"), ("--help",)),
     ProgramDefinition("lc0", "Leela Chess Zero", ("lc0", "leelaz"), ("--version",)),
     ProgramDefinition("ffmpeg", "FFmpeg", ("ffmpeg",), ("-version",)),
