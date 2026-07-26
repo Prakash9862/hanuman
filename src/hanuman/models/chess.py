@@ -45,3 +45,12 @@ def chess_game_filename(game: ChessGame) -> str:
 
 def chess_game_path(root: Path, game: ChessGame) -> Path:
     return root / game.year / game.end_time.strftime("%m") / chess_game_filename(game)
+
+
+def chess_game_note_link(game: ChessGame) -> str:
+    note = chess_game_filename(game)[:-3]
+    path = f"Echecs/{game.year}/{game.end_time.strftime('%m')}/{note}"
+    label = (
+        f"{game.end_time.strftime('%Y-%m-%d')} · {game.eco} · " f"{game.opponent} · {game.result}"
+    )
+    return f"[[{path}|{label}]]"

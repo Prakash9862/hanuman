@@ -1,12 +1,19 @@
 import datetime as dt
+from dataclasses import replace
 from pathlib import Path
 
 from hanuman.models.chess import ChessGame, chess_game_path
+from hanuman.models.chess_insight import ChessInsight, ChessInsightEnvelope
 from hanuman.services.chess_analysis_summary_service import (
     ANALYSIS_END,
     ANALYSIS_START,
 )
 from hanuman.services.chess_index_service import write_chess_indexes
+from hanuman.services.chess_insight_storage_service import (
+    INSIGHTS_END,
+    INSIGHTS_START,
+    inject_insight_block,
+)
 
 
 def _games() -> list[ChessGame]:
@@ -150,8 +157,11 @@ def test_write_chess_indexes_generates_adr_views(tmp_path: Path) -> None:
     for directory in ("Motifs", "Gaffes", "Excellents coups", "Opportunités"):
         content = (root / "_Index" / directory / "Index.md").read_text(encoding="utf-8")
         assert f"# {directory}" in content
-        assert "Les synthèses seront générées lorsqu’une récurrence" in content
         assert "[[Echecs/_Index/Dashboard|Retour au tableau de bord]]" in content
+        if directory == "Motifs":
+            assert "Aucun détecteur de motifs échiquéens" in content
+        else:
+            assert "Groupes calculés exclusivement depuis les blocs ChessInsight" in content
 
 
 def test_write_chess_indexes_is_idempotent(tmp_path: Path) -> None:
@@ -269,3 +279,173 @@ def test_write_chess_indexes_does_not_overwrite_unmarked_profile(
 
     assert written == 6
     assert profile.read_text(encoding="utf-8") == "Profil entièrement humain"
+
+
+def _structured_insight(
+    game_id: str,
+    suffix: str,
+    category: str,
+    subtype: str,
+    ply: int,
+) -> ChessInsight:
+    return ChessInsight(
+        insight_id=f"{game_id}:{suffix}",
+        game_id=game_id,
+        category=category,  # type: ignore[arg-type]
+        subtype=subtype,
+        ply=ply,
+        move_number=(ply + 1) // 2,
+        color="white",
+        san=f"Move{ply}",
+        annotation=None,
+        fen_before=None,
+        fen_after=None,
+        eval_before_cp=100,
+        eval_after_cp=-100,
+        loss_cp=200,
+        best_move_san="e4",
+        principal_variation=("e4", "e5"),
+        opening_phase=subtype == "opening",
+        eco="B20",
+        player_role="player",
+    )
+
+
+def test_write_chess_indexes_integrates_thresholds_without_touching_sources(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "Echecs"
+    template = _games()[0]
+    games = [
+        replace(
+            template,
+            game_id=f"g{index}",
+            end_time=dt.datetime(2024, 1, index, 12, tzinfo=dt.timezone.utc),
+            black=f"Opponent{index}",
+        )
+        for index in range(1, 8)
+    ]
+    for index, game in enumerate(games[:5], start=1):
+        insights = [
+            _structured_insight(game.game_id, "blunder-open", "blunder", "opening", 1),
+            _structured_insight(
+                game.game_id,
+                "opportunity",
+                "opportunity",
+                "missed_excellent",
+                3,
+            ),
+        ]
+        if index <= 4:
+            insights.append(
+                _structured_insight(
+                    game.game_id,
+                    "blunder-late",
+                    "blunder",
+                    "middlegame_or_endgame",
+                    20,
+                )
+            )
+        if index <= 3:
+            insights.append(
+                _structured_insight(
+                    game.game_id,
+                    "excellent-open",
+                    "excellent",
+                    "opening",
+                    5,
+                )
+            )
+        if index <= 2:
+            insights.append(
+                _structured_insight(
+                    game.game_id,
+                    "excellent-late",
+                    "excellent",
+                    "middlegame_or_endgame",
+                    30,
+                )
+            )
+        if index == 1:
+            insights.extend(
+                [
+                    _structured_insight(
+                        game.game_id,
+                        "blunder-open-extra",
+                        "blunder",
+                        "opening",
+                        7,
+                    ),
+                    insights[0],
+                ]
+            )
+        path = chess_game_path(root, game)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        envelope = ChessInsightEnvelope(1, game.game_id, game.eco, tuple(insights))
+        path.write_text(
+            inject_insight_block(
+                "<!-- HANUMAN_CHESS_ANALYSIS_START -->\n"
+                "Analyse visible intacte\n"
+                "<!-- HANUMAN_CHESS_ANALYSIS_END -->\n",
+                envelope,
+            ),
+            encoding="utf-8",
+        )
+
+    absent_path = chess_game_path(root, games[5])
+    absent_path.write_text("Ancienne note sans insights", encoding="utf-8")
+    invalid_path = chess_game_path(root, games[6])
+    invalid_path.write_text(
+        f"{INSIGHTS_START}\n```json\n{{invalid\n```\n{INSIGHTS_END}",
+        encoding="utf-8",
+    )
+    human_summary = root / "_Index/Excellents coups/En ouverture.md"
+    human_summary.parent.mkdir(parents=True, exist_ok=True)
+    human_summary.write_text("Synthèse humaine préservée", encoding="utf-8")
+    legacy = root / "_Index/Annees/2024.md"
+    legacy.parent.mkdir(parents=True)
+    legacy.write_text("Legacy intact", encoding="utf-8")
+    source_bytes = {
+        chess_game_path(root, game): chess_game_path(root, game).read_bytes() for game in games
+    }
+
+    written = write_chess_indexes(root, games)
+    blunder = root / "_Index/Gaffes/En ouverture.md"
+    opportunity = root / "_Index/Opportunités/Excellents coups manqués.md"
+    blunder_content = blunder.read_text(encoding="utf-8")
+    annotated = blunder_content.replace(
+        "Cette section sera préservée lors des prochaines générations.",
+        "Annotation durable avec [[un lien]].",
+    )
+    blunder.write_text(annotated, encoding="utf-8")
+    write_chess_indexes(root, games)
+    first_views = {
+        path.relative_to(root): path.read_bytes()
+        for path in sorted((root / "_Index").rglob("*.md"))
+    }
+    write_chess_indexes(root, list(reversed(games)))
+    second_views = {
+        path.relative_to(root): path.read_bytes()
+        for path in sorted((root / "_Index").rglob("*.md"))
+    }
+
+    assert written == 9
+    assert blunder.is_file()
+    assert opportunity.is_file()
+    assert not (root / "_Index/Gaffes/Milieu de jeu ou finale.md").exists()
+    assert not (root / "_Index/Excellents coups/Milieu de jeu ou finale.md").exists()
+    assert list((root / "_Index/Motifs").glob("*.md")) == [root / "_Index/Motifs/Index.md"]
+    assert "Synthèse durable" in blunder.read_text(encoding="utf-8")
+    assert "6 occurrences" in blunder.read_text(encoding="utf-8")
+    assert "Tendances confirmées" in (root / "_Index/Gaffes/Index.md").read_text(encoding="utf-8")
+    assert "Signaux émergents" in (root / "_Index/Excellents coups/Index.md").read_text(
+        encoding="utf-8"
+    )
+    assert "Couverture : 5/7 notes · 1 sans bloc · 1 illisibles" in (
+        root / "_Index/Gaffes/Index.md"
+    ).read_text(encoding="utf-8")
+    assert human_summary.read_text(encoding="utf-8") == "Synthèse humaine préservée"
+    assert "Annotation durable avec [[un lien]]." in blunder.read_text(encoding="utf-8")
+    assert legacy.read_text(encoding="utf-8") == "Legacy intact"
+    assert {path: path.read_bytes() for path in source_bytes} == source_bytes
+    assert second_views == first_views

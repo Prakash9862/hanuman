@@ -5,7 +5,7 @@ from pathlib import Path
 
 from hanuman.models.chess import (
     ChessGame,
-    chess_game_filename,
+    chess_game_note_link,
     safe_chess_filename_part,
 )
 from hanuman.services.atomic_write_service import atomic_write_text
@@ -13,10 +13,14 @@ from hanuman.services.chess_analysis_summary_service import (
     ChessProfileStats,
     build_chess_profile_stats,
 )
+from hanuman.services.chess_insight_aggregation_service import (
+    aggregate_persisted_chess_insights,
+)
+from hanuman.services.chess_insight_view_service import write_chess_insight_views
 
 GENERATED_START = "<!-- HANUMAN:GENERATED:START -->"
 GENERATED_END = "<!-- HANUMAN:GENERATED:END -->"
-THEMATIC_DIRECTORIES = ("Motifs", "Gaffes", "Excellents coups", "Opportunités")
+THEMATIC_DIRECTORIES = ("Motifs",)
 
 
 def _yaml_quote(value: str) -> str:
@@ -24,11 +28,7 @@ def _yaml_quote(value: str) -> str:
 
 
 def _game_link(game: ChessGame) -> str:
-    path = f"Echecs/{game.year}/{game.end_time.strftime('%m')}/" f"{chess_game_filename(game)[:-3]}"
-    label = (
-        f"{game.end_time.strftime('%Y-%m-%d')} · {game.eco} · " f"{game.opponent} · {game.result}"
-    )
-    return f"[[{path}|{label}]]"
+    return chess_game_note_link(game)
 
 
 def _index_note(kind: str, key: str, title: str, games: list[ChessGame]) -> str:
@@ -181,7 +181,7 @@ def _thematic_generated(title: str) -> str:
 # {title}
 
 > [!chess] Synthèses récurrentes
-> Les synthèses seront générées lorsqu’une récurrence aura été confirmée.
+> Aucun détecteur de motifs échiquéens n’est actuellement activé.
 
 > [!hanuman-nav] Navigation
 > 🏠 [[Echecs/_Index/Dashboard|Retour au tableau de bord]]
@@ -230,8 +230,10 @@ def _write_protected(path: Path, initial: str, generated: str) -> bool:
 def write_chess_indexes(root: Path, games: list[ChessGame]) -> int:
     """Génère les vues ADR-0005 sans supprimer les fichiers existants."""
 
+    games = sorted(games, key=lambda game: game.end_time, reverse=True)
     index_root = root / "_Index"
     stats = build_chess_profile_stats(root, games)
+    insight_aggregation = aggregate_persisted_chess_insights(root, games)
 
     by_opening: dict[str, list[ChessGame]] = defaultdict(list)
 
@@ -263,5 +265,7 @@ def write_chess_indexes(root: Path, games: list[ChessGame]) -> int:
         target = index_root / title / "Index.md"
         if _write_protected(target, _thematic_index(title), _thematic_generated(title)):
             written += 1
+
+    written += write_chess_insight_views(root, insight_aggregation)
 
     return written
