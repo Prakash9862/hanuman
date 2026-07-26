@@ -14,7 +14,13 @@ from hanuman.orchestrations.chess_analysis import (
     _game_paths,
     analyse_note,
 )
+from hanuman.services.atomic_write_service import atomic_write_text
 from hanuman.services.chess_analysis_service import AnalysisConfig, StockfishAnalyzer
+from hanuman.services.chess_path_safety_service import resolve_safe_destination
+from hanuman.services.delimited_zone_service import (
+    DelimitedZoneError,
+    find_delimited_zone,
+)
 
 _STATE_FILENAME = ".hanuman-stockfish-state.json"
 _LOCK = threading.Lock()
@@ -49,9 +55,9 @@ def _default_state() -> dict[str, Any]:
 
 def _write_state(state: dict[str, Any]) -> None:
     state["updated_at"] = _now()
-    path = _state_path()
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(state, ensure_ascii=False, indent=2), encoding="utf-8")
+    root = _chess_root()
+    path = resolve_safe_destination(root, _state_path())
+    atomic_write_text(path, json.dumps(state, ensure_ascii=False, indent=2))
 
 
 def get_analysis_queue_status() -> dict[str, Any]:
@@ -82,9 +88,18 @@ def _is_analysed(path: Path) -> bool:
         markdown = path.read_text(encoding="utf-8")
     except OSError:
         return False
-    if START_MARKER not in markdown or END_MARKER not in markdown:
+    try:
+        bounds = find_delimited_zone(
+            markdown,
+            START_MARKER,
+            END_MARKER,
+            label="d’analyse Chess",
+        )
+    except DelimitedZoneError:
         return False
-    block = markdown.split(START_MARKER, 1)[1].split(END_MARKER, 1)[0]
+    if bounds is None:
+        return False
+    block = markdown[bounds.start + len(START_MARKER) : bounds.end - len(END_MARKER)]
     return "Analyse non encore lancée." not in block and "### Ton bilan" in block
 
 
@@ -121,7 +136,7 @@ def _run_queue(paths: list[Path], depth: int, batch_limit: int | None) -> None:
                 state["remaining"] = len(paths) - index + 1
                 _write_state(state)
                 try:
-                    analysis = analyse_note(path, analyzer)
+                    analysis = analyse_note(path, analyzer, root=_chess_root())
                     if analysis is None:
                         raise ValueError("PGN absent ou illisible")
                     state["completed"] += 1

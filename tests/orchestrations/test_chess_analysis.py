@@ -1,6 +1,8 @@
 from pathlib import Path
 from typing import cast
 
+import pytest
+
 from hanuman.orchestrations import chess_analysis as mod
 from hanuman.services.chess_analysis_service import (
     GameAnalysis,
@@ -100,6 +102,22 @@ def test_inject_analysis_remains_idempotent() -> None:
     twice = mod.inject_analysis(once, rendered)
 
     assert twice == once
+
+
+@pytest.mark.parametrize(
+    "markdown",
+    [
+        f"{mod.START_MARKER}\nseul",
+        f"seul\n{mod.END_MARKER}",
+        f"{mod.START_MARKER}\na\n{mod.START_MARKER}\nb\n{mod.END_MARKER}",
+        f"{mod.START_MARKER}\na\n{mod.END_MARKER}\nb\n{mod.END_MARKER}",
+        f"{mod.END_MARKER}\n{mod.START_MARKER}",
+    ],
+)
+def test_analysis_markers_are_strict_and_never_modified(markdown: str) -> None:
+    with pytest.raises(mod.ChessAnalysisBlockError):
+        mod.inject_analysis(markdown, f"{mod.START_MARKER}\nnew\n{mod.END_MARKER}")
+    assert markdown == markdown
 
 
 def _critical_analysis() -> GameAnalysis:

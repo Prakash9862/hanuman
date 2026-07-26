@@ -6,6 +6,10 @@ from pathlib import Path
 from typing import Literal
 
 from hanuman.models.chess import ChessGame, chess_game_path
+from hanuman.services.delimited_zone_service import (
+    DelimitedZoneError,
+    find_delimited_zone,
+)
 
 ANALYSIS_START = "<!-- HANUMAN_CHESS_ANALYSIS_START -->"
 ANALYSIS_END = "<!-- HANUMAN_CHESS_ANALYSIS_END -->"
@@ -74,17 +78,21 @@ COUNT_PATTERNS = {
 
 
 def _analysis_block(markdown: str) -> tuple[str | None, bool]:
-    has_start = ANALYSIS_START in markdown
-    has_end = ANALYSIS_END in markdown
-    if not has_start and not has_end:
+    try:
+        bounds = find_delimited_zone(
+            markdown,
+            ANALYSIS_START,
+            ANALYSIS_END,
+            label="d’analyse Chess",
+        )
+    except DelimitedZoneError:
+        return None, True
+    if bounds is None:
         return None, False
-    if not has_start or not has_end:
-        return None, True
-    start = markdown.find(ANALYSIS_START)
-    end = markdown.find(ANALYSIS_END, start + len(ANALYSIS_START))
-    if end < 0:
-        return None, True
-    return markdown[start + len(ANALYSIS_START) : end], False
+    return (
+        markdown[bounds.start + len(ANALYSIS_START) : bounds.end - len(ANALYSIS_END)],
+        False,
+    )
 
 
 def _optional_text(block: str, field: str) -> str | None:

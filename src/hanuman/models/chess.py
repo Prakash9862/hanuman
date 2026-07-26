@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import datetime as dt
+import hashlib
 import re
 from dataclasses import dataclass
 from pathlib import Path
@@ -19,6 +20,7 @@ class ChessGame:
     time_control: str
     url: str
     pgn: str
+    note_filename: str | None = None
 
     @property
     def opponent(self) -> str:
@@ -39,8 +41,20 @@ def safe_chess_filename_part(value: str) -> str:
 
 
 def chess_game_filename(game: ChessGame) -> str:
+    if game.note_filename is not None:
+        return game.note_filename
+    return chess_game_historical_filename(game)
+
+
+def chess_game_historical_filename(game: ChessGame) -> str:
     date = game.end_time.strftime("%Y-%m-%d")
     return f"{date} - {game.eco} - {safe_chess_filename_part(game.opponent)}.md"
+
+
+def chess_game_disambiguated_filename(game: ChessGame) -> str:
+    historical = chess_game_historical_filename(game)
+    suffix = hashlib.sha256(game.game_id.encode("utf-8")).hexdigest()[:8]
+    return f"{historical[:-3]} - {suffix}.md"
 
 
 def chess_game_path(root: Path, game: ChessGame) -> Path:

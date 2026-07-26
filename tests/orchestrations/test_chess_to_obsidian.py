@@ -1,8 +1,10 @@
 import datetime as dt
+import hashlib
 
 import pytest
 
-from hanuman.models.chess_insight import ChessInsightEnvelope
+from hanuman.models.chess import ChessGame, chess_game_path
+from hanuman.models.chess_insight import ChessInsight, ChessInsightEnvelope
 from hanuman.orchestrations import chess_to_obsidian as mod
 from hanuman.services.chess_insight_storage_service import (
     inject_insight_block,
@@ -106,6 +108,20 @@ def test_game_note_preserves_existing_analysis_verbatim() -> None:
     assert note.count(mod.ANALYSIS_END) == 1
 
 
+@pytest.mark.parametrize(
+    "markdown",
+    [
+        f"{mod.ANALYSIS_START}\nseul",
+        f"seul\n{mod.ANALYSIS_END}",
+        f"{mod.ANALYSIS_START}\na\n{mod.ANALYSIS_START}\nb\n{mod.ANALYSIS_END}",
+        f"{mod.ANALYSIS_END}\n{mod.ANALYSIS_START}",
+    ],
+)
+def test_analysis_extraction_rejects_ambiguous_markers(markdown: str) -> None:
+    with pytest.raises(mod.ChessGameNoteUpdateError, match="Marqueurs"):
+        mod._extract_analysis(markdown)
+
+
 def test_sync_writes_games_and_graph_indexes(tmp_path, monkeypatch) -> None:
     """La synchronisation écrit les parties et les nœuds du graphe Obsidian."""
 
@@ -125,6 +141,10 @@ def test_sync_writes_games_and_graph_indexes(tmp_path, monkeypatch) -> None:
         "destination": str(obsidian_root),
         "games_received": 2,
         "games_written": 2,
+        "games_protected": 0,
+        "protected_game_files": [],
+        "vault_games_usable": 2,
+        "vault_notes_ignored": 0,
         "analyses_preserved": 0,
         "index_files_written": 7,
         "reset": False,
@@ -228,6 +248,155 @@ def test_sync_preserves_existing_structured_insights(tmp_path, monkeypatch) -> N
     mod.sync_chess_to_obsidian(limit=1)
 
     assert parse_insight_block(path.read_text(encoding="utf-8")) == envelope
+
+
+def test_sync_preserves_human_content_outside_generated_zones(tmp_path, monkeypatch) -> None:
+    root = tmp_path / "Echecs"
+    monkeypatch.setenv("CHESS_OBSIDIAN_PATH", str(root))
+    monkeypatch.setattr(mod, "ChessService", FakeChessService)
+    mod.sync_chess_to_obsidian(limit=1)
+    path = root / "2024/01/2024-01-02 - B20 - Opponent2.md"
+    content = path.read_text(encoding="utf-8")
+    before_analysis = """## Notes personnelles
+
+### Travail à revoir
+
+- [[Lien humain]]
+- Commentaire avec accents.
+- Une ligne avant le bloc d’analyse.
+
+"""
+    after_insights = "\n- Une ligne après le bloc ChessInsight.\n"
+    content = content.replace(mod.ANALYSIS_START, before_analysis + mod.ANALYSIS_START)
+    content += after_insights
+    path.write_text(content, encoding="utf-8")
+
+    mod.sync_chess_to_obsidian(limit=1)
+
+    updated = path.read_text(encoding="utf-8")
+    assert before_analysis in updated
+    assert updated.endswith(after_insights)
+
+
+def test_sync_disambiguates_colliding_games_deterministically(tmp_path, monkeypatch) -> None:
+    root = tmp_path / "Echecs"
+    base = FakeChessService().get_latest_games("prakasch", 1)[0]
+    first = {**base, "id": "collision-a", "pgn": '[Event "A"]\n\n1. e4 e5'}
+    second = {**base, "id": "collision-b", "pgn": '[Event "B"]\n\n1. d4 d5'}
+
+    class CollisionService:
+        calls = 0
+
+        def get_latest_games(self, username: str, limit: int) -> list[dict]:
+            type(self).calls += 1
+            return [second, first] if type(self).calls == 1 else [first, second]
+
+    monkeypatch.setenv("CHESS_OBSIDIAN_PATH", str(root))
+    monkeypatch.setattr(mod, "ChessService", CollisionService)
+    mod.sync_chess_to_obsidian(limit=2)
+    first_state = {path.name: path.read_bytes() for path in sorted((root / "2024/01").glob("*.md"))}
+    mod.sync_chess_to_obsidian(limit=2)
+    second_state = {
+        path.name: path.read_bytes() for path in sorted((root / "2024/01").glob("*.md"))
+    }
+
+    assert len(first_state) == 2
+    suffix = hashlib.sha256(b"collision-b").hexdigest()[:8]
+    assert any(f" - {suffix}.md" in name for name in first_state)
+    assert b'[Event "A"]' in b"".join(first_state.values())
+    assert b'[Event "B"]' in b"".join(first_state.values())
+    assert second_state == first_state
+
+
+def test_sync_protects_historical_note_without_game_markers(tmp_path, monkeypatch) -> None:
+    root = tmp_path / "Echecs"
+    path = root / "2024/01/2024-01-02 - B20 - Opponent2.md"
+    path.parent.mkdir(parents=True)
+    historical = """---
+type: chess-game
+game_id: "g2"
+color: black
+eco: B20
+---
+
+## Notes personnelles
+
+Intouchable.
+"""
+    path.write_text(historical, encoding="utf-8")
+    monkeypatch.setenv("CHESS_OBSIDIAN_PATH", str(root))
+    monkeypatch.setattr(mod, "ChessService", FakeChessService)
+
+    result = mod.sync_chess_to_obsidian(limit=1)
+
+    assert path.read_text(encoding="utf-8") == historical
+    assert result["games_protected"] == 1
+    assert result["protected_game_files"] == [str(path.relative_to(root))]
+
+
+def test_limited_sync_rebuilds_views_from_complete_vault(tmp_path, monkeypatch) -> None:
+    root = tmp_path / "Echecs"
+    old_games: list[ChessGame] = []
+    for index in range(3, 9):
+        game = ChessGame(
+            game_id=f"old-{index}",
+            end_time=dt.datetime(2024, 1, index, 12, tzinfo=dt.timezone.utc),
+            white="prakasch",
+            black=f"OldOpponent{index}",
+            result="win",
+            color="white",
+            opening_name="Sicilian Defense",
+            eco="B20",
+            time_control="blitz",
+            url=f"https://example.test/{index}",
+            pgn=f'[Event "Old {index}"]\n\n1. e4 c5',
+        )
+        old_games.append(game)
+        path = chess_game_path(root, game)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        note = mod._game_note(game)
+        if index <= 7:
+            insight = ChessInsight(
+                insight_id=f"{game.game_id}:1:blunder:player",
+                game_id=game.game_id,
+                category="blunder",
+                subtype="opening",
+                ply=1,
+                move_number=1,
+                color="white",
+                san="e4",
+                annotation="??",
+                fen_before=None,
+                fen_after=None,
+                eval_before_cp=100,
+                eval_after_cp=-100,
+                loss_cp=200,
+                best_move_san="d4",
+                principal_variation=("d4",),
+                opening_phase=True,
+                eco="B20",
+                player_role="player",
+            )
+            note = inject_insight_block(
+                note,
+                ChessInsightEnvelope(1, game.game_id, "B20", (insight,)),
+            )
+        path.write_text(note, encoding="utf-8")
+    before = {
+        chess_game_path(root, game): chess_game_path(root, game).read_bytes() for game in old_games
+    }
+
+    monkeypatch.setenv("CHESS_OBSIDIAN_PATH", str(root))
+    monkeypatch.setattr(mod, "ChessService", FakeChessService)
+    result = mod.sync_chess_to_obsidian(limit=2)
+
+    dashboard = (root / "_Index/Dashboard.md").read_text(encoding="utf-8")
+    summary = root / "_Index/Gaffes/En ouverture.md"
+    assert result["games_received"] == 2
+    assert result["vault_games_usable"] == 8
+    assert "**8 parties**" in dashboard
+    assert "Synthèse durable" in summary.read_text(encoding="utf-8")
+    assert {path: path.read_bytes() for path in before} == before
 
 
 def test_sync_preserves_legacy_indexes(tmp_path, monkeypatch) -> None:

@@ -22,6 +22,11 @@ from hanuman.services.chess_insight_storage_service import (
     inject_insight_block,
     parse_chess_note_insight_metadata,
 )
+from hanuman.services.chess_path_safety_service import resolve_safe_destination
+from hanuman.services.delimited_zone_service import (
+    DelimitedZoneError,
+    replace_delimited_zone,
+)
 
 CHESS_USERNAME = os.environ.get("CHESS_COM_USERNAME", "").strip()
 if not CHESS_USERNAME:
@@ -31,6 +36,10 @@ PGN_PATTERN = re.compile(r"```pgn\s*(.*?)```", re.DOTALL | re.IGNORECASE)
 START_MARKER = "<!-- HANUMAN_CHESS_ANALYSIS_START -->"
 END_MARKER = "<!-- HANUMAN_CHESS_ANALYSIS_END -->"
 LEGACY_ANALYSIS_PATTERN = re.compile(r"\n## Analyse personnelle\s*.*\Z", re.DOTALL)
+
+
+class ChessAnalysisBlockError(ValueError):
+    """Signale des marqueurs d’analyse visibles ambigus."""
 
 
 def _vault_root() -> Path:
@@ -234,15 +243,28 @@ def render_analysis_markdown(analysis: GameAnalysis) -> str:
 
 
 def inject_analysis(markdown: str, rendered: str) -> str:
-    if START_MARKER in markdown and END_MARKER in markdown:
-        before, rest = markdown.split(START_MARKER, 1)
-        _, after = rest.split(END_MARKER, 1)
-        return before.rstrip() + "\n\n" + rendered + after
+    try:
+        updated = replace_delimited_zone(
+            markdown,
+            rendered,
+            START_MARKER,
+            END_MARKER,
+            label="d’analyse Chess",
+        )
+    except DelimitedZoneError as exc:
+        raise ChessAnalysisBlockError(str(exc)) from exc
+    if updated is not None:
+        return updated
     without_legacy = LEGACY_ANALYSIS_PATTERN.sub("", markdown).rstrip()
     return without_legacy + "\n\n" + rendered + "\n"
 
 
-def analyse_note(path: Path, analyzer: StockfishAnalyzer) -> GameAnalysis | None:
+def analyse_note(
+    path: Path,
+    analyzer: StockfishAnalyzer,
+    *,
+    root: Path | None = None,
+) -> GameAnalysis | None:
     markdown = path.read_text(encoding="utf-8")
     pgn = extract_pgn(markdown)
     if not pgn:
@@ -265,8 +287,9 @@ def analyse_note(path: Path, analyzer: StockfishAnalyzer) -> GameAnalysis | None
         insights=insights,
     )
     with_analysis = inject_analysis(markdown, render_analysis_markdown(analysis))
+    safe_path = resolve_safe_destination(root or path.parent, path)
     atomic_write_text(
-        path,
+        safe_path,
         inject_insight_block(with_analysis, envelope),
     )
     return analysis
@@ -296,7 +319,7 @@ def analyse_vault(limit: int | None = None, depth: int = 18) -> dict[str, Any]:
     with StockfishAnalyzer(config) as analyzer:
         for path in paths:
             try:
-                analysis = analyse_note(path, analyzer)
+                analysis = analyse_note(path, analyzer, root=root)
                 if analysis is None:
                     skipped += 1
                 else:

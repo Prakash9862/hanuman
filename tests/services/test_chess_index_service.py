@@ -2,6 +2,8 @@ import datetime as dt
 from dataclasses import replace
 from pathlib import Path
 
+import pytest
+
 from hanuman.models.chess import ChessGame, chess_game_path
 from hanuman.models.chess_insight import ChessInsight, ChessInsightEnvelope
 from hanuman.services.chess_analysis_summary_service import (
@@ -279,6 +281,56 @@ def test_write_chess_indexes_does_not_overwrite_unmarked_profile(
 
     assert written == 6
     assert profile.read_text(encoding="utf-8") == "Profil entièrement humain"
+
+
+def test_dashboard_and_opening_human_files_are_protected(tmp_path: Path) -> None:
+    root = tmp_path / "Echecs"
+    dashboard = root / "_Index/Dashboard.md"
+    opening = root / "_Index/Ouvertures/B20.md"
+    opening.parent.mkdir(parents=True)
+    dashboard.write_text("Dashboard entièrement humain", encoding="utf-8")
+    opening.write_text("Ouverture entièrement humaine", encoding="utf-8")
+
+    written = write_chess_indexes(root, _games())
+
+    assert written == 5
+    assert dashboard.read_text(encoding="utf-8") == "Dashboard entièrement humain"
+    assert opening.read_text(encoding="utf-8") == "Ouverture entièrement humaine"
+
+
+def test_dashboard_and_opening_preserve_personal_notes(tmp_path: Path) -> None:
+    root = tmp_path / "Echecs"
+    write_chess_indexes(root, _games())
+    targets = [
+        root / "_Index/Dashboard.md",
+        root / "_Index/Ouvertures/B20.md",
+    ]
+    notes = "\n### Annotation humaine\n\n- [[Lien humain]] avec accents.\n"
+    for path in targets:
+        path.write_text(path.read_text(encoding="utf-8") + notes, encoding="utf-8")
+
+    write_chess_indexes(root, _games()[:1])
+    first = {path: path.read_bytes() for path in targets}
+    write_chess_indexes(root, _games()[:1])
+
+    assert {path: path.read_bytes() for path in targets} == first
+    assert all(path.read_text(encoding="utf-8").endswith(notes) for path in targets)
+
+
+def test_global_validation_failure_changes_no_existing_view(tmp_path: Path) -> None:
+    root = tmp_path / "Echecs"
+    write_chess_indexes(root, _games())
+    invalid = root / "_Index/Opportunités/Index.md"
+    invalid.write_text(
+        "<!-- HANUMAN:GENERATED:START -->\nzone incomplète",
+        encoding="utf-8",
+    )
+    before = {path: path.read_bytes() for path in sorted((root / "_Index").rglob("*.md"))}
+
+    with pytest.raises(ValueError, match="Marqueurs|marqueurs|invalide"):
+        write_chess_indexes(root, _games()[:1])
+
+    assert {path: path.read_bytes() for path in before} == before
 
 
 def _structured_insight(

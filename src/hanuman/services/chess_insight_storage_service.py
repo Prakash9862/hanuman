@@ -6,6 +6,10 @@ from pathlib import Path
 from typing import Literal, cast
 
 from hanuman.models.chess_insight import ChessInsightEnvelope
+from hanuman.services.delimited_zone_service import (
+    DelimitedZoneError,
+    find_delimited_zone,
+)
 
 INSIGHTS_START = "<!-- HANUMAN_CHESS_INSIGHTS_START -->"
 INSIGHTS_END = "<!-- HANUMAN_CHESS_INSIGHTS_END -->"
@@ -27,17 +31,18 @@ def render_insight_block(envelope: ChessInsightEnvelope) -> str:
 
 
 def _block_bounds(markdown: str) -> tuple[int, int] | None:
-    starts = markdown.count(INSIGHTS_START)
-    ends = markdown.count(INSIGHTS_END)
-    if starts == 0 and ends == 0:
+    try:
+        bounds = find_delimited_zone(
+            markdown,
+            INSIGHTS_START,
+            INSIGHTS_END,
+            label="ChessInsight",
+        )
+    except DelimitedZoneError as exc:
+        raise ChessInsightBlockError(str(exc)) from exc
+    if bounds is None:
         return None
-    if starts != 1 or ends != 1:
-        raise ChessInsightBlockError("Zone ChessInsight incomplète ou dupliquée.")
-    start = markdown.index(INSIGHTS_START)
-    end = markdown.index(INSIGHTS_END)
-    if end < start:
-        raise ChessInsightBlockError("Marqueurs ChessInsight dans un ordre invalide.")
-    return start, end + len(INSIGHTS_END)
+    return bounds.start, bounds.end
 
 
 def inject_insight_block(markdown: str, envelope: ChessInsightEnvelope) -> str:

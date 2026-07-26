@@ -4,7 +4,6 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from hanuman.models.chess_insight import InsightCategory
-from hanuman.services.atomic_write_service import atomic_write_text
 from hanuman.services.chess_insight_aggregation_service import (
     STATUS_CONFIRMED,
     STATUS_DURABLE,
@@ -13,6 +12,16 @@ from hanuman.services.chess_insight_aggregation_service import (
     ChessInsightAggregation,
     ChessInsightGroup,
     ChessInsightOccurrence,
+)
+from hanuman.services.chess_path_safety_service import resolve_safe_destination
+from hanuman.services.chess_view_write_plan_service import (
+    ChessViewValidationError,
+    ChessViewWritePlan,
+    plan_generated_view,
+)
+from hanuman.services.delimited_zone_service import (
+    DelimitedZoneError,
+    find_delimited_zone,
 )
 
 GENERATED_START = "<!-- HANUMAN:GENERATED:START -->"
@@ -103,42 +112,23 @@ INSIGHT_VIEW_DEFINITIONS: tuple[InsightViewDefinition, ...] = (
 )
 
 
-def _replace_generated(existing: str, generated: str) -> str | None:
-    starts = existing.count(GENERATED_START)
-    ends = existing.count(GENERATED_END)
-    if starts == 0 and ends == 0:
-        return None
-    if starts != 1 or ends != 1:
-        raise ChessInsightViewError("Marqueurs de vue Hanuman incomplets ou dupliqués.")
-    start = existing.index(GENERATED_START)
-    end = existing.index(GENERATED_END)
-    if end < start:
-        raise ChessInsightViewError("Marqueurs de vue Hanuman dans un ordre invalide.")
-    return existing[:start] + generated + existing[end + len(GENERATED_END) :]
-
-
-def _write_protected(path: Path, initial: str, generated: str) -> bool:
-    if not path.exists():
-        atomic_write_text(path, initial)
-        return True
-    updated = _replace_generated(path.read_text(encoding="utf-8"), generated)
-    if updated is None:
-        return False
-    atomic_write_text(path, updated)
-    return True
-
-
-def _has_hanuman_markers(path: Path) -> bool:
+def _has_hanuman_markers(root: Path, path: Path) -> bool:
+    path = resolve_safe_destination(root, path)
     if not path.is_file():
         return False
     content = path.read_text(encoding="utf-8")
-    starts = content.count(GENERATED_START)
-    ends = content.count(GENERATED_END)
-    if starts == 0 and ends == 0:
-        return False
-    if starts != 1 or ends != 1:
-        raise ChessInsightViewError(f"Marqueurs de vue Hanuman invalides : {path}")
-    return True
+    try:
+        return (
+            find_delimited_zone(
+                content,
+                GENERATED_START,
+                GENERATED_END,
+                label="de vue Hanuman",
+            )
+            is not None
+        )
+    except DelimitedZoneError as exc:
+        raise ChessInsightViewError(f"Marqueurs de vue Hanuman invalides : {path}") from exc
 
 
 def _summary_link(definition: InsightViewDefinition) -> str:
@@ -350,10 +340,10 @@ Cette section sera préservée lors des prochaines générations.
 """
 
 
-def write_chess_insight_views_report(
+def plan_chess_insight_views_report(
     root: Path,
     aggregation: ChessInsightAggregation,
-) -> ChessInsightViewWriteReport:
+) -> tuple[ChessViewWritePlan, ChessInsightViewWriteReport]:
     index_root = root / "_Index"
     groups = {(group.category, group.subtype): group for group in aggregation.groups}
     active_links: set[tuple[InsightCategory, str]] = set()
@@ -361,30 +351,41 @@ def write_chess_insight_views_report(
     active_written = 0
     inactive_written = 0
     protected = 0
+    plan = ChessViewWritePlan()
 
     for definition in INSIGHT_VIEW_DEFINITIONS:
         key = (definition.category, definition.subtype)
         group = groups.get(key, _empty_group(definition))
         path = index_root / definition.directory / definition.filename
-        existing_hanuman = _has_hanuman_markers(path)
+        existing_hanuman = _has_hanuman_markers(root, path)
         if group.status == STATUS_DURABLE:
             generated = _summary_generated(definition, group, STATUS_DURABLE)
-            if _write_protected(
+            planned = plan_generated_view(
+                root,
                 path,
-                _summary_initial(definition, generated),
-                generated,
-            ):
+                initial=_summary_initial(definition, generated),
+                generated=generated,
+                start_marker=GENERATED_START,
+                end_marker=GENERATED_END,
+            )
+            plan = plan.merged(planned)
+            if planned.writes:
                 active_links.add(key)
                 active_written += 1
             else:
                 protected += 1
         elif existing_hanuman:
             generated = _summary_generated(definition, group, STATUS_INACTIVE)
-            if _write_protected(
+            planned = plan_generated_view(
+                root,
                 path,
-                _summary_initial(definition, generated),
-                generated,
-            ):
+                initial=_summary_initial(definition, generated),
+                generated=generated,
+                start_marker=GENERATED_START,
+                end_marker=GENERATED_END,
+            )
+            plan = plan.merged(planned)
+            if planned.writes:
                 inactive_links.add(key)
                 inactive_written += 1
 
@@ -414,21 +415,41 @@ def write_chess_insight_views_report(
             diagnostics_text,
         )
         path = index_root / representative.directory / "Index.md"
-        if _write_protected(
+        planned = plan_generated_view(
+            root,
             path,
-            _thematic_index_initial(representative, generated),
-            generated,
-        ):
+            initial=_thematic_index_initial(representative, generated),
+            generated=generated,
+            start_marker=GENERATED_START,
+            end_marker=GENERATED_END,
+        )
+        plan = plan.merged(planned)
+        if planned.writes:
             thematic_written += 1
         else:
             protected += 1
 
-    return ChessInsightViewWriteReport(
-        thematic_indexes_written=thematic_written,
-        active_summaries_written=active_written,
-        inactive_summaries_updated=inactive_written,
-        human_files_protected=protected,
+    return (
+        plan,
+        ChessInsightViewWriteReport(
+            thematic_indexes_written=thematic_written,
+            active_summaries_written=active_written,
+            inactive_summaries_updated=inactive_written,
+            human_files_protected=protected,
+        ),
     )
+
+
+def write_chess_insight_views_report(
+    root: Path,
+    aggregation: ChessInsightAggregation,
+) -> ChessInsightViewWriteReport:
+    try:
+        plan, report = plan_chess_insight_views_report(root, aggregation)
+    except ChessViewValidationError as exc:
+        raise ChessInsightViewError(str(exc)) from exc
+    plan.execute()
+    return report
 
 
 def write_chess_insight_views(

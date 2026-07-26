@@ -153,3 +153,20 @@ def test_parser_exposes_no_destructive_option() -> None:
     assert "--reset" not in help_text
     assert "--clean" not in help_text
     assert "--delete" not in help_text
+
+
+def test_command_refuses_index_symlink_without_writing_outside(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    root, _ = _vault(tmp_path)
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (root / "_Index").symlink_to(outside, target_is_directory=True)
+
+    with pytest.raises(SystemExit) as exc:
+        mod.main(["--vault-path", str(root)])
+
+    assert exc.value.code == 2
+    assert list(outside.iterdir()) == []
+    assert "symbolique" in capsys.readouterr().err

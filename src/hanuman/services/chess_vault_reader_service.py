@@ -2,11 +2,15 @@ from __future__ import annotations
 
 import datetime as dt
 import json
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Literal, cast
 
-from hanuman.models.chess import ChessGame, chess_game_path
+from hanuman.models.chess import (
+    ChessGame,
+    chess_game_disambiguated_filename,
+    chess_game_historical_filename,
+)
 
 
 @dataclass(frozen=True)
@@ -102,9 +106,16 @@ def read_chess_game_note(root: Path, path: Path) -> ChessGame | None:
         url=values.get("chess_url", ""),
         pgn="",
     )
-    if chess_game_path(root, game) != path:
+    allowed_filenames = {
+        chess_game_historical_filename(game),
+        chess_game_disambiguated_filename(game),
+    }
+    if (
+        path.name not in allowed_filenames
+        or path.parent != root / game.year / game.end_time.strftime("%m")
+    ):
         raise ChessVaultNoteError("Le chemin ne correspond pas aux métadonnées de la partie.")
-    return game
+    return replace(game, note_filename=path.name)
 
 
 def read_chess_vault(root: Path) -> ChessVaultReadResult:

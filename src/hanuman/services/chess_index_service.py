@@ -9,7 +9,6 @@ from hanuman.models.chess import (
     chess_game_note_link,
     safe_chess_filename_part,
 )
-from hanuman.services.atomic_write_service import atomic_write_text
 from hanuman.services.chess_analysis_summary_service import (
     ChessProfileStats,
     build_chess_profile_stats,
@@ -18,8 +17,10 @@ from hanuman.services.chess_insight_aggregation_service import (
     ChessInsightDiagnostics,
     aggregate_persisted_chess_insights,
 )
-from hanuman.services.chess_insight_view_service import (
-    write_chess_insight_views_report,
+from hanuman.services.chess_insight_view_service import plan_chess_insight_views_report
+from hanuman.services.chess_view_write_plan_service import (
+    ChessViewWritePlan,
+    plan_generated_view,
 )
 
 GENERATED_START = "<!-- HANUMAN:GENERATED:START -->"
@@ -56,11 +57,25 @@ def _game_link(game: ChessGame) -> str:
     return chess_game_note_link(game)
 
 
-def _index_note(kind: str, key: str, title: str, games: list[ChessGame]) -> str:
+def _index_note_generated(kind: str, key: str, title: str, games: list[ChessGame]) -> str:
     links = "\n".join(f"- {_game_link(game)}" for game in games)
     wins = sum(game.result == "win" for game in games)
     draws = sum(game.result == "draw" for game in games)
     losses = sum(game.result == "loss" for game in games)
+    return f"""{GENERATED_START}
+# {title}
+
+> [!chess] Vue d’ensemble
+> **{len(games)} parties** · 🟢 {wins} victoires · 🟡 {draws} nulles · 🔴 {losses} défaites{"  "}
+> 🏠 [[Echecs/_Index/Dashboard|Retour au tableau de bord]]
+
+## Parties
+
+{links}
+{GENERATED_END}"""
+
+
+def _index_note(kind: str, key: str, title: str, games: list[ChessGame]) -> str:
     return f'''---
 type: chess-index
 cssclasses:
@@ -74,35 +89,22 @@ tags:
   - chess/index/{kind}
 ---
 
-# {title}
+{_index_note_generated(kind, key, title, games)}
 
-> [!chess] Vue d’ensemble
-> **{len(games)} parties** · 🟢 {wins} victoires · 🟡 {draws} nulles · 🔴 {losses} défaites  
-> 🏠 [[Echecs/_Index/Dashboard|Retour au tableau de bord]]
+## Notes personnelles
 
-## Parties
-
-{links}
+Cette section sera préservée lors des prochaines générations.
 '''
 
 
-def _dashboard(games: list[ChessGame], stats: ChessProfileStats) -> str:
+def _dashboard_generated(games: list[ChessGame], stats: ChessProfileStats) -> str:
     openings = sorted({game.eco for game in games})
     opponents = sorted({safe_chess_filename_part(game.opponent) for game in games}, key=str.lower)
     recent = "\n".join(f"- {_game_link(game)}" for game in games[:30])
     wins = sum(game.result == "win" for game in games)
     draws = sum(game.result == "draw" for game in games)
     losses = sum(game.result == "loss" for game in games)
-    return f'''---
-type: chess-dashboard
-cssclasses:
-  - hanuman-chess
-  - hanuman-chess-dashboard
-games_count: {len(games)}
-tags:
-  - chess/dashboard
----
-
+    return f"""{GENERATED_START}
 # ♛ Tableau de bord Échecs
 
 > [!chess] Bibliothèque Caïssa
@@ -122,7 +124,26 @@ tags:
 ## Parties récentes
 
 {recent}
-'''
+{GENERATED_END}"""
+
+
+def _dashboard(games: list[ChessGame], stats: ChessProfileStats) -> str:
+    return f"""---
+type: chess-dashboard
+cssclasses:
+  - hanuman-chess
+  - hanuman-chess-dashboard
+games_count: {len(games)}
+tags:
+  - chess/dashboard
+---
+
+{_dashboard_generated(games, stats)}
+
+## Notes personnelles
+
+Cette section sera préservée lors des prochaines générations.
+"""
 
 
 def _ranked_counts(values: list[str]) -> str:
@@ -233,31 +254,6 @@ Cette section sera préservée lors des prochaines générations.
 """
 
 
-def _replace_generated(existing: str, generated: str) -> str | None:
-    starts = existing.count(GENERATED_START)
-    ends = existing.count(GENERATED_END)
-    if starts == 0 and ends == 0:
-        return None
-    if starts != 1 or ends != 1:
-        raise ValueError("Marqueurs de vue Hanuman incomplets ou dupliqués.")
-    start = existing.index(GENERATED_START)
-    end = existing.index(GENERATED_END)
-    if end < start:
-        raise ValueError("Marqueurs de vue Hanuman dans un ordre invalide.")
-    return existing[:start] + generated + existing[end + len(GENERATED_END) :]
-
-
-def _write_protected(path: Path, initial: str, generated: str) -> bool:
-    if not path.exists():
-        atomic_write_text(path, initial)
-        return True
-    updated = _replace_generated(path.read_text(encoding="utf-8"), generated)
-    if updated is None:
-        return False
-    atomic_write_text(path, updated)
-    return True
-
-
 def write_chess_indexes_report(root: Path, games: list[ChessGame]) -> ChessIndexWriteReport:
     """Génère les vues ADR-0005 sans supprimer les fichiers existants."""
 
@@ -273,37 +269,65 @@ def write_chess_indexes_report(root: Path, games: list[ChessGame]) -> ChessIndex
 
     opening_written = 0
     opening_root = index_root / "Ouvertures"
-    opening_root.mkdir(parents=True, exist_ok=True)
+    plan = ChessViewWritePlan()
+    protected = 0
     for eco, grouped_games in by_opening.items():
         grouped_games.sort(key=lambda game: game.end_time, reverse=True)
         title = f"{eco} — {grouped_games[0].opening_name}"
-        atomic_write_text(
+        planned = plan_generated_view(
+            root,
             opening_root / f"{eco}.md",
-            _index_note("opening", eco, title, grouped_games),
+            initial=_index_note("opening", eco, title, grouped_games),
+            generated=_index_note_generated("opening", eco, title, grouped_games),
+            start_marker=GENERATED_START,
+            end_marker=GENERATED_END,
         )
-        opening_written += 1
+        plan = plan.merged(planned)
+        opening_written += int(bool(planned.writes))
+        protected += len(planned.protected_files)
 
-    atomic_write_text(index_root / "Dashboard.md", _dashboard(games, stats))
-    general_written = 1
-    protected = 0
-    if _write_protected(
+    dashboard_plan = plan_generated_view(
+        root,
+        index_root / "Dashboard.md",
+        initial=_dashboard(games, stats),
+        generated=_dashboard_generated(games, stats),
+        start_marker=GENERATED_START,
+        end_marker=GENERATED_END,
+    )
+    plan = plan.merged(dashboard_plan)
+    general_written = int(bool(dashboard_plan.writes))
+    protected += len(dashboard_plan.protected_files)
+
+    profile_plan = plan_generated_view(
+        root,
         index_root / "Profil échiquéen.md",
-        _profile(games, stats),
-        _profile_generated(games, stats),
-    ):
-        general_written += 1
-    else:
-        protected += 1
+        initial=_profile(games, stats),
+        generated=_profile_generated(games, stats),
+        start_marker=GENERATED_START,
+        end_marker=GENERATED_END,
+    )
+    plan = plan.merged(profile_plan)
+    general_written += int(bool(profile_plan.writes))
+    protected += len(profile_plan.protected_files)
 
     thematic_written = 0
     for title in THEMATIC_DIRECTORIES:
         target = index_root / title / "Index.md"
-        if _write_protected(target, _thematic_index(title), _thematic_generated(title)):
-            thematic_written += 1
-        else:
-            protected += 1
+        planned = plan_generated_view(
+            root,
+            target,
+            initial=_thematic_index(title),
+            generated=_thematic_generated(title),
+            start_marker=GENERATED_START,
+            end_marker=GENERATED_END,
+        )
+        plan = plan.merged(planned)
+        thematic_written += int(bool(planned.writes))
+        protected += len(planned.protected_files)
 
-    insight_report = write_chess_insight_views_report(root, insight_aggregation)
+    insight_plan, insight_report = plan_chess_insight_views_report(root, insight_aggregation)
+    plan = plan.merged(insight_plan)
+    plan.execute()
 
     return ChessIndexWriteReport(
         general_views_written=general_written,

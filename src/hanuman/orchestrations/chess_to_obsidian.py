@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import io
 import os
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
@@ -10,23 +11,39 @@ import chess.pgn
 
 from hanuman.models.chess import (
     ChessGame,
-    chess_game_filename,
-    chess_game_path,
+    chess_game_disambiguated_filename,
+    chess_game_historical_filename,
     safe_chess_filename_part,
 )
 from hanuman.services.atomic_write_service import atomic_write_text
 from hanuman.services.chess_index_service import write_chess_indexes
-from hanuman.services.chess_insight_storage_service import extract_insight_block
+from hanuman.services.chess_insight_storage_service import (
+    extract_insight_block,
+    parse_chess_note_insight_metadata,
+)
+from hanuman.services.chess_path_safety_service import resolve_safe_destination
+from hanuman.services.chess_vault_reader_service import read_chess_vault
 from hanuman.services.core.chess_service import ChessService
+from hanuman.services.delimited_zone_service import (
+    DelimitedZoneError,
+    extract_delimited_zone,
+    replace_delimited_zone,
+)
 
 CHESS_USERNAME = "prakasch"
 ANALYSIS_START = "<!-- HANUMAN_CHESS_ANALYSIS_START -->"
 ANALYSIS_END = "<!-- HANUMAN_CHESS_ANALYSIS_END -->"
+GAME_START = "<!-- HANUMAN_CHESS_GAME_START -->"
+GAME_END = "<!-- HANUMAN_CHESS_GAME_END -->"
 OBSIDIAN_ROOT = Path("/home/vince/Prakash/projets/Obsidian_Priv-/Echecs")
 
 
 class UnsafeChessResetError(RuntimeError):
     """Levée lorsqu'une reconstruction destructive est demandée."""
+
+
+class ChessGameNoteUpdateError(ValueError):
+    """Signale une note de partie impossible à mettre à jour sans ambiguïté."""
 
 
 def _chess_root() -> Path:
@@ -90,11 +107,15 @@ def _default_analysis() -> str:
 
 
 def _extract_analysis(markdown: str) -> str | None:
-    if ANALYSIS_START not in markdown or ANALYSIS_END not in markdown:
-        return None
-    _, rest = markdown.split(ANALYSIS_START, 1)
-    body, _ = rest.split(ANALYSIS_END, 1)
-    return f"{ANALYSIS_START}{body}{ANALYSIS_END}"
+    try:
+        return extract_delimited_zone(
+            markdown,
+            ANALYSIS_START,
+            ANALYSIS_END,
+            label="d’analyse Chess",
+        )
+    except DelimitedZoneError as exc:
+        raise ChessGameNoteUpdateError(str(exc)) from exc
 
 
 def _analysis_done(analysis: str) -> bool:
@@ -117,10 +138,9 @@ def _quoted_block(markdown: str) -> str:
     return "\n".join(f"> {line}" if line else ">" for line in markdown.splitlines())
 
 
-def _game_note(
+def _game_generated(
     game: ChessGame,
     analysis_block: str | None = None,
-    insight_block: str | None = None,
 ) -> str:
     date = game.end_time.strftime("%Y-%m-%d")
     headers = _parse_headers(game.pgn)
@@ -135,7 +155,6 @@ def _game_note(
     status_label = "🟢 Analyse terminée" if analysed else "🟡 Analyse en attente"
     headers_block = _quoted_block(_headers_table(headers))
     pgn_block = _quoted_block(game.pgn.strip())
-    technical_block = f"\n\n{insight_block}" if insight_block is not None else ""
 
     return f'''---
 type: chess-game
@@ -172,6 +191,7 @@ tags:
   - chess/analysis/{status}
 ---
 
+{GAME_START}
 # ♟️ {title}
 
 > [!chess] Partie
@@ -206,9 +226,89 @@ tags:
 > ```pgn
 {pgn_block}
 > ```
+{GAME_END}'''
 
-{analysis}{technical_block}
-'''
+
+def _game_note(
+    game: ChessGame,
+    analysis_block: str | None = None,
+    insight_block: str | None = None,
+) -> str:
+    analysis = analysis_block or _default_analysis()
+    technical_block = f"\n\n{insight_block}" if insight_block is not None else ""
+    return f"{_game_generated(game, analysis)}\n\n{analysis}{technical_block}\n"
+
+
+def _existing_game_id(markdown: str) -> str | None:
+    try:
+        return parse_chess_note_insight_metadata(markdown).game_id
+    except ValueError:
+        return None
+
+
+def _select_game_paths(root: Path, games: list[ChessGame]) -> list[tuple[ChessGame, Path]]:
+    groups: dict[Path, list[ChessGame]] = {}
+    for game in games:
+        historical = (
+            root / game.year / game.end_time.strftime("%m") / (chess_game_historical_filename(game))
+        )
+        groups.setdefault(historical, []).append(game)
+
+    selected: list[tuple[ChessGame, Path]] = []
+    for historical, grouped in sorted(groups.items(), key=lambda item: str(item[0])):
+        unique = {game.game_id: game for game in grouped}
+        ordered = [unique[game_id] for game_id in sorted(unique)]
+        historical = resolve_safe_destination(root, historical)
+        existing_id = None
+        if historical.exists():
+            if not historical.is_file():
+                raise ChessGameNoteUpdateError(f"Destination de note non régulière : {historical}")
+            existing_id = _existing_game_id(historical.read_text(encoding="utf-8"))
+
+        base_id = existing_id if existing_id in unique else None
+        if not historical.exists() and ordered:
+            base_id = ordered[0].game_id
+
+        for game in ordered:
+            if game.game_id == base_id:
+                path = historical
+            else:
+                path = historical.with_name(chess_game_disambiguated_filename(game))
+                path = resolve_safe_destination(root, path)
+            if path.exists():
+                if not path.is_file():
+                    raise ChessGameNoteUpdateError(f"Destination de note non régulière : {path}")
+                stored_id = _existing_game_id(path.read_text(encoding="utf-8"))
+                if stored_id != game.game_id:
+                    raise ChessGameNoteUpdateError(
+                        f"Collision d’identité Chess : {path} contient {stored_id!r}, "
+                        f"partie reçue {game.game_id!r}."
+                    )
+            selected.append((replace(game, note_filename=path.name), path))
+    return selected
+
+
+def _updated_game_note(existing: str, game: ChessGame) -> str | None:
+    analysis = _extract_analysis(existing)
+    extract_insight_block(existing)
+    generated_zone = extract_delimited_zone(
+        _game_generated(game, analysis),
+        GAME_START,
+        GAME_END,
+        label="de note Chess",
+    )
+    assert generated_zone is not None
+    try:
+        updated = replace_delimited_zone(
+            existing,
+            generated_zone,
+            GAME_START,
+            GAME_END,
+            label="de note Chess",
+        )
+    except DelimitedZoneError as exc:
+        raise ChessGameNoteUpdateError(str(exc)) from exc
+    return updated
 
 
 def sync_chess_to_obsidian(limit: int = 200, reset: bool = False) -> dict[str, Any]:
@@ -229,25 +329,28 @@ def sync_chess_to_obsidian(limit: int = 200, reset: bool = False) -> dict[str, A
 
     written = 0
     preserved_analyses = 0
-    for game in games:
-        month_dir = chess_game_path(root, game).parent
-        month_dir.mkdir(parents=True, exist_ok=True)
-        path = month_dir / chess_game_filename(game)
-        previous_analysis = None
-        previous_insights = None
+    protected_notes: list[str] = []
+    planned_notes: list[tuple[Path, str]] = []
+    for game, path in _select_game_paths(root, games):
         if path.exists():
             previous_markdown = path.read_text(encoding="utf-8")
             previous_analysis = _extract_analysis(previous_markdown)
-            previous_insights = extract_insight_block(previous_markdown)
-            if previous_analysis is not None:
+            if previous_analysis:
                 preserved_analyses += 1
-        atomic_write_text(
-            path,
-            _game_note(game, previous_analysis, previous_insights),
-        )
+            updated = _updated_game_note(previous_markdown, game)
+            if updated is None:
+                protected_notes.append(str(path.relative_to(root)))
+                continue
+            planned_notes.append((path, updated))
+        else:
+            planned_notes.append((path, _game_note(game)))
+
+    for path, content in sorted(planned_notes, key=lambda item: str(item[0])):
+        atomic_write_text(resolve_safe_destination(root, path), content)
         written += 1
 
-    index_files = write_chess_indexes(root, games)
+    read_result = read_chess_vault(root)
+    index_files = write_chess_indexes(root, list(read_result.games))
 
     return {
         "status": "ok",
@@ -255,6 +358,10 @@ def sync_chess_to_obsidian(limit: int = 200, reset: bool = False) -> dict[str, A
         "destination": str(root),
         "games_received": len(games),
         "games_written": written,
+        "games_protected": len(protected_notes),
+        "protected_game_files": protected_notes,
+        "vault_games_usable": read_result.notes_usable,
+        "vault_notes_ignored": read_result.notes_ignored,
         "analyses_preserved": preserved_analyses,
         "index_files_written": index_files,
         "reset": reset,
