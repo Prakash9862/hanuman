@@ -5,6 +5,7 @@ from datetime import UTC, datetime
 from time import perf_counter
 from typing import Any, Callable
 
+from hanuman.config.env import NOTION_PROJECT_MEMORY_PARENT_PAGE_ID
 from hanuman.models.github_project_memory import (
     DevelopmentSession,
     FlowResult,
@@ -28,7 +29,6 @@ from hanuman.services.core.notion_service import (
     NotionService,
 )
 
-NOTION_TEST_PARENT_PAGE_ID = "3aae48e88d808075a33ff7accbaf1a90"
 REPOSITORIES_DATABASE_TITLE = "Repositories"
 SESSIONS_DATABASE_TITLE = "Development Sessions"
 SESSION_MUTABLE_PROPERTIES = frozenset(
@@ -47,6 +47,15 @@ SESSION_MUTABLE_PROPERTIES = frozenset(
 )
 
 NotionServiceFactory = Callable[[], NotionService]
+
+
+def _parent_page_id() -> str:
+    parent_id = (NOTION_PROJECT_MEMORY_PARENT_PAGE_ID or "").strip()
+    if not parent_id:
+        raise ValueError(
+            "Destination Notion absente : configurez NOTION_PROJECT_MEMORY_PARENT_PAGE_ID."
+        )
+    return parent_id
 
 
 @dataclass(frozen=True)
@@ -162,6 +171,7 @@ def _database_ref(database: dict[str, Any]) -> NotionDatabaseRef:
 def _find_database(
     notion: NotionService,
     title: str,
+    expected_parent_page_id: str,
 ) -> NotionDatabaseRef | None:
     results = notion.search(title, limit=100).get("results", [])
     matches: list[NotionDatabaseRef] = []
@@ -169,8 +179,8 @@ def _find_database(
         if _database_title(result) != title:
             continue
         if result.get("object") == "data_source":
-            parent_page_id = str(result.get("database_parent", {}).get("page_id", ""))
-            if _normalize_id(parent_page_id) != _normalize_id(NOTION_TEST_PARENT_PAGE_ID):
+            actual_parent_page_id = str(result.get("database_parent", {}).get("page_id", ""))
+            if _normalize_id(actual_parent_page_id) != _normalize_id(expected_parent_page_id):
                 continue
             matches.append(
                 NotionDatabaseRef(
@@ -180,8 +190,8 @@ def _find_database(
                 )
             )
         elif result.get("object") == "database":
-            parent_page_id = str(result.get("parent", {}).get("page_id", ""))
-            if _normalize_id(parent_page_id) != _normalize_id(NOTION_TEST_PARENT_PAGE_ID):
+            actual_parent_page_id = str(result.get("parent", {}).get("page_id", ""))
+            if _normalize_id(actual_parent_page_id) != _normalize_id(expected_parent_page_id):
                 continue
             matches.append(_database_ref(result))
     if len(matches) > 1:
@@ -196,11 +206,12 @@ def _ensure_database(
     *,
     title: str,
     schema: dict[str, Any],
+    parent_page_id: str,
 ) -> DatabaseSnapshot:
-    ref = _find_database(notion, title)
+    ref = _find_database(notion, title, parent_page_id)
     created = ref is None
     if ref is None:
-        ref = notion.create_database(NOTION_TEST_PARENT_PAGE_ID, title, schema)
+        ref = notion.create_database(parent_page_id, title, schema)
     database = notion.retrieve_database(ref.database_id)
     data_source = notion.retrieve_data_source(ref.data_source_id)
     return DatabaseSnapshot(
@@ -487,13 +498,14 @@ def _verify_database(
     *,
     title: str,
     schema: dict[str, Any],
+    parent_page_id: str,
 ) -> list[str]:
     errors: list[str] = []
     database = snapshot.database
     if _database_title(database) != title:
         errors.append(f"Database {title}: titre différent.")
     parent_id = str(database.get("parent", {}).get("page_id", ""))
-    if _normalize_id(parent_id) != _normalize_id(NOTION_TEST_PARENT_PAGE_ID):
+    if _normalize_id(parent_id) != _normalize_id(parent_page_id):
         errors.append(f"Database {title}: parent différent.")
     actual_properties = snapshot.data_source.get("properties") or {}
     for name, expected in schema.items():
@@ -569,10 +581,12 @@ def apply_github_project_memory(
     apply_started = _now()
     try:
         notion = notion_factory()
+        parent_page_id = _parent_page_id()
         repositories_database = _ensure_database(
             notion,
             title=REPOSITORIES_DATABASE_TITLE,
             schema=_repository_schema(),
+            parent_page_id=parent_page_id,
         )
         database_snapshots.append(
             (repositories_database, REPOSITORIES_DATABASE_TITLE, _repository_schema())
@@ -582,6 +596,7 @@ def apply_github_project_memory(
             notion,
             title=SESSIONS_DATABASE_TITLE,
             schema=sessions_schema,
+            parent_page_id=parent_page_id,
         )
         database_snapshots.append((sessions_database, SESSIONS_DATABASE_TITLE, sessions_schema))
         for snapshot, title, _ in database_snapshots:
@@ -785,7 +800,14 @@ def apply_github_project_memory(
     verify_started = _now()
     verification_errors: list[str] = []
     for database_snapshot, title, schema in database_snapshots:
-        verification_errors.extend(_verify_database(database_snapshot, title=title, schema=schema))
+        verification_errors.extend(
+            _verify_database(
+                database_snapshot,
+                title=title,
+                schema=schema,
+                parent_page_id=parent_page_id,
+            )
+        )
     for page_snapshot in page_snapshots:
         verification_errors.extend(_verify_page(page_snapshot))
     verification_passed = not verification_errors

@@ -53,6 +53,9 @@ NOTION_VERSION: str = os.environ.get("NOTION_VERSION", "2025-09-03")
 NOTION_PARENT_ID: str | None = os.environ.get("NOTION_PARENT_ID")
 NOTION_ISSUES_DB_ID: str | None = os.environ.get("NOTION_ISSUES_DB_ID")
 NOTION_PARENT_PAGE_ID: str | None = os.environ.get("NOTION_PARENT_PAGE_ID")
+NOTION_PROJECT_MEMORY_PARENT_PAGE_ID: str | None = os.environ.get(
+    "NOTION_PROJECT_MEMORY_PARENT_PAGE_ID"
+)
 
 # ---------------------------------------------------------------------------
 # GITHUB
@@ -65,6 +68,10 @@ GITHUB_ALLOWED_REPOSITORIES: tuple[str, ...] = tuple(
     for repository in os.environ.get("GITHUB_ALLOWED_REPOSITORIES", "").split(",")
     if repository.strip()
 )
+GITHUB_PROJECT_MEMORY_REPOSITORY: str = os.environ.get(
+    "GITHUB_PROJECT_MEMORY_REPOSITORY", "Prakash9862/hanuman"
+)
+GITHUB_PROJECT_MEMORY_BRANCH: str = os.environ.get("GITHUB_PROJECT_MEMORY_BRANCH", "main")
 
 # ---------------------------------------------------------------------------
 # OPENAI

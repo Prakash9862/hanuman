@@ -10,6 +10,7 @@ config/gmail_credentials.json
 # Runtime
 .hanuman-*.pid
 frontend/.vite/
+data/github_project_memory_runs.jsonl
 
 # Logs
 logs/

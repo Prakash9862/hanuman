@@ -3,9 +3,11 @@ from __future__ import annotations
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
+import pytest
+
+import hanuman.orchestrations.github_project_memory_notion as project_memory_notion
 from hanuman.models.github_project_memory import GitHubProjectMemoryInput
 from hanuman.orchestrations.github_project_memory_notion import (
-    NOTION_TEST_PARENT_PAGE_ID,
     apply_github_project_memory,
 )
 from hanuman.services.core.notion_service import NotionDatabaseRef, NotionPageRef
@@ -17,6 +19,17 @@ from tests.orchestrations.test_github_project_memory import (
     FakeGithubService,
     raw_commit,
 )
+
+NOTION_TEST_PARENT_PAGE_ID = "project-memory-test-parent"
+
+
+@pytest.fixture(autouse=True)
+def configure_project_memory_parent(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        project_memory_notion,
+        "NOTION_PROJECT_MEMORY_PARENT_PAGE_ID",
+        NOTION_TEST_PARENT_PAGE_ID,
+    )
 
 
 def _response_rich_text(items: list[dict[str, Any]]) -> list[dict[str, Any]]:

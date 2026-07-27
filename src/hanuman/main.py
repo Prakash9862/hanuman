@@ -16,6 +16,9 @@ from hanuman.api.core.wikipedia import router as wikipedia_router
 from hanuman.api.routers import chess_to_obsidian as chess_to_obsidian_router
 from hanuman.api.routers import dashboard
 from hanuman.api.routers.connectors import router as connectors_router
+from hanuman.api.routers.github_project_memory import (
+    router as github_project_memory_router,
+)
 from hanuman.api.routers.gmail import router as gmail_router
 from hanuman.api.routers.orchestrations import router as orchestrations_router
 from hanuman.api.routers.resources import router as resources_router
@@ -56,6 +59,7 @@ for r in (
     connectors_router,
     resources_router,
     gmail_router,
+    github_project_memory_router,
     chess_to_obsidian_router.router,
     dashboard.router,
 ):

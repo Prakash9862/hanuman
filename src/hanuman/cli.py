@@ -15,6 +15,10 @@ from hanuman.orchestrations.github_project_memory import plan_github_project_mem
 from hanuman.orchestrations.github_project_memory_notion import (
     apply_github_project_memory,
 )
+from hanuman.services.github_project_memory_service import (
+    GitHubProjectMemoryConfig,
+    execute_github_project_memory,
+)
 
 
 def _add_project_memory_arguments(command: argparse.ArgumentParser) -> None:
@@ -56,6 +60,12 @@ def _add_project_memory_arguments(command: argparse.ArgumentParser) -> None:
         action="store_true",
         dest="as_json",
         help="Émettre le Run structuré en JSON.",
+    )
+    command.add_argument(
+        "--trigger",
+        choices=("cli", "github_actions"),
+        default="cli",
+        help=argparse.SUPPRESS,
     )
 
 
@@ -255,11 +265,22 @@ def run_cli(
         session_max_duration_hours=args.session_max_duration_hours,
         allowed_repositories=GITHUB_ALLOWED_REPOSITORIES,
     )
-    run = (
-        apply_github_project_memory(flow_input)
-        if args.action == "apply"
-        else plan_github_project_memory(flow_input)
-    )
+    if args.action == "apply":
+        config = GitHubProjectMemoryConfig(
+            repository=flow_input.repository,
+            branch=flow_input.branch or "main",
+            max_commits=flow_input.max_commits,
+            session_window_hours=flow_input.session_window_hours,
+            session_max_duration_hours=flow_input.session_max_duration_hours,
+            allowed_repositories=flow_input.allowed_repositories,
+        )
+        run = execute_github_project_memory(
+            trigger=args.trigger,
+            config=config,
+            executor=apply_github_project_memory,
+        )
+    else:
+        run = plan_github_project_memory(flow_input)
     if args.as_json:
         payload: dict[str, Any] = asdict(run)
         output.print_json(json.dumps(payload, default=_json_default, ensure_ascii=False))
