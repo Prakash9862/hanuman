@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any, Dict, Optional
 
 from pydantic import BaseModel, Field
@@ -10,6 +10,6 @@ class PingResult(BaseModel):
     detail: Optional[Dict[str, Any]] = None  # ✅
     source: Optional[str] = None  # ✅
     timestamp: datetime = Field(
-        default_factory=datetime.utcnow, description="Date et heure de l'appel"
+        default_factory=lambda: datetime.now(UTC), description="Date et heure de l'appel"
     )
     duration_ms: Optional[int] = None  # ✅

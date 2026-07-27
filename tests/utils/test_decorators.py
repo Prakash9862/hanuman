@@ -136,3 +136,41 @@ def test_trace_endpoint_async_respects_catch_false(
     }
     assert dummy_logger.info_messages == ["📥 Requête reçue"]
     assert dummy_logger.error_messages[0].startswith("❌ Erreur RuntimeError dans async-error")
+
+
+@pytest.mark.asyncio
+async def test_trace_endpoint_async_updates_ping_and_logs_plain_success(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    dummy_logger = DummyLogger()
+    monkeypatch.setattr(decorators, "get_logger", lambda source: dummy_logger)
+
+    @decorators.trace_endpoint("async-ping")
+    async def ping() -> PingResult:
+        return PingResult(ok=True, source="async-ping")
+
+    response = await ping()
+    assert response.ok is True
+    assert response.duration_ms is not None
+
+    @decorators.trace_endpoint("async-plain")
+    async def plain() -> str:
+        return "ok"
+
+    assert await plain() == "ok"
+    assert any("async-plain" in message for message in dummy_logger.info_messages)
+
+
+@pytest.mark.asyncio
+async def test_trace_endpoint_async_catches_errors(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(decorators, "get_logger", lambda source: DummyLogger())
+
+    @decorators.trace_endpoint("async-caught")
+    async def failing() -> None:
+        raise ValueError("boom")
+
+    response = await failing()
+    assert response.ok is False
+    assert response.error == "boom"
