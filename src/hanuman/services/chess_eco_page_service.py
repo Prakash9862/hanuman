@@ -105,9 +105,7 @@ def resolve_eco_reference_pdf() -> Path:
         return expected
     candidates = sorted(chess_docs.glob("*ECOMast*Codes_ECO.pdf"))
     if len(candidates) != 1:
-        raise FileNotFoundError(
-            "Référence ECO unique introuvable dans docs/chess."
-        )
+        raise FileNotFoundError("Référence ECO unique introuvable dans docs/chess.")
     return candidates[0]
 
 
@@ -237,9 +235,7 @@ def _matching_theory(
         return next(
             (
                 index
-                for index, (expected, actual) in enumerate(
-                    zip(entry.reference_san, played)
-                )
+                for index, (expected, actual) in enumerate(zip(entry.reference_san, played))
                 if expected != actual
             ),
             min(len(entry.reference_san), len(played)),
@@ -302,8 +298,18 @@ def _board_after(san: tuple[str, ...]) -> chess.Board | None:
 
 def _svg(board: chess.Board, orientation: str) -> str:
     symbols = {
-        "r": "♜", "n": "♞", "b": "♝", "q": "♛", "k": "♚", "p": "♟",
-        "R": "♖", "N": "♘", "B": "♗", "Q": "♕", "K": "♔", "P": "♙",
+        "r": "♜",
+        "n": "♞",
+        "b": "♝",
+        "q": "♛",
+        "k": "♚",
+        "p": "♟",
+        "R": "♖",
+        "N": "♘",
+        "B": "♗",
+        "Q": "♕",
+        "K": "♔",
+        "P": "♙",
     }
     ranks = list(range(7, -1, -1)) if orientation == "white" else list(range(8))
     files = list(range(8)) if orientation == "white" else list(range(7, -1, -1))
@@ -393,21 +399,21 @@ def build_eco_page(
     secondaries = tuple(
         item
         for item in variants[1:]
-        if len(item.games) >= 5
-        or (len(item.games) >= 3 and item.success_rate >= 80)
+        if len(item.games) >= 5 or (len(item.games) >= 3 and item.success_rate >= 80)
     )
     displayed = (main, *secondaries)
     health_variants = (main,) + tuple(item for item in secondaries if item.success_rate >= 80)
     health_ids = {item.game.game_id for variant in health_variants for item in variant.games}
     health_games = tuple(item for item in games if item.game.game_id in health_ids)
     analysed = tuple(item for item in games if read_analysis_summary(item.path).analysed)
-    health_analysed = tuple(item for item in health_games if read_analysis_summary(item.path).analysed)
+    health_analysed = tuple(
+        item for item in health_games if read_analysis_summary(item.path).analysed
+    )
     wins, draws, losses = _result_counts(games)
     hw, hd, hl = _result_counts(health_games)
     colors = Counter(item.game.color for item in games)
     players = Counter(
-        item.game.white if item.game.color == "white" else item.game.black
-        for item in games
+        item.game.white if item.game.color == "white" else item.game.black for item in games
     )
     player = sorted(players, key=lambda value: (-players[value], value))[0]
     official_name = theory.official_name if theory else games[0].game.opening_name
@@ -415,9 +421,7 @@ def build_eco_page(
     board = _board_after(main.san)
     orientation = main.color
     fen = board.fen() if board else ""
-    digest = hashlib.sha256(
-        f"{eco}|{' '.join(main.san)}|{fen}".encode()
-    ).hexdigest()[:12]
+    digest = hashlib.sha256(f"{eco}|{' '.join(main.san)}|{fen}".encode()).hexdigest()[:12]
     board_id = f"hanuman-board-{eco.lower()}-main-{digest}-v1"
     pgn = _widget_pgn(eco, official_name, main.san) if board else ""
     representative = sorted(
@@ -471,12 +475,16 @@ def build_eco_page(
         "aliases": sorted({eco, official_name, *(item.game.opening_name for item in games)}),
         "colors_played": {"white": colors["white"], "black": colors["black"]},
         "games": {
-            "total": len(games), "wins": wins, "draws": draws, "losses": losses,
+            "total": len(games),
+            "wins": wins,
+            "draws": draws,
+            "losses": losses,
             "success_rate": _success(wins, draws, losses),
         },
         "period": {"first_game": date_first, "last_game": date_last},
         "stockfish": {
-            "analysed_games": len(analysed), "coverage_percent": coverage,
+            "analysed_games": len(analysed),
+            "coverage_percent": coverage,
         },
         "repertoire": {
             "main_line": _line(main.san),
@@ -487,8 +495,12 @@ def build_eco_page(
             "other_attempts_games": other_count,
         },
         "health_scope": {
-            "games": len(health_games), "wins": hw, "draws": hd, "losses": hl,
-            "success_rate": health_rate, "analysed_games": len(health_analysed),
+            "games": len(health_games),
+            "wins": hw,
+            "draws": hd,
+            "losses": hl,
+            "success_rate": health_rate,
+            "analysed_games": len(health_analysed),
         },
         "theory": {
             "source": "docs/chess/File_ECOMast-Codes_ECO.pdf",
@@ -497,22 +509,35 @@ def build_eco_page(
         },
         "evolution_metric": "monthly_success_rate",
         "tags": [
-            "chess/opening", f"chess/opening/{eco}", "chess/repertoire",
+            "chess/opening",
+            f"chess/opening/{eco}",
+            "chess/repertoire",
             *(f"chess/color/{color}" for color in sorted(colors)),
         ],
-        "boards": [{
-            "id": board_id, "kind": "opening-position-widget",
-            "position_role": "repertoire-reference", "recurrent_position": False,
-            "eco": eco, "variant": "main-line", "variant_san": _line(main.san),
-            "exit_move": main.san[-1] if main.san else "",
-            "position_after_ply": len(main.san), "fen": fen, "pgn": pgn,
-            "games_count": len(main.games), "player_color": main.color,
-            "orientation": orientation, "game_ids": all_game_ids,
-            "representative_note": str(representative.path.relative_to(root)),
-            "uri": f"hanuman://chess/boards/{board_id}",
-            "interaction_protocol": "hanuman-v1", "interaction_status": "active",
-            "actions": ["open-scid", "open-games", "copy-fen", "copy-pgn", "open-note"],
-        }],
+        "boards": [
+            {
+                "id": board_id,
+                "kind": "opening-position-widget",
+                "position_role": "repertoire-reference",
+                "recurrent_position": False,
+                "eco": eco,
+                "variant": "main-line",
+                "variant_san": _line(main.san),
+                "exit_move": main.san[-1] if main.san else "",
+                "position_after_ply": len(main.san),
+                "fen": fen,
+                "pgn": pgn,
+                "games_count": len(main.games),
+                "player_color": main.color,
+                "orientation": orientation,
+                "game_ids": all_game_ids,
+                "representative_note": str(representative.path.relative_to(root)),
+                "uri": f"hanuman://chess/boards/{board_id}",
+                "interaction_protocol": "hanuman-v1",
+                "interaction_status": "active",
+                "actions": ["open-scid", "open-games", "copy-fen", "copy-pgn", "open-note"],
+            }
+        ],
     }
     yaml_text = yaml.safe_dump(
         yaml_data, allow_unicode=True, sort_keys=False, default_flow_style=False
@@ -521,11 +546,7 @@ def build_eco_page(
     secondary_blocks = []
     for variant in secondaries:
         icon = "⚪" if variant.color == "white" else "⚫"
-        reason = (
-            "volume ≥ 5"
-            if len(variant.games) >= 5
-            else "≥ 3 parties et ≥ 80 % de réussite"
-        )
+        reason = "volume ≥ 5" if len(variant.games) >= 5 else "≥ 3 parties et ≥ 80 % de réussite"
         secondary_blocks.append(
             f"> [!abstract]- {icon} {variant.color.title()} · {len(variant.games)} parties "
             f"· {variant.success_rate:.1f} % de réussite\n"
@@ -539,8 +560,8 @@ def build_eco_page(
     theory_limit = (
         "> [!info] Limite de la source\n"
         "> Le PDF ne fournit pas de ligne exploitable pour cette ECO ; aucun contenu n’est inventé."
-        if not theory_line else
-        "> [!info] Limite de la source\n"
+        if not theory_line
+        else "> [!info] Limite de la source\n"
         "> La comparaison est limitée à la portion explicitement documentée dans le PDF ECOMast."
     )
     quality = (
@@ -548,8 +569,8 @@ def build_eco_page(
         f"**perte moyenne : {average_loss:.1f} cp**.  \n"
         "> L’évaluation de sortie et la répartition favorable / équilibrée / défavorable "
         "ne sont pas persistées et ne peuvent pas être calculées."
-        if health_analysed and average_loss is not None else
-        "> La qualité de sortie ne peut pas encore être évaluée : les analyses persistées "
+        if health_analysed and average_loss is not None
+        else "> La qualité de sortie ne peut pas encore être évaluée : les analyses persistées "
         "du périmètre sont absentes ou ne contiennent pas la mesure nécessaire."
     )
     chart_months = ", ".join(f'"{row[0]}"' for row in months)
@@ -560,13 +581,17 @@ def build_eco_page(
     )
     health_names = "variante principale" + (
         f" et {len(health_variants) - 1} variante(s) secondaire(s) à ≥ 80 %"
-        if len(health_variants) > 1 else ""
+        if len(health_variants) > 1
+        else ""
     )
     action_links = " ".join(
         f'<a href="hanuman://chess/boards/{board_id}?action={action}">{label}</a>'
         for action, label in (
-            ("open-scid", "♟️ SCID"), ("open-games", "🗂️ Parties"),
-            ("copy-fen", "📋 FEN"), ("copy-pgn", "📋 PGN"), ("open-note", "📝 Note"),
+            ("open-scid", "♟️ SCID"),
+            ("open-games", "🗂️ Parties"),
+            ("copy-fen", "📋 FEN"),
+            ("copy-pgn", "📋 PGN"),
+            ("open-note", "📝 Note"),
         )
     )
     conclusion = (
@@ -724,9 +749,10 @@ def _validate_page(content: str, eco: str, root: Path) -> None:
     board = boards[0]
     if not board.get("id") or board["id"] not in content or "<svg " not in content:
         raise ValueError(f"{eco} : widget incomplet.")
-    if not all(action in board.get("actions", []) for action in (
-        "open-scid", "open-games", "copy-fen", "copy-pgn", "open-note"
-    )):
+    if not all(
+        action in board.get("actions", [])
+        for action in ("open-scid", "open-games", "copy-fen", "copy-pgn", "open-note")
+    ):
         raise ValueError(f"{eco} : actions Hanuman incomplètes.")
     for target in re.findall(r"\[\[Echecs/([^|\]#]+)", content):
         note = root / target

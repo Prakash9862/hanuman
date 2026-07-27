@@ -28,9 +28,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         root = validate_chess_vault_path(args.vault_path)
         read_result = read_chess_vault(root)
         if read_result.ignored_notes:
-            raise ValueError(
-                f"{len(read_result.ignored_notes)} note(s) chess-game illisible(s)."
-            )
+            raise ValueError(f"{len(read_result.ignored_notes)} note(s) chess-game illisible(s).")
         report = write_eco_pages(
             root,
             list(read_result.games),

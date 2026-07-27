@@ -424,9 +424,7 @@ def _render_analysis_from_insights(insights: list[ChessInsight]) -> str:
     variants: list[str] = []
     for insight in insights:
         separator = "." if insight.color == "white" else "..."
-        annotation = {"blunder": "??", "excellent": "!!", "opportunity": ""}[
-            insight.category
-        ]
+        annotation = {"blunder": "??", "excellent": "!!", "opportunity": ""}[insight.category]
         quality = annotation or "occasion manquée"
         label = f"{insight.move_number}{separator}{insight.san}{annotation}"
         rows.append(
@@ -504,9 +502,7 @@ def test_note_with_blunder_is_automatically_linked_from_blunder_index(
 
     write_chess_indexes(root, games)
 
-    blunder_summary = (root / "_Index/Gaffes/En ouverture.md").read_text(
-        encoding="utf-8"
-    )
+    blunder_summary = (root / "_Index/Gaffes/En ouverture.md").read_text(encoding="utf-8")
     for game in games:
         assert chess_game_path(root, game).stem in blunder_summary
 

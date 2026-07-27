@@ -44,9 +44,7 @@ boards:
 
 def test_parse_and_resolve_real_widget_shape(tmp_path: Path) -> None:
     _opening(tmp_path)
-    request = parse_widget_uri(
-        f"hanuman://chess/boards/{BOARD_ID}?action=open-scid"
-    )
+    request = parse_widget_uri(f"hanuman://chess/boards/{BOARD_ID}?action=open-scid")
     widget = resolve_widget(tmp_path / "_Index" / "Ouvertures", request.board_id)
     assert request.action == "open-scid"
     assert widget.fen == FEN

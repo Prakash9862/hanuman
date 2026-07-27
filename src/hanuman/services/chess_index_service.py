@@ -514,9 +514,7 @@ def write_chess_indexes_report(
     opening_written = 0
     plan = ChessViewWritePlan()
     protected = 0
-    eco_source_ready = bool(games) and all(
-        chess_game_path(root, game).is_file() for game in games
-    )
+    eco_source_ready = bool(games) and all(chess_game_path(root, game).is_file() for game in games)
     if include_openings and not eco_source_ready:
         opening_root = index_root / "Ouvertures"
         for eco, grouped_games in by_opening.items():

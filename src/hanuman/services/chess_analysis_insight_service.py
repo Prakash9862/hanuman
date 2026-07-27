@@ -39,8 +39,7 @@ CRITICAL_ROW = re.compile(
     r"\s*(?P<loss>\d+)\s+cp\s*\|\s*(?P<best>.*?)\s*\|$"
 )
 MOVE_LABEL = re.compile(
-    r"^(?P<number>\d+)(?P<separator>\.\.\.|\.)"
-    r"(?P<san>.*?)(?P<annotation>\?\?|\?!|\?|!!)?$"
+    r"^(?P<number>\d+)(?P<separator>\.\.\.|\.)" r"(?P<san>.*?)(?P<annotation>\?\?|\?!|\?|!!)?$"
 )
 VARIANT_HEADING = re.compile(r"^####\s+(?P<label>.+?)\s*$")
 VARIANT_PHASE = re.compile(r"^-\s+\*\*Phase\s*:\*\*\s*(?P<phase>.+?)\s*$")
@@ -58,9 +57,7 @@ def _analysis_block(markdown: str) -> str | None:
         raise ChessAnalysisInsightError(str(exc)) from exc
     if bounds is None:
         return None
-    return markdown[
-        bounds.start + len(ANALYSIS_START) : bounds.end - len(ANALYSIS_END)
-    ]
+    return markdown[bounds.start + len(ANALYSIS_START) : bounds.end - len(ANALYSIS_END)]
 
 
 def _centipawns(value: str) -> int:
@@ -159,9 +156,7 @@ def parse_analysis_insights(
         annotation = label.group("annotation")
         san = label.group("san")
         variant = phases.get(move.label)
-        opening_phase = (
-            variant[0] if variant is not None else ply <= AnalysisConfig().opening_plies
-        )
+        opening_phase = variant[0] if variant is not None else ply <= AnalysisConfig().opening_plies
         principal_variation = variant[1] if variant is not None else ()
 
         for category in _categories(move.quality):

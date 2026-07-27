@@ -659,8 +659,7 @@ d4
 
 <!-- HANUMAN_CHESS_ANALYSIS_END -->"""
             note = re.sub(
-                r"<!-- HANUMAN_CHESS_ANALYSIS_START -->.*?"
-                r"<!-- HANUMAN_CHESS_ANALYSIS_END -->",
+                r"<!-- HANUMAN_CHESS_ANALYSIS_START -->.*?" r"<!-- HANUMAN_CHESS_ANALYSIS_END -->",
                 visible_analysis,
                 note,
                 flags=re.DOTALL,

@@ -163,6 +163,7 @@ class ChessWidgetHandler:
             "HanumanGames": str(widget.games_count),
             "HanumanColor": widget.player_color,
         }
+
         def escaped(value: str) -> str:
             return value.replace("\\", "\\\\").replace('"', '\\"')
 

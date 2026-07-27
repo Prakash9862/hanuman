@@ -78,9 +78,7 @@ def rebuild_chess_views(
     all_files_before = {path for path in root.rglob("*") if path.is_file()}
 
     summaries = [
-        read_analysis_summary(
-            root / game.year / game.end_time.strftime("%m") / game.note_filename
-        )
+        read_analysis_summary(root / game.year / game.end_time.strftime("%m") / game.note_filename)
         for game in read_result.games
     ]
     valid = sum(summary.status == "analysed" for summary in summaries)

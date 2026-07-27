@@ -168,7 +168,9 @@ def chess_knowledge_refresh() -> dict[str, object]:
     try:
         report = refresh_chess_knowledge(_validated_chess_root())
     except (OSError, UnicodeError, ValueError, RuntimeError) as exc:
-        raise HTTPException(status_code=500, detail=f"Actualisation Chess impossible : {exc}") from exc
+        raise HTTPException(
+            status_code=500, detail=f"Actualisation Chess impossible : {exc}"
+        ) from exc
     return {
         "ok": True,
         "message": (

@@ -14,11 +14,50 @@ from hanuman.services.chess_eco_page_service import (
 )
 
 ECOS = (
-    "A00", "A01", "A02", "A04", "A06", "A07", "A11", "A13", "A40", "A41",
-    "A43", "A45", "A46", "A48", "A80", "B10", "B12", "B13", "B14", "B15",
-    "B17", "B18", "B20", "B27", "D00", "D02", "D03", "D04", "D06", "D10",
-    "D11", "D13", "D15", "D26", "D35", "D37", "D43", "D44", "D45", "D52",
-    "D53", "D55", "D60", "E01",
+    "A00",
+    "A01",
+    "A02",
+    "A04",
+    "A06",
+    "A07",
+    "A11",
+    "A13",
+    "A40",
+    "A41",
+    "A43",
+    "A45",
+    "A46",
+    "A48",
+    "A80",
+    "B10",
+    "B12",
+    "B13",
+    "B14",
+    "B15",
+    "B17",
+    "B18",
+    "B20",
+    "B27",
+    "D00",
+    "D02",
+    "D03",
+    "D04",
+    "D06",
+    "D10",
+    "D11",
+    "D13",
+    "D15",
+    "D26",
+    "D35",
+    "D37",
+    "D43",
+    "D44",
+    "D45",
+    "D52",
+    "D53",
+    "D55",
+    "D60",
+    "E01",
 )
 PGN = """[Event "Fixture"]
 [Result "1-0"]
@@ -83,9 +122,7 @@ Intouchables.
 
 
 def _fake_pdf(monkeypatch) -> Path:
-    lines = "\n".join(
-        f"{eco} nom officiel {eco} 1.d4 d5 2.Ff4 Cf6 3.e3 e6" for eco in ECOS
-    )
+    lines = "\n".join(f"{eco} nom officiel {eco} 1.d4 d5 2.Ff4 Cf6 3.e3 e6" for eco in ECOS)
     monkeypatch.setattr(
         "hanuman.services.chess_eco_page_service.subprocess.run",
         lambda *args, **kwargs: subprocess.CompletedProcess(args[0], 0, lines, ""),
@@ -118,8 +155,7 @@ def test_industrial_generation_rebuilds_44_ecos_deterministically(
     other_index.write_text("dashboard humain\n", encoding="utf-8")
     protected_before = {path: _digest(path) for path in [*prototypes, other_index]}
     notes_before = {
-        chess_game_path(root, game): _digest(chess_game_path(root, game))
-        for game in games
+        chess_game_path(root, game): _digest(chess_game_path(root, game)) for game in games
     }
 
     first = write_eco_pages(root, games, theory_pdf=_fake_pdf(monkeypatch))
@@ -161,9 +197,7 @@ def test_industrial_generation_rebuilds_44_ecos_deterministically(
         assert board["fen"]
         assert board["pgn"]
         assert "<svg " in content
-        assert board["actions"] == [
-            "open-scid", "open-games", "copy-fen", "copy-pgn", "open-note"
-        ]
+        assert board["actions"] == ["open-scid", "open-games", "copy-fen", "copy-pgn", "open-note"]
         assert content.rstrip().endswith("Intouchables.") is False
 
 

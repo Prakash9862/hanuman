@@ -49,9 +49,7 @@ def main(argv: list[str] | None = None) -> int:
     chess_root = Path(os.environ.get("HANUMAN_CHESS_ROOT", DEFAULT_CHESS_ROOT))
     vault_name = os.environ.get("HANUMAN_VAULT_NAME", DEFAULT_VAULT_NAME)
     try:
-        result = ChessWidgetHandler(chess_root=chess_root, vault_name=vault_name).handle(
-            args[0]
-        )
+        result = ChessWidgetHandler(chess_root=chess_root, vault_name=vault_name).handle(args[0])
     except ChessWidgetError as exc:
         logging.error("%s", exc)
         _notify(str(exc))
