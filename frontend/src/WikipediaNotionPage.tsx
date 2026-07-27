@@ -72,7 +72,7 @@ export default function WikipediaNotionPage() {
     <div className="page wikipedia-space">
       <header className="wikipedia-header">
         <div>
-          <button className="wikipedia-breadcrumb" onClick={() => navigate('/orchestrations')}>← Orchestrations</button>
+          <button className="wikipedia-breadcrumb" onClick={() => navigate('/flows')}>← Flux</button>
           <p className="eyebrow">Espace spécialisé</p>
           <h1>Wikipédia <span>→</span> Notion</h1>
           <p>Transformer un article encyclopédique en page Notion structurée, lisible et directement exploitable.</p>

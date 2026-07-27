@@ -41,21 +41,21 @@ type Node = {
 
 const nodes: Node[] = [
   { id: 'hanuman', label: 'Hanuman', subtitle: 'Centre de gravité', x: 50, y: 50, status: 'core', icon: BrainCircuit },
-  { id: 'obsidian', label: 'Obsidian', subtitle: 'Mémoire locale', x: 21, y: 35, status: 'active', icon: NotebookPen, route: '/orchestrations/obsidian-notion' },
-  { id: 'notion', label: 'Notion', subtitle: 'Organisation', x: 79, y: 35, status: 'active', icon: Network, route: '/orchestrations/obsidian-notion' },
-  { id: 'github', label: 'GitHub', subtitle: 'Développement', x: 50, y: 12, status: 'partial', icon: Github, route: '/orchestrations' },
-  { id: 'calendar', label: 'Calendar', subtitle: 'Planification', x: 82, y: 64, status: 'active', icon: CalendarDays, route: '/orchestrations/calendar' },
-  { id: 'wikipedia', label: 'Wikipédia', subtitle: 'Documentation', x: 67, y: 86, status: 'active', icon: BookOpen, route: '/orchestrations/wikipedia-notion' },
-  { id: 'chess', label: 'Chess.com', subtitle: 'Parties et analyses', x: 34, y: 86, status: 'active', icon: Swords, route: '/orchestrations/chess-obsidian' },
-  { id: 'stockfish', label: 'Stockfish', subtitle: 'Moteur tactique', x: 17, y: 92, status: 'active', icon: Cpu, route: '/resources?source=chess' },
-  { id: 'scid', label: 'SCID', subtitle: 'Base de parties', x: 27, y: 98, status: 'active', icon: Database, route: '/resources?source=chess' },
-  { id: 'lc0', label: 'Leela', subtitle: 'Analyse neuronale', x: 43, y: 97, status: 'planned', icon: BrainCircuit, route: '/resources?source=chess' },
+  { id: 'obsidian', label: 'Obsidian', subtitle: 'Mémoire locale', x: 21, y: 35, status: 'active', icon: NotebookPen, route: '/flows/obsidian-notion' },
+  { id: 'notion', label: 'Notion', subtitle: 'Organisation', x: 79, y: 35, status: 'active', icon: Network, route: '/flows/obsidian-notion' },
+  { id: 'github', label: 'GitHub', subtitle: 'Développement', x: 50, y: 12, status: 'partial', icon: Github, route: '/flows' },
+  { id: 'calendar', label: 'Calendar', subtitle: 'Planification', x: 82, y: 64, status: 'active', icon: CalendarDays, route: '/flows/calendar' },
+  { id: 'wikipedia', label: 'Wikipédia', subtitle: 'Documentation', x: 67, y: 86, status: 'active', icon: BookOpen, route: '/flows/wikipedia-notion' },
+  { id: 'chess', label: 'Chess.com', subtitle: 'Parties et analyses', x: 34, y: 86, status: 'active', icon: Swords, route: '/flows/chess-obsidian' },
+  { id: 'stockfish', label: 'Stockfish', subtitle: 'Moteur tactique', x: 17, y: 92, status: 'active', icon: Cpu, route: '/connectors?source=chess' },
+  { id: 'scid', label: 'SCID', subtitle: 'Base de parties', x: 27, y: 98, status: 'active', icon: Database, route: '/connectors?source=chess' },
+  { id: 'lc0', label: 'Leela', subtitle: 'Analyse neuronale', x: 43, y: 97, status: 'planned', icon: BrainCircuit, route: '/connectors?source=chess' },
   { id: 'openai', label: 'OpenAI', subtitle: 'Raisonnement', x: 17, y: 66, status: 'partial', icon: BrainCircuit },
-  { id: 'gmail', label: 'Gmail', subtitle: 'Communication', x: 9, y: 18, status: 'partial', icon: Mail, route: '/orchestrations/gmail' },
-  { id: 'youtube', label: 'YouTube', subtitle: 'Vidéo et veille', x: 91, y: 18, status: 'partial', icon: Youtube, route: '/resources?source=youtube' },
-  { id: 'gallica', label: 'Gallica', subtitle: 'Patrimoine BnF', x: 94, y: 43, status: 'active', icon: BookOpen, route: '/resources?source=gallica' },
-  { id: 'imslp', label: 'IMSLP', subtitle: 'Partitions', x: 89, y: 89, status: 'active', icon: Music2, route: '/resources?source=imslp' },
-  { id: 'maps', label: 'Google Maps', subtitle: 'Trajets de rendez-vous', x: 96, y: 69, status: 'active', icon: MapPin, route: '/resources?source=maps' },
+  { id: 'gmail', label: 'Gmail', subtitle: 'Communication', x: 9, y: 18, status: 'partial', icon: Mail, route: '/flows/gmail' },
+  { id: 'youtube', label: 'YouTube', subtitle: 'Vidéo et veille', x: 91, y: 18, status: 'partial', icon: Youtube, route: '/connectors?source=youtube' },
+  { id: 'gallica', label: 'Gallica', subtitle: 'Patrimoine BnF', x: 94, y: 43, status: 'active', icon: BookOpen, route: '/connectors?source=gallica' },
+  { id: 'imslp', label: 'IMSLP', subtitle: 'Partitions', x: 89, y: 89, status: 'active', icon: Music2, route: '/connectors?source=imslp' },
+  { id: 'maps', label: 'Google Maps', subtitle: 'Trajets de rendez-vous', x: 96, y: 69, status: 'active', icon: MapPin, route: '/connectors?source=maps' },
 ]
 
 const links: Array<[NodeId, NodeId, Exclude<NodeStatus, 'core'>]> = [
@@ -98,7 +98,7 @@ export default function HanumanOSPage() {
         </div>
       </div>
       <div className="hanuman-os__zoom" aria-label="Contrôles de la constellation"><button onClick={() => zoomBy(-.12)} aria-label="Dézoomer"><Minus size={15} /></button><span>{Math.round(viewport.scale * 100)}%</span><button onClick={() => zoomBy(.12)} aria-label="Zoomer"><Plus size={15} /></button><button onClick={() => setViewport(initialViewport)} aria-label="Recentrer"><RotateCcw size={14} /></button></div>
-      {selected && <aside className="hanuman-os__inspector"><button className="hanuman-os__inspector-close" onClick={() => setSelectedId(null)} aria-label="Fermer l’inspecteur"><X size={15} /></button><p>CONSTELLATION / NŒUD</p><h1>{selected.label}</h1><span className={`hanuman-os__status hanuman-os__status--${selected.status}`}>{statusLabel(selected.status)}</span><div className="hanuman-os__meta"><Network size={14} /> {links.filter(([from, to]) => from === selected.id || to === selected.id).length} connexions</div><p className="hanuman-os__description">{selected.subtitle}. Hanuman orchestre ses échanges avec le reste de l’écosystème.</p>{selected.route ? <button className="hanuman-os__inspector-action" onClick={() => openRoute(selected.route)}>Entrer dans l’espace <ChevronRight size={16} /></button> : <small>Aucune orchestration dédiée stabilisée.</small>}</aside>}
+      {selected && <aside className="hanuman-os__inspector"><button className="hanuman-os__inspector-close" onClick={() => setSelectedId(null)} aria-label="Fermer l’inspecteur"><X size={15} /></button><p>CONSTELLATION / CONNECTEUR</p><h1>{selected.label}</h1><span className={`hanuman-os__status hanuman-os__status--${selected.status}`}>{statusLabel(selected.status)}</span><div className="hanuman-os__meta"><Network size={14} /> {links.filter(([from, to]) => from === selected.id || to === selected.id).length} connexions</div><p className="hanuman-os__description">{selected.subtitle}. Ce connecteur relie Hanuman au reste de l’écosystème.</p>{selected.route ? <button className="hanuman-os__inspector-action" onClick={() => openRoute(selected.route)}>Entrer dans l’espace <ChevronRight size={16} /></button> : <small>Aucun espace dédié stabilisé.</small>}</aside>}
       <footer className="hanuman-os__dock"><span>Glisser : déplacer</span><i /><span>Molette : zoomer</span><i /><span>Double-clic : ouvrir</span></footer>
     </section>
   )

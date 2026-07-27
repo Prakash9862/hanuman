@@ -128,7 +128,7 @@ export default function ObsidianNotionPage() {
 
   return <div className="page obsidian-space">
     <header className="obsidian-header"><div>
-      <button className="breadcrumb-button" onClick={() => navigate('/orchestrations')}>← Orchestrations</button>
+      <button className="breadcrumb-button" onClick={() => navigate('/flows')}>← Flux</button>
       <p className="eyebrow">Espace spécialisé</p><h1>Obsidian <span>↔</span> Notion</h1>
       <p>Explorer, publier, importer, comparer et suivre les échanges sans quitter Hanuman.</p>
     </div><button className="refresh-button" onClick={() => void load()} disabled={loading}><RefreshCw size={17} className={loading ? 'spin' : ''} /> Actualiser</button></header>

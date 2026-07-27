@@ -11,11 +11,16 @@ import {
   Youtube,
 } from 'lucide-react'
 import { FormEvent, useEffect, useMemo, useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
+
+import {
+  connectorDefinitions,
+  connectorWorkspaces,
+} from './models/connectors'
+import type { ConnectorStatus, ConnectorWorkspaceId } from './models/connectors'
 
 const API_BASE = 'http://127.0.0.1:8000'
-
-type ResourceId = 'youtube' | 'gallica' | 'imslp' | 'maps' | 'chess'
+type CatalogFilter = 'all' | 'external' | 'local' | 'available' | 'partial'
 
 type SearchResult = {
   title?: string
@@ -75,18 +80,20 @@ type AnalysisPayload = {
   state?: AnalysisState
 }
 
-const resources = [
-  { id: 'youtube' as const, label: 'YouTube', eyebrow: 'Vidéo et veille', placeholder: 'Rechercher une vidéo, une chaîne, un sujet…', icon: Youtube },
-  { id: 'gallica' as const, label: 'Gallica', eyebrow: 'Patrimoine et sources', placeholder: 'Rechercher une œuvre, un compositeur, un manuscrit…', icon: BookOpen },
-  { id: 'imslp' as const, label: 'IMSLP', eyebrow: 'Partitions', placeholder: 'Rechercher une œuvre ou un compositeur…', icon: Music2 },
-  { id: 'maps' as const, label: 'Google Maps', eyebrow: 'Trajets et rendez-vous', placeholder: 'Saisir une adresse ou un lieu…', icon: MapPin },
-  { id: 'chess' as const, label: 'Échecs', eyebrow: 'Moteurs et bases', placeholder: '', icon: Swords },
-]
+const statusLabels: Record<ConnectorStatus, string> = {
+  available: 'Disponible',
+  partial: 'À consolider',
+  planned: 'Prévu',
+}
 
 export default function ResourcesPage() {
-  const [searchParams, setSearchParams] = useSearchParams()
-  const initialSource = searchParams.get('source') as ResourceId | null
-  const [active, setActive] = useState<ResourceId>(resources.some((resource) => resource.id === initialSource) ? initialSource! : 'gallica')
+  const [searchParams] = useSearchParams()
+  const initialSource = searchParams.get('source') as ConnectorWorkspaceId | null
+  const [active, setActive] = useState<ConnectorWorkspaceId>(
+    connectorWorkspaces.some((workspace) => workspace.id === initialSource) && initialSource ? initialSource : 'gallica',
+  )
+  const [catalogQuery, setCatalogQuery] = useState('')
+  const [catalogFilter, setCatalogFilter] = useState<CatalogFilter>('all')
   const [query, setQuery] = useState('')
   const [lastQuery, setLastQuery] = useState('')
   const [results, setResults] = useState<SearchResult[]>([])
@@ -102,10 +109,37 @@ export default function ResourcesPage() {
   const [analysisBusy, setAnalysisBusy] = useState(false)
   const [knowledgeBusy, setKnowledgeBusy] = useState(false)
 
-  const current = useMemo(() => resources.find((resource) => resource.id === active)!, [active])
+  const current = useMemo(
+    () => connectorWorkspaces.find((workspace) => workspace.id === active) ?? connectorWorkspaces[0],
+    [active],
+  )
+  const workspaceOpen = connectorWorkspaces.some((workspace) => workspace.id === initialSource)
+  const visibleConnectors = useMemo(() => {
+    const normalizedQuery = catalogQuery.trim().toLocaleLowerCase('fr')
+    return connectorDefinitions.filter(({ label, description, kind, status }) => {
+      const matchesQuery = !normalizedQuery || `${label} ${description}`.toLocaleLowerCase('fr').includes(normalizedQuery)
+      const matchesFilter = catalogFilter === 'all'
+        || catalogFilter === kind
+        || catalogFilter === status
+      return matchesQuery && matchesFilter
+    })
+  }, [catalogFilter, catalogQuery])
   const analysisRunning = ['running', 'stopping'].includes(analysisState.status)
   const batchProgress = analysisState.total > 0 ? Math.round((analysisState.completed / analysisState.total) * 100) : 0
   const libraryProgress = analysisQueue.total > 0 ? Math.round((analysisQueue.analysed / analysisQueue.total) * 100) : 0
+
+  useEffect(() => {
+    if (initialSource && connectorWorkspaces.some((workspace) => workspace.id === initialSource)) {
+      setActive(initialSource)
+      setQuery('')
+      setLastQuery('')
+      setResults([])
+      setMessage(null)
+      setFallbackUrl(null)
+      setNextPageToken(null)
+      setTotalResults(null)
+    }
+  }, [initialSource])
 
   async function refreshChessStatus() {
     try {
@@ -129,18 +163,6 @@ export default function ResourcesPage() {
     const timer = window.setInterval(() => void refreshChessStatus(), analysisRunning ? 2000 : 8000)
     return () => window.clearInterval(timer)
   }, [active, analysisRunning])
-
-  function selectSource(source: ResourceId) {
-    setActive(source)
-    setSearchParams({ source })
-    setQuery('')
-    setLastQuery('')
-    setResults([])
-    setMessage(null)
-    setFallbackUrl(null)
-    setNextPageToken(null)
-    setTotalResults(null)
-  }
 
   async function fetchSearch(source: 'youtube' | 'gallica' | 'imslp', normalized: string, pageToken?: string): Promise<SearchPayload> {
     const params = new URLSearchParams({
@@ -252,21 +274,49 @@ export default function ResourcesPage() {
   return (
     <div className="resources-page">
       <header className="resources-hero">
-        <div><p className="eyebrow">Hanuman / Ressources</p><h1>Un seul point d’entrée vers tes sources.</h1><p>Recherche documentaire, trajets et environnement d’analyse échiquéenne.</p></div>
-        <div className="resources-hero__count"><b>{resources.length}</b><span>espaces disponibles</span></div>
+        <div><p className="eyebrow">Hanuman / Connecteurs</p><h1>Les systèmes reliés à Hanuman.</h1><p>Services externes et programmes locaux utilisés par les flux, la recherche et les bibliothèques.</p></div>
       </header>
 
-      <section className="resources-shell">
-        <nav className="resources-tabs" aria-label="Sources de recherche">
-          {resources.map(({ id, label, eyebrow, icon: Icon }) => (
-            <button key={id} type="button" className={active === id ? 'is-active' : ''} onClick={() => selectSource(id)}>
-              <Icon size={18} /><span><b>{label}</b><small>{eyebrow}</small></span>
-            </button>
-          ))}
-        </nav>
+      <div className="connectors-catalog-heading">
+        <div><h2>Catalogue des connecteurs</h2><p>Retrouve les services externes et programmes locaux, puis ouvre leur espace lorsqu’il existe.</p></div>
+        <label className="connectors-catalog-search">
+          <Search size={17} />
+          <span className="sr-only">Rechercher un connecteur</span>
+          <input value={catalogQuery} onChange={(event) => setCatalogQuery(event.target.value)} placeholder="Rechercher un connecteur…" />
+        </label>
+      </div>
+      <div className="connectors-filters" aria-label="Filtrer les connecteurs">
+        {([
+          ['all', 'Tous'],
+          ['external', 'Services externes'],
+          ['local', 'Programmes locaux'],
+          ['available', 'Disponibles'],
+          ['partial', 'À consolider'],
+        ] as const).map(([value, label]) => (
+          <button key={value} type="button" className={catalogFilter === value ? 'is-active' : ''} onClick={() => setCatalogFilter(value)}>{label}</button>
+        ))}
+      </div>
+      <section className="connectors-catalog" aria-label="Catalogue des connecteurs">
+        {visibleConnectors.map(({ id, label, description, kind, status, route, icon: Icon }) => (
+          <article key={id} className="connector-card">
+            <span className="connector-card__icon"><Icon size={19} /></span>
+            <div><b>{label}</b><p>{description}</p></div>
+            <span className={`connector-card__status connector-card__status--${status}`}>{statusLabels[status]}</span>
+            <small>{kind === 'local' ? 'Programme local' : 'Système externe'}</small>
+            {route && <Link to={route}>Ouvrir l’espace <ExternalLink size={13} /></Link>}
+          </article>
+        ))}
+        {visibleConnectors.length === 0 && <p className="connectors-catalog-empty">Aucun connecteur ne correspond à cette recherche.</p>}
+      </section>
 
+      {workspaceOpen && (
+      <section className="resources-shell" aria-label={`Espace ${current.label}`}>
         <div className="resources-console">
-          <div className="resources-console__heading"><span className="resources-console__icon"><ActiveIcon size={23} /></span><div><p>{current.eyebrow}</p><h2>{current.label}</h2></div></div>
+          <div className="resources-console__heading">
+            <span className="resources-console__icon"><ActiveIcon size={23} /></span>
+            <div><p>{current.eyebrow}</p><h2>{current.label}</h2></div>
+            <Link className="resources-console__close" to="/connectors">Retour au catalogue</Link>
+          </div>
 
           {active !== 'chess' && (
             <form className="resources-search" onSubmit={handleSubmit}>
@@ -360,6 +410,7 @@ export default function ResourcesPage() {
           )}
         </div>
       </section>
+      )}
     </div>
   )
 }
