@@ -401,3 +401,100 @@ def test_search(monkeypatch: pytest.MonkeyPatch) -> None:
     assert captured["path"] == "search"
     assert captured["payload"]["query"] == "hello"
     assert captured["payload"]["page_size"] == 10
+
+
+def test_create_database_uses_initial_data_source(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured: dict[str, Any] = {}
+
+    def fake_request(
+        self: NotionService,
+        method: str,
+        path: str,
+        payload: dict,
+        timeout: float = 30.0,
+    ) -> Dict[str, Any]:
+        captured.update(method=method, path=path, payload=payload)
+        return {
+            "id": "database-1",
+            "url": "https://notion.test/database-1",
+            "data_sources": [{"id": "data-source-1"}],
+        }
+
+    svc = NotionService(token="tok")
+    monkeypatch.setattr(svc, "_request", fake_request.__get__(svc, NotionService))
+    ref = svc.create_database(
+        "parent-1",
+        "Repositories",
+        {"Name": {"title": {}}},
+    )
+
+    assert ref.database_id == "database-1"
+    assert ref.data_source_id == "data-source-1"
+    assert captured["path"] == "databases"
+    assert captured["payload"]["parent"]["page_id"] == "parent-1"
+    assert captured["payload"]["initial_data_source"]["properties"]["Name"] == {"title": {}}
+
+
+def test_create_page_in_data_source_uses_resolved_parent(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured: dict[str, Any] = {}
+
+    def fake_request(
+        self: NotionService,
+        method: str,
+        path: str,
+        payload: dict,
+        timeout: float = 30.0,
+    ) -> Dict[str, Any]:
+        captured.update(method=method, path=path, payload=payload)
+        return {"id": "page-1", "url": "https://notion.test/page-1"}
+
+    svc = NotionService(token="tok")
+    monkeypatch.setattr(svc, "_get_data_source_id_for_database", lambda _: "data-source-1")
+    monkeypatch.setattr(svc, "_request", fake_request.__get__(svc, NotionService))
+    ref = svc.create_page_in_data_source(
+        "database-1",
+        {"Name": {"title": [{"text": {"content": "Example"}}]}},
+    )
+
+    assert ref.page_id == "page-1"
+    assert captured["path"] == "pages"
+    assert captured["payload"]["parent"] == {
+        "type": "data_source_id",
+        "data_source_id": "data-source-1",
+    }
+
+
+def test_retrieve_block_children_paginates(monkeypatch: pytest.MonkeyPatch) -> None:
+    calls: list[str] = []
+
+    def fake_request(
+        self: NotionService,
+        method: str,
+        path: str,
+        payload=None,
+        timeout: float = 30.0,
+    ) -> Dict[str, Any]:
+        calls.append(path)
+        if len(calls) == 1:
+            return {
+                "results": [{"id": "block-1"}],
+                "has_more": True,
+                "next_cursor": "cursor-2",
+            }
+        return {"results": [{"id": "block-2"}], "has_more": False}
+
+    svc = NotionService(token="tok")
+    monkeypatch.setattr(svc, "_request", fake_request.__get__(svc, NotionService))
+
+    assert svc.retrieve_block_children("page-1") == [
+        {"id": "block-1"},
+        {"id": "block-2"},
+    ]
+    assert calls == [
+        "blocks/page-1/children?page_size=100",
+        "blocks/page-1/children?page_size=100&start_cursor=cursor-2",
+    ]
