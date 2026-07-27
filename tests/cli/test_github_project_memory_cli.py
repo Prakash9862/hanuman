@@ -120,3 +120,39 @@ def test_detailed_plan_groups_commits_under_sessions(
     assert SHA_2[:7] in rendered
     assert rendered.index(SHA_1[:7]) < rendered.index(SHA_2[:7])
     assert "Associations commit → session" not in rendered
+
+
+def test_cli_apply_delegates_to_phase_two(monkeypatch: pytest.MonkeyPatch) -> None:
+    service = FakeGithubService([raw_commit(SHA_1)])
+    calls: list[GitHubProjectMemoryInput] = []
+
+    def fake_apply(flow_input: GitHubProjectMemoryInput) -> FlowRun:
+        calls.append(flow_input)
+        run = plan_github_project_memory(flow_input, github_factory=lambda: service)
+        run.result.status = "verified"
+        run.result.verification = "passed"
+        run.result.verification_details = ["Tous les objets correspondent au plan."]
+        run.metrics["external_writes"] = 3
+        return run
+
+    monkeypatch.setattr(cli, "GITHUB_ALLOWED_REPOSITORIES", (REPOSITORY,))
+    monkeypatch.setattr(cli, "apply_github_project_memory", fake_apply)
+    output = StringIO()
+    exit_code = cli.run_cli(
+        [
+            "flows",
+            "github-project-memory",
+            "apply",
+            "--repository",
+            REPOSITORY,
+        ],
+        console=Console(file=output, force_terminal=False, width=160),
+    )
+
+    assert exit_code == 0
+    assert len(calls) == 1
+    assert calls[0].session_max_duration_hours == 12
+    rendered = output.getvalue()
+    assert "Phase 2" in rendered
+    assert "vérification : passed" in rendered
+    assert "3 écriture(s) exécutée(s)" in rendered

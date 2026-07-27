@@ -679,6 +679,14 @@ reste lié au Run.
 
 La V1 ne planifie aucune suppression Notion.
 
+La Phase 2 pilote autorise uniquement, sous la page de test
+`3aae48e88d808075a33ff7accbaf1a90`, la création des databases
+`Repositories` et `Development Sessions`, d'une page Repository absente et
+des pages Development Session absentes. Elle recherche les pages par
+`GitHub Repository ID` ou `Session ID`, jamais par titre. Un objet existant
+produit `no_change` ; aucune mise à jour, suppression, autre cible ou autre
+type de ressource n'est autorisé.
+
 ### 12.4 Verify
 
 La vérification relit ou confirme au minimum :
@@ -692,6 +700,12 @@ La vérification relit ou confirme au minimum :
 
 Une réponse HTTP réussie sans preuve suffisante ne vaut pas vérification. Un
 échec de vérification obligatoire interdit le statut `succeeded`.
+
+Dans la Phase 2 pilote, chaque database et page créée ou retrouvée est relue
+immédiatement. Les propriétés, la relation session → Repository et les blocs
+Résumé/Commits sont comparés au plan. Le résultat vaut `verification = passed`
+uniquement si tous les objets correspondent ; sinon il vaut `failed` avec un
+détail par propriété ou contenu divergent, sans correction automatique.
 
 ## 13. Erreurs et résultats partiels
 

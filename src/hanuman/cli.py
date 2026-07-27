@@ -12,6 +12,51 @@ from rich.table import Table
 from hanuman.config.env import GITHUB_ALLOWED_REPOSITORIES
 from hanuman.models.github_project_memory import FlowRun, GitHubProjectMemoryInput
 from hanuman.orchestrations.github_project_memory import plan_github_project_memory
+from hanuman.orchestrations.github_project_memory_notion import (
+    apply_github_project_memory,
+)
+
+
+def _add_project_memory_arguments(command: argparse.ArgumentParser) -> None:
+    command.add_argument("--repository", required=True, help="Dépôt autorisé au format owner/name.")
+    command.add_argument("--branch", help="Branche ou ref ; branche par défaut si absente.")
+    command.add_argument(
+        "--start-ref",
+        help="SHA de départ exclusif ; doit être présent dans la plage bornée.",
+    )
+    command.add_argument(
+        "--end-ref",
+        help="SHA ou ref de fin inclusif ; la branche est utilisée si absent.",
+    )
+    command.add_argument(
+        "--max-commits",
+        type=int,
+        default=50,
+        help="Nombre maximal de commits collectés, entre 1 et 100 (défaut : 50).",
+    )
+    command.add_argument(
+        "--session-window-hours",
+        type=int,
+        default=24,
+        help="Fenêtre d'inactivité d'une session en heures (défaut : 24).",
+    )
+    command.add_argument(
+        "--session-max-duration-hours",
+        type=int,
+        default=12,
+        help="Durée maximale d'une session en heures (défaut : 12).",
+    )
+    command.add_argument(
+        "--detailed-plan",
+        action="store_true",
+        help="Afficher les sessions, leurs commits et les effets planifiés.",
+    )
+    command.add_argument(
+        "--json",
+        action="store_true",
+        dest="as_json",
+        help="Émettre le Run structuré en JSON.",
+    )
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -21,52 +66,19 @@ def _parser() -> argparse.ArgumentParser:
     flow_commands = flows.add_subparsers(dest="flow", required=True)
     project_memory = flow_commands.add_parser(
         "github-project-memory",
-        help="Transformer une activité GitHub bornée en plan de mémoire projet.",
+        help="Transformer une activité GitHub bornée en mémoire projet.",
     )
     actions = project_memory.add_subparsers(dest="action", required=True)
     plan = actions.add_parser(
         "plan",
         help="Calculer un plan déterministe sans aucune écriture Notion.",
     )
-    plan.add_argument("--repository", required=True, help="Dépôt autorisé au format owner/name.")
-    plan.add_argument("--branch", help="Branche ou ref ; branche par défaut si absente.")
-    plan.add_argument(
-        "--start-ref",
-        help="SHA de départ exclusif ; doit être présent dans la plage bornée.",
+    apply = actions.add_parser(
+        "apply",
+        help="Créer les objets absents dans la cible Notion de test puis les vérifier.",
     )
-    plan.add_argument(
-        "--end-ref",
-        help="SHA ou ref de fin inclusif ; la branche est utilisée si absent.",
-    )
-    plan.add_argument(
-        "--max-commits",
-        type=int,
-        default=50,
-        help="Nombre maximal de commits collectés, entre 1 et 100 (défaut : 50).",
-    )
-    plan.add_argument(
-        "--session-window-hours",
-        type=int,
-        default=24,
-        help="Fenêtre d'inactivité d'une session en heures (défaut : 24).",
-    )
-    plan.add_argument(
-        "--session-max-duration-hours",
-        type=int,
-        default=12,
-        help="Durée maximale d'une session en heures (défaut : 12).",
-    )
-    plan.add_argument(
-        "--detailed-plan",
-        action="store_true",
-        help="Afficher les sessions, leurs commits et les effets planifiés.",
-    )
-    plan.add_argument(
-        "--json",
-        action="store_true",
-        dest="as_json",
-        help="Émettre le Run structuré en JSON.",
-    )
+    _add_project_memory_arguments(plan)
+    _add_project_memory_arguments(apply)
     return parser
 
 
@@ -78,7 +90,12 @@ def _json_default(value: object) -> str:
 
 def _print_run(run: FlowRun, *, detailed: bool, console: Console) -> None:
     console.print("[bold]GitHub Activity → Notion Project Memory[/bold]")
-    console.print("[yellow]Phase 1 — plan uniquement, aucune écriture Notion[/yellow]\n")
+    if run.result.verification == "not_applied":
+        console.print("[yellow]Phase 1 — plan uniquement, aucune écriture Notion[/yellow]\n")
+    else:
+        console.print(
+            "[yellow]Phase 2 — créations contrôlées dans la cible Notion de test[/yellow]\n"
+        )
 
     if run.result.plan is None:
         console.print(f"[red]Échec :[/red] {run.result.summary}")
@@ -99,7 +116,10 @@ def _print_run(run: FlowRun, *, detailed: bool, console: Console) -> None:
         console.print(f"  {run.result.resources_created} créations planifiées")
         console.print(f"  {len(plan.commit_sessions)} commits à intégrer")
         console.print(f"  {plan.sessions_closed} fermetures")
-        console.print("  0 écriture exécutée")
+        if run.result.verification == "not_applied":
+            console.print("  0 écriture exécutée")
+        else:
+            console.print(f"  {run.metrics.get('external_writes', 0)} écriture(s) exécutée(s)")
         console.print(f"  empreinte : {plan.fingerprint}\n")
 
         if plan.sessions:
@@ -181,6 +201,19 @@ def _print_run(run: FlowRun, *, detailed: bool, console: Console) -> None:
         for warning in plan.warnings:
             console.print(f"[yellow]Avertissement :[/yellow] {warning}")
 
+        if run.result.verification != "not_applied":
+            console.print("\n[bold]Apply / Verify[/bold]")
+            console.print(f"  créations : {run.result.resources_created}")
+            console.print(f"  sans changement : {run.result.resources_skipped}")
+            console.print(f"  mises à jour : {run.result.resources_updated}")
+            console.print(f"  vérification : {run.result.verification}")
+            for effect in run.result.effects:
+                console.print(
+                    f"  - {effect.effect_type} | {effect.identity} | {effect.description}"
+                )
+            for detail in run.result.verification_details:
+                console.print(f"  {detail}")
+
     console.print("\n[bold]Run[/bold]")
     console.print(f"  status : {run.status}")
     console.print(f"  résultat : {run.result.status}")
@@ -206,7 +239,11 @@ def run_cli(
         session_max_duration_hours=args.session_max_duration_hours,
         allowed_repositories=GITHUB_ALLOWED_REPOSITORIES,
     )
-    run = plan_github_project_memory(flow_input)
+    run = (
+        apply_github_project_memory(flow_input)
+        if args.action == "apply"
+        else plan_github_project_memory(flow_input)
+    )
     if args.as_json:
         payload: dict[str, Any] = asdict(run)
         output.print_json(json.dumps(payload, default=_json_default, ensure_ascii=False))

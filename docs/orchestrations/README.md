@@ -113,3 +113,24 @@ Development Sessions et produit un plan, un FlowResult et un Run structurés.
 Elle n'importe aucun service Notion et ne peut effectuer aucune écriture
 Notion. Pull requests, releases, workflows, webhooks et déclenchement
 automatique restent hors périmètre.
+
+## GitHub Project Memory — apply Phase 2
+
+La Phase 2 applique le même plan uniquement sous la page Notion de test
+`3aae48e88d808075a33ff7accbaf1a90` :
+
+```bash
+poetry run hanuman flows github-project-memory apply \
+  --repository Prakash9862/hanuman \
+  --branch main \
+  --max-commits 50 \
+  --session-window-hours 24 \
+  --session-max-duration-hours 12
+```
+
+Elle crée si nécessaire les databases `Repositories` et
+`Development Sessions`, puis les pages absentes, avant de relire et vérifier
+propriétés, relations et blocs. L'identité repose uniquement sur
+`GitHub Repository ID` et `Session ID`. Un objet existant produit
+`no_change`, même s'il diffère : aucune mise à jour ou suppression n'est
+autorisée dans cette phase.
