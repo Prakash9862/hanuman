@@ -33,7 +33,7 @@ export const connectorDefinitions: readonly ConnectorDefinition[] = [
   { id: 'obsidian', label: 'Obsidian', description: 'Mémoire et bibliothèques locales.', kind: 'local', status: 'available', route: '/flows/obsidian-notion', icon: NotebookPen },
   { id: 'github', label: 'GitHub', description: 'Projets et activité technique.', kind: 'external', status: 'partial', route: '/flows', icon: Github },
   { id: 'gmail', label: 'Gmail', description: 'Consultation de la messagerie.', kind: 'external', status: 'partial', route: '/flows/gmail', icon: Mail },
-  { id: 'calendar', label: 'Calendar', description: 'Consultation des calendriers.', kind: 'external', status: 'available', route: '/flows/calendar', icon: CalendarDays },
+  { id: 'calendar', label: 'Google Calendar', description: 'Consultation des calendriers.', kind: 'external', status: 'available', route: '/flows/calendar', icon: CalendarDays },
   { id: 'wikipedia', label: 'Wikipédia', description: 'Recherche encyclopédique.', kind: 'external', status: 'available', route: '/flows/wikipedia-notion', icon: BookOpen },
   { id: 'chess', label: 'Chess.com', description: 'Parties et données échiquéennes.', kind: 'external', status: 'available', route: '/flows/chess-obsidian', icon: Swords },
   { id: 'stockfish', label: 'Stockfish', description: 'Moteur local d’analyse tactique.', kind: 'local', status: 'available', route: '/connectors?source=chess', icon: Cpu },
