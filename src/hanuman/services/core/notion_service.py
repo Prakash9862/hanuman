@@ -317,6 +317,23 @@ class NotionService:
             payload=payload,
         )
 
+    def update_block(
+        self,
+        block_id: str,
+        block_type: str,
+        content: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        """Met à jour le contenu d'un bloc existant sans le recréer."""
+        if not block_id.strip():
+            raise ValueError("block_id manquant pour update_block().")
+        if not block_type.strip():
+            raise ValueError("block_type manquant pour update_block().")
+        return self._request(
+            "PATCH",
+            f"blocks/{block_id}",
+            payload={block_type: content},
+        )
+
     def query_database(
         self,
         database_id: str,

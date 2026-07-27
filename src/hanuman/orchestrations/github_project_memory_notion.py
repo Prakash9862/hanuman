@@ -31,6 +31,20 @@ from hanuman.services.core.notion_service import (
 NOTION_TEST_PARENT_PAGE_ID = "3aae48e88d808075a33ff7accbaf1a90"
 REPOSITORIES_DATABASE_TITLE = "Repositories"
 SESSIONS_DATABASE_TITLE = "Development Sessions"
+SESSION_MUTABLE_PROPERTIES = frozenset(
+    {
+        "Title",
+        "Status",
+        "Started At",
+        "Last Activity",
+        "Ended At",
+        "Commit Count",
+        "Summary",
+        "GitHub URL",
+        "Updated At",
+        "Opening Reason",
+    }
+)
 
 NotionServiceFactory = Callable[[], NotionService]
 
@@ -52,6 +66,7 @@ class PageSnapshot:
     identity: str
     resource_type: str
     created: bool
+    updated: bool
 
 
 def _now() -> datetime:
@@ -371,7 +386,83 @@ def _expected_property_value(value: dict[str, Any]) -> Any:
 
 def _canonical_date(value: str) -> str:
     parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
-    return parsed.astimezone(UTC).isoformat()
+    return parsed.astimezone(UTC).replace(second=0, microsecond=0).isoformat()
+
+
+def _changed_properties(
+    page: dict[str, Any],
+    expected: dict[str, Any],
+) -> dict[str, Any]:
+    actual = page.get("properties") or {}
+    return {
+        name: value
+        for name, value in expected.items()
+        if name not in actual or _property_value(actual[name]) != _expected_property_value(value)
+    }
+
+
+def _block_links(block: dict[str, Any]) -> set[str]:
+    block_type = str(block.get("type", ""))
+    rich_text = block.get(block_type, {}).get("rich_text") or []
+    links: set[str] = set()
+    for item in rich_text:
+        text_data = item.get("text") or {}
+        link = item.get("href") or (text_data.get("link") or {}).get("url")
+        if link:
+            links.add(str(link))
+    return links
+
+
+def _merge_session_blocks(
+    notion: NotionService,
+    page_id: str,
+    actual: list[dict[str, Any]],
+    expected: list[dict[str, Any]],
+) -> tuple[list[dict[str, Any]], int, int, bool]:
+    """Met à jour le résumé et ajoute les seuls commits Git absents."""
+    summary_updated = False
+    if len(actual) < 3 or [block.get("type") for block in actual[:3]] != [
+        "heading_2",
+        "paragraph",
+        "heading_2",
+    ]:
+        raise NotionApiError(
+            f"Contenu de session non reconnu pour {page_id}; aucune réécriture destructive."
+        )
+
+    expected_summary = expected[1]["paragraph"]
+    if _canonical_blocks([actual[1]]) != _canonical_blocks([expected[1]]):
+        summary_block_id = str(actual[1].get("id", ""))
+        if not summary_block_id:
+            raise NotionApiError(f"Identifiant du bloc Summary absent pour {page_id}.")
+        notion.update_block(summary_block_id, "paragraph", expected_summary)
+        summary_updated = True
+
+    expected_commit_blocks = expected[3:]
+    expected_links = [next(iter(_block_links(block)), "") for block in expected_commit_blocks]
+    existing_order = [
+        link
+        for block in actual[3:]
+        for link in expected_links
+        if link and link in _block_links(block)
+    ]
+    if existing_order != expected_links[: len(existing_order)]:
+        raise NotionApiError(
+            f"Ordre Git existant incompatible pour {page_id}; aucune réécriture destructive."
+        )
+    existing_links = set(existing_order)
+    new_blocks = [
+        block for block in expected_commit_blocks if not (_block_links(block) & existing_links)
+    ]
+    already_present = len(expected_commit_blocks) - len(new_blocks)
+    if new_blocks:
+        notion.append_blocks(page_id, new_blocks)
+    return (
+        notion.retrieve_block_children(page_id),
+        len(new_blocks),
+        already_present,
+        summary_updated,
+    )
 
 
 def _canonical_blocks(blocks: list[dict[str, Any]]) -> list[tuple[str, str, tuple[str, ...]]]:
@@ -461,7 +552,7 @@ def apply_github_project_memory(
     github_factory: GithubServiceFactory = GithubService,
     notion_factory: NotionServiceFactory = NotionService,
 ) -> FlowRun:
-    """Applique uniquement les créations Phase 2, puis vérifie chaque objet."""
+    """Synchronise incrémentalement la projection Notion, puis la vérifie."""
 
     perf_started = perf_counter()
     planned_run = plan_github_project_memory(flow_input, github_factory=github_factory)
@@ -472,6 +563,9 @@ def apply_github_project_memory(
     effects: list[PlannedEffect] = []
     page_snapshots: list[PageSnapshot] = []
     database_snapshots: list[tuple[DatabaseSnapshot, str, dict[str, Any]]] = []
+    commits_added = 0
+    commits_already_present = 0
+    commits_ignored = plan.commits_skipped
     apply_started = _now()
     try:
         notion = notion_factory()
@@ -516,6 +610,16 @@ def apply_github_project_memory(
                 repository_properties,
             )
             repository_page = notion.retrieve_page(ref.page_id)
+            repository_updated = False
+        else:
+            repository_changes = _changed_properties(repository_page, repository_properties)
+            repository_updated = bool(repository_changes)
+            if repository_changes:
+                notion.update_page_properties(
+                    str(repository_page.get("id", "")),
+                    repository_changes,
+                )
+                repository_page = notion.retrieve_page(str(repository_page.get("id", "")))
         repository_page_id = str(repository_page.get("id", ""))
         page_snapshots.append(
             PageSnapshot(
@@ -526,11 +630,16 @@ def apply_github_project_memory(
                 identity=str(plan.repository.repository_id),
                 resource_type="Repository",
                 created=repository_created,
+                updated=repository_updated,
             )
         )
         effects.append(
             PlannedEffect(
-                "repository.create" if repository_created else "repository.no_change",
+                (
+                    "repository.create"
+                    if repository_created
+                    else "repository.update" if repository_updated else "repository.no_change"
+                ),
                 repository_page_id,
                 plan.repository.full_name,
             )
@@ -556,8 +665,36 @@ def apply_github_project_memory(
                     blocks,
                 )
                 session_page = notion.retrieve_page(ref.page_id)
+                session_updated = False
+                commits_added += len(session.commit_ids)
+                actual_blocks = notion.retrieve_block_children(str(session_page.get("id", "")))
+            else:
+                session_page_id = str(session_page.get("id", ""))
+                property_changes = {
+                    name: value
+                    for name, value in _changed_properties(session_page, properties).items()
+                    if name in SESSION_MUTABLE_PROPERTIES
+                }
+                if property_changes:
+                    notion.update_page_properties(session_page_id, property_changes)
+                actual_blocks = notion.retrieve_block_children(session_page_id)
+                (
+                    actual_blocks,
+                    added,
+                    already_present,
+                    summary_updated,
+                ) = _merge_session_blocks(
+                    notion,
+                    session_page_id,
+                    actual_blocks,
+                    blocks,
+                )
+                commits_added += added
+                commits_already_present += already_present
+                session_updated = bool(property_changes) or added > 0 or summary_updated
+                if session_updated:
+                    session_page = notion.retrieve_page(session_page_id)
             session_page_id = str(session_page.get("id", ""))
-            actual_blocks = notion.retrieve_block_children(session_page_id)
             page_snapshots.append(
                 PageSnapshot(
                     page=session_page,
@@ -567,6 +704,7 @@ def apply_github_project_memory(
                     identity=session.session_id,
                     resource_type="Development Session",
                     created=session_created,
+                    updated=session_updated,
                 )
             )
             effects.append(
@@ -574,7 +712,11 @@ def apply_github_project_memory(
                     (
                         "development_session.create"
                         if session_created
-                        else "development_session.no_change"
+                        else (
+                            "development_session.update"
+                            if session_updated
+                            else "development_session.no_change"
+                        )
                     ),
                     session_page_id,
                     session.computed_title,
@@ -621,6 +763,7 @@ def apply_github_project_memory(
         )
 
     created_count = sum(effect.effect_type.endswith(".create") for effect in effects)
+    updated_count = sum(effect.effect_type.endswith(".update") for effect in effects)
     no_change_count = sum(effect.effect_type.endswith(".no_change") for effect in effects)
     steps.append(
         _step(
@@ -630,8 +773,11 @@ def apply_github_project_memory(
             metrics={
                 "resources_created": created_count,
                 "resources_no_change": no_change_count,
-                "resources_updated": 0,
+                "resources_updated": updated_count,
                 "resources_deleted": 0,
+                "commits_added": commits_added,
+                "commits_already_present": commits_already_present,
+                "commits_ignored": commits_ignored,
             },
         )
     )
@@ -652,6 +798,7 @@ def apply_github_project_memory(
             "verify_notion",
             verify_started,
             status="succeeded" if verification_passed else "failed",
+            effects=["verification.passed" if verification_passed else "verification.failed"],
             metrics={
                 "resources_verified": len(database_snapshots) + len(page_snapshots),
                 "verification_failures": len(verification_errors),
@@ -664,12 +811,13 @@ def apply_github_project_memory(
     result = FlowResult(
         status="verified" if verification_passed else "failed",
         summary=(
-            f"{created_count} création(s), {no_change_count} sans changement ; "
+            f"{created_count} création(s), {updated_count} mise(s) à jour, "
+            f"{no_change_count} sans changement ; "
             f"vérification {'réussie' if verification_passed else 'échouée'}."
         ),
         resources_read=planned_run.result.resources_read + len(page_snapshots),
         resources_created=created_count,
-        resources_updated=0,
+        resources_updated=updated_count,
         resources_skipped=no_change_count,
         resources_failed=len(verification_errors),
         effects=effects,
@@ -681,7 +829,7 @@ def apply_github_project_memory(
     metrics = {
         **planned_run.metrics,
         "duration_ms": (perf_counter() - perf_started) * 1000,
-        "external_writes": created_count,
+        "external_writes": created_count + updated_count,
         "notion_databases_created": sum(
             effect.effect_type == "database.create" for effect in effects
         ),
@@ -690,8 +838,11 @@ def apply_github_project_memory(
             for effect in effects
         ),
         "notion_no_change": no_change_count,
-        "notion_updates": 0,
+        "notion_updates": updated_count,
         "notion_deletions": 0,
+        "commits_added": commits_added,
+        "commits_already_present": commits_already_present,
+        "commits_ignored": commits_ignored,
         "resources_verified": len(database_snapshots) + len(page_snapshots),
     }
     return FlowRun(
