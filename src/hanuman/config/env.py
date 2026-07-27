@@ -60,6 +60,11 @@ NOTION_PARENT_PAGE_ID: str | None = os.environ.get("NOTION_PARENT_PAGE_ID")
 
 GITHUB_TOKEN: str | None = os.environ.get("GITHUB_TOKEN")
 GITHUB_REPO: str | None = os.environ.get("GITHUB_REPO")  # ex: "Prakasch9862/hanuman"
+GITHUB_ALLOWED_REPOSITORIES: tuple[str, ...] = tuple(
+    repository.strip()
+    for repository in os.environ.get("GITHUB_ALLOWED_REPOSITORIES", "").split(",")
+    if repository.strip()
+)
 
 # ---------------------------------------------------------------------------
 # OPENAI

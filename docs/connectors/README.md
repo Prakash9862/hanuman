@@ -9,7 +9,7 @@ locale. Le registre applicatif n’est pas encore un contrat d’exécution comm
 |---|---|---:|---|
 | Obsidian | lire, scanner et écrire du Markdown | oui | bêta interne |
 | Notion | ping, recherche, lecture et création/mise à jour selon le flux | oui | bêta interne |
-| GitHub | utilisateur, dépôts et issues | non côté GitHub | alpha |
+| GitHub | utilisateur, dépôts, commits bornés et issues | non côté GitHub | alpha |
 | Gmail | OAuth, liste, recherche et détail | token local seulement | alpha, lecture seule |
 | Google Calendar | OAuth, calendriers et événements | token local seulement | alpha, lecture seule |
 | Wikipédia | recherche et extraction structurée | non | bêta interne |

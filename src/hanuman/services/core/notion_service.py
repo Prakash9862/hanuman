@@ -39,6 +39,13 @@ class NotionPageRef:
     url: str
 
 
+@dataclass
+class NotionDatabaseRef:
+    database_id: str
+    data_source_id: str
+    url: str
+
+
 # ---------------------------------------------------------------------------
 # Client / Service Notion centralisé
 # ---------------------------------------------------------------------------
@@ -229,6 +236,66 @@ class NotionService:
 
         return NotionPageRef(page_id=page_id, url=url)
 
+    def create_page_in_data_source(
+        self,
+        database_id: str,
+        properties: Dict[str, Any],
+        children: Optional[List[Dict[str, Any]]] = None,
+    ) -> NotionPageRef:
+        """Crée une page dans la data source principale d'une database."""
+        db_id = database_id.strip()
+        if not db_id:
+            raise NotionApiError("database_id manquant pour create_page_in_data_source().")
+        data_source_id = self._get_data_source_id_for_database(db_id)
+        payload: Dict[str, Any] = {
+            "parent": {"type": "data_source_id", "data_source_id": data_source_id},
+            "properties": properties,
+        }
+        if children:
+            payload["children"] = children[:95]
+        data = self._request("POST", "pages", payload=payload)
+        return NotionPageRef(page_id=str(data.get("id", "")), url=str(data.get("url", "")))
+
+    def create_database(
+        self,
+        parent_page_id: str,
+        title: str,
+        properties: Dict[str, Any],
+    ) -> NotionDatabaseRef:
+        """Crée une database et sa data source initiale sous une page précise."""
+        parent = parent_page_id.strip()
+        if not parent:
+            raise NotionApiError("parent_page_id manquant pour create_database().")
+        payload: Dict[str, Any] = {
+            "parent": {"type": "page_id", "page_id": parent},
+            "title": [{"type": "text", "text": {"content": title}}],
+            "initial_data_source": {"properties": properties},
+        }
+        data = self._request("POST", "databases", payload=payload)
+        database_id = str(data.get("id", "")).strip()
+        data_sources = data.get("data_sources") or []
+        data_source_id = str(data_sources[0].get("id", "")).strip() if data_sources else ""
+        if not database_id or not data_source_id:
+            raise NotionApiError("Réponse Notion incomplète après création de database.")
+        self._data_source_cache[database_id] = data_source_id
+        return NotionDatabaseRef(
+            database_id=database_id,
+            data_source_id=data_source_id,
+            url=str(data.get("url", "")),
+        )
+
+    def retrieve_database(self, database_id: str) -> Dict[str, Any]:
+        """Relit une database Notion."""
+        if not database_id.strip():
+            raise ValueError("database_id manquant pour retrieve_database().")
+        return self._request("GET", f"databases/{database_id}")
+
+    def retrieve_data_source(self, data_source_id: str) -> Dict[str, Any]:
+        """Relit le schéma d'une data source Notion."""
+        if not data_source_id.strip():
+            raise ValueError("data_source_id manquant pour retrieve_data_source().")
+        return self._request("GET", f"data_sources/{data_source_id}")
+
     def append_blocks(
         self,
         page_id: str,
@@ -309,6 +376,23 @@ class NotionService:
             raise ValueError("page_id manquant pour retrieve_page().")
 
         return self._request("GET", f"pages/{page_id}")
+
+    def retrieve_block_children(self, block_id: str) -> List[Dict[str, Any]]:
+        """Relit tous les blocs enfants directs avec pagination."""
+        if not block_id.strip():
+            raise ValueError("block_id manquant pour retrieve_block_children().")
+        results: List[Dict[str, Any]] = []
+        next_cursor: Optional[str] = None
+        while True:
+            path = f"blocks/{block_id}/children?page_size=100"
+            if next_cursor is not None:
+                path += f"&start_cursor={next_cursor}"
+            data = self._request("GET", path)
+            results.extend(data.get("results", []))
+            if not data.get("has_more"):
+                break
+            next_cursor = data.get("next_cursor")
+        return results
 
     def search(
         self,

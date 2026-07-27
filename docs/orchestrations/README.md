@@ -13,6 +13,7 @@ directement à une API externe.
 | Wikipédia → Notion | sujet ou page | création de page Notion | API, UI, CLI | disponible |
 | Context pack → Notion | sujet Wikipédia | page enrichie | CLI | disponible |
 | GitHub issues → Notion | dépôt | création/mise à jour Notion | CLI/service | disponible, alpha |
+| GitHub Activity → Notion Project Memory | dépôt et plage de commits | plan de Development Sessions, sans écriture | CLI | Phase 1 |
 | Chess.com → Obsidian | utilisateur et limite | notes et vues Chess | API, UI, CLI | disponible |
 | Stockfish → Obsidian | notes PGN | analyses et connaissances dérivées | UI Resources, CLI | disponible |
 | Chess insights → Notion | base de parties | synthèse Notion | CLI | disponible |
@@ -84,3 +85,52 @@ La source est définie par flux et par champ. Exemples actuels :
 - état technique d’exécution : Hanuman.
 
 Voir [ADR-0003](../adr/ADR-0003-source-of-truth-per-flow.md).
+
+## GitHub Project Memory — plan Phase 1
+
+Après avoir configuré `GITHUB_TOKEN` et la liste explicite
+`GITHUB_ALLOWED_REPOSITORIES` :
+
+```bash
+hanuman flows github-project-memory plan \
+  --repository Prakash9862/hanuman \
+  --branch main \
+  --max-commits 50 \
+  --session-window-hours 24 \
+  --session-max-duration-hours 12
+```
+
+`--start-ref` fixe un SHA de départ exclusif, `--end-ref` un SHA ou une ref de
+fin, `--detailed-plan` groupe les commits sous chaque session et `--json`
+sérialise le Run complet, associations comprises.
+
+La fenêtre d'inactivité (24 h par défaut) mesure l'intervalle sans commit. La
+durée maximale (12 h par défaut) borne une session continue pour préserver sa
+lisibilité ; elle ne limite pas le nombre de commits.
+
+Cette Phase 1 lit uniquement GitHub, normalise les commits, calcule des
+Development Sessions et produit un plan, un FlowResult et un Run structurés.
+Elle n'importe aucun service Notion et ne peut effectuer aucune écriture
+Notion. Pull requests, releases, workflows, webhooks et déclenchement
+automatique restent hors périmètre.
+
+## GitHub Project Memory — apply Phase 2
+
+La Phase 2 applique le même plan uniquement sous la page Notion de test
+`3aae48e88d808075a33ff7accbaf1a90` :
+
+```bash
+poetry run hanuman flows github-project-memory apply \
+  --repository Prakash9862/hanuman \
+  --branch main \
+  --max-commits 50 \
+  --session-window-hours 24 \
+  --session-max-duration-hours 12
+```
+
+Elle crée si nécessaire les databases `Repositories` et
+`Development Sessions`, puis les pages absentes, avant de relire et vérifier
+propriétés, relations et blocs. L'identité repose uniquement sur
+`GitHub Repository ID` et `Session ID`. Un objet existant produit
+`no_change`, même s'il diffère : aucune mise à jour ou suppression n'est
+autorisée dans cette phase.

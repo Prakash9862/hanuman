@@ -22,12 +22,27 @@ class GithubApiError(RuntimeError):
 
 @dataclass
 class GithubRepo:
+    repository_id: int
+    owner: str
+    name: str
     full_name: str
     description: str
     stars: int
     forks: int
     html_url: str
     default_branch: str
+
+
+@dataclass(frozen=True)
+class GithubCommit:
+    sha: str
+    parent_shas: tuple[str, ...]
+    authored_at: str
+    committed_at: str
+    git_author: str
+    github_author: str | None
+    message: str
+    html_url: str
 
 
 class GithubService:
@@ -100,6 +115,9 @@ class GithubService:
         repo = cast(Dict[str, Any], data)
 
         return GithubRepo(
+            repository_id=int(repo.get("id", 0)),
+            owner=str(repo.get("owner", {}).get("login", "")),
+            name=str(repo.get("name", "")),
             full_name=repo.get("full_name", repo_name),
             description=repo.get("description") or "",
             stars=int(repo.get("stargazers_count", 0)),
@@ -107,6 +125,71 @@ class GithubService:
             html_url=repo.get("html_url", ""),
             default_branch=repo.get("default_branch", "main"),
         )
+
+    def list_commits(
+        self,
+        full_name: str,
+        *,
+        ref: str,
+        start_sha: str | None = None,
+        max_commits: int = 50,
+    ) -> List[GithubCommit]:
+        """Retourne une plage bornée de commits, du plus ancien au plus récent.
+
+        ``start_sha`` est une borne exclusive. GitHub renvoie les commits du
+        plus récent au plus ancien ; la méthode inverse le résultat après avoir
+        vérifié que la borne demandée a été rencontrée.
+        """
+
+        if not full_name.strip():
+            raise ValueError("Le dépôt GitHub est obligatoire.")
+        if not ref.strip():
+            raise ValueError("La branche ou ref GitHub est obligatoire.")
+        if max_commits < 1 or max_commits > 100:
+            raise ValueError("max_commits doit être compris entre 1 et 100.")
+
+        params: Dict[str, Any] = {"sha": ref, "per_page": max_commits}
+        data = self._request("GET", f"/repos/{full_name}/commits", params=params)
+        raw_commits = cast(List[Dict[str, Any]], data)
+        commits: List[GithubCommit] = []
+        found_start = start_sha is None
+
+        for raw in raw_commits:
+            sha = str(raw.get("sha", "")).strip()
+            if start_sha is not None and sha == start_sha:
+                found_start = True
+                break
+
+            commit_data = cast(Dict[str, Any], raw.get("commit") or {})
+            author_data = cast(Dict[str, Any], commit_data.get("author") or {})
+            committer_data = cast(Dict[str, Any], commit_data.get("committer") or {})
+            github_author = cast(Dict[str, Any], raw.get("author") or {})
+            parents = cast(List[Dict[str, Any]], raw.get("parents") or [])
+            commits.append(
+                GithubCommit(
+                    sha=sha,
+                    parent_shas=tuple(
+                        str(parent.get("sha", "")).strip()
+                        for parent in parents
+                        if parent.get("sha")
+                    ),
+                    authored_at=str(author_data.get("date", "")).strip(),
+                    committed_at=str(committer_data.get("date", "")).strip(),
+                    git_author=str(author_data.get("name", "")).strip(),
+                    github_author=(str(github_author.get("login", "")).strip() or None),
+                    message=str(commit_data.get("message", "")),
+                    html_url=str(raw.get("html_url", "")).strip(),
+                )
+            )
+
+        if not found_start:
+            raise GithubApiError(
+                "La borne de départ n'a pas été trouvée dans la plage bornée. "
+                "Augmente max_commits ou corrige la borne."
+            )
+
+        commits.reverse()
+        return commits
 
     def list_issues(
         self,

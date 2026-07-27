@@ -32,6 +32,19 @@ sont :
 Ne recopiez pas cette table dans un `.env` sans vérifier les modules : certains
 noms sont spécifiques au flux.
 
+### GitHub Activity → Notion Project Memory — Phase 1
+
+La commande de planification utilise :
+
+| Variable | Rôle |
+|---|---|
+| `GITHUB_TOKEN` | Jeton GitHub en lecture |
+| `GITHUB_ALLOWED_REPOSITORIES` | Liste séparée par des virgules des dépôts autorisés au format `owner/name` |
+
+Le dépôt passé avec `--repository` doit être présent dans
+`GITHUB_ALLOWED_REPOSITORIES`. Aucun paramètre Notion n'est lu par cette
+commande.
+
 ## Gmail
 
 Gmail utilise le scope lecture seule et stocke son token dans :
