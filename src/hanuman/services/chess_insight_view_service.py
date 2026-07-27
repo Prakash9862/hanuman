@@ -130,9 +130,7 @@ def _has_hanuman_markers(root: Path, path: Path) -> bool:
             is not None
         )
     except DelimitedZoneError as exc:
-        raise ChessInsightViewError(
-            f"Marqueurs de vue Hanuman invalides : {path}"
-        ) from exc
+        raise ChessInsightViewError(f"Marqueurs de vue Hanuman invalides : {path}") from exc
 
 
 def _summary_link(definition: InsightViewDefinition) -> str:
@@ -174,9 +172,7 @@ def _thematic_index_generated(
         key = (group.category, group.subtype)
         item = definitions[key]
         if key in inactive_links:
-            inactive.append(
-                _index_entry(item, group, link=True, status=STATUS_INACTIVE)
-            )
+            inactive.append(_index_entry(item, group, link=True, status=STATUS_INACTIVE))
         elif group.status == STATUS_DURABLE:
             durable.append(
                 _index_entry(
@@ -187,19 +183,13 @@ def _thematic_index_generated(
                 )
             )
         elif group.status == STATUS_CONFIRMED:
-            confirmed.append(
-                _index_entry(item, group, link=False, status=STATUS_CONFIRMED)
-            )
+            confirmed.append(_index_entry(item, group, link=False, status=STATUS_CONFIRMED))
         elif group.status == STATUS_EMERGING:
-            emerging.append(
-                _index_entry(item, group, link=False, status=STATUS_EMERGING)
-            )
+            emerging.append(_index_entry(item, group, link=False, status=STATUS_EMERGING))
 
     sections = [
-        "## Synthèses durables actives\n\n"
-        + ("\n".join(durable) if durable else "Aucune."),
-        "## Tendances confirmées\n\n"
-        + ("\n".join(confirmed) if confirmed else "Aucune."),
+        "## Synthèses durables actives\n\n" + ("\n".join(durable) if durable else "Aucune."),
+        "## Tendances confirmées\n\n" + ("\n".join(confirmed) if confirmed else "Aucune."),
         "## Signaux émergents\n\n" + ("\n".join(emerging) if emerging else "Aucun."),
     ]
     if inactive:
@@ -287,9 +277,7 @@ def _examples(group: ChessInsightGroup) -> str:
         sections.append(f"### {heading}")
         if metadata:
             sections.append("\n" + " · ".join(metadata))
-        sections.append(
-            "\n" + "\n".join(_occurrence_line(item) for item in occurrences)
-        )
+        sections.append("\n" + "\n".join(_occurrence_line(item) for item in occurrences))
     return "\n\n".join(sections) if sections else "Aucune occurrence actuelle."
 
 
@@ -341,9 +329,7 @@ def _summary_generated(
     status: str,
 ) -> str:
     dates = [
-        occurrence.game_date
-        for occurrence in group.occurrences
-        if occurrence.game_date is not None
+        occurrence.game_date for occurrence in group.occurrences if occurrence.game_date is not None
     ]
     first_date = min(dates) if dates else "indisponible"
     last_date = max(dates) if dates else "indisponible"
@@ -469,13 +455,10 @@ def plan_chess_insight_views_report(
     )
     thematic_written = 0
     for category in categories:
-        definitions = [
-            item for item in INSIGHT_VIEW_DEFINITIONS if item.category == category
-        ]
+        definitions = [item for item in INSIGHT_VIEW_DEFINITIONS if item.category == category]
         representative = definitions[0]
         category_groups = [
-            groups.get((item.category, item.subtype), _empty_group(item))
-            for item in definitions
+            groups.get((item.category, item.subtype), _empty_group(item)) for item in definitions
         ]
         generated = _thematic_index_generated(
             representative,

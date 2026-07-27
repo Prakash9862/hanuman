@@ -37,11 +37,7 @@ def upgrade_analyses(
     selected_root = root or _validated_chess_root()
     paths = _game_paths(selected_root)
     if path_filter:
-        paths = [
-            path
-            for path in paths
-            if path_filter in str(path.relative_to(selected_root))
-        ]
+        paths = [path for path in paths if path_filter in str(path.relative_to(selected_root))]
 
     already_current = [path for path in paths if _is_v2(path) and not force]
     pending = [path for path in paths if force or not _is_v2(path)]

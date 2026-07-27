@@ -110,12 +110,8 @@ class ChessInsight:
         variation = payload.get("principal_variation")
         if not isinstance(opening_phase, bool):
             raise ChessInsightEnvelopeError("Champ insight invalide : opening_phase")
-        if not isinstance(variation, list) or not all(
-            isinstance(move, str) for move in variation
-        ):
-            raise ChessInsightEnvelopeError(
-                "Champ insight invalide : principal_variation"
-            )
+        if not isinstance(variation, list) or not all(isinstance(move, str) for move in variation):
+            raise ChessInsightEnvelopeError("Champ insight invalide : principal_variation")
 
         try:
             return cls(
@@ -173,11 +169,7 @@ class ChessInsightEnvelope:
                 if self.analysis_metadata is not None
                 else {}
             ),
-            **(
-                {"opening_exit": self.opening_exit}
-                if self.opening_exit is not None
-                else {}
-            ),
+            **({"opening_exit": self.opening_exit} if self.opening_exit is not None else {}),
         }
 
     def to_json(self) -> str:
@@ -195,9 +187,7 @@ class ChessInsightEnvelope:
         except json.JSONDecodeError as exc:
             raise ChessInsightEnvelopeError("JSON ChessInsight invalide.") from exc
         if not isinstance(payload, dict):
-            raise ChessInsightEnvelopeError(
-                "L'enveloppe ChessInsight doit être un objet JSON."
-            )
+            raise ChessInsightEnvelopeError("L'enveloppe ChessInsight doit être un objet JSON.")
 
         version = payload.get("schema_version")
         if type(version) is not int:
@@ -219,13 +209,9 @@ class ChessInsightEnvelope:
         if not isinstance(raw_insights, list):
             raise ChessInsightEnvelopeError("insights doit être une liste.")
         if analysis_metadata is not None and not isinstance(analysis_metadata, dict):
-            raise ChessInsightEnvelopeError(
-                "analysis_metadata doit être un objet ou être absent."
-            )
+            raise ChessInsightEnvelopeError("analysis_metadata doit être un objet ou être absent.")
         if opening_exit is not None and not isinstance(opening_exit, dict):
-            raise ChessInsightEnvelopeError(
-                "opening_exit doit être un objet ou être absent."
-            )
+            raise ChessInsightEnvelopeError("opening_exit doit être un objet ou être absent.")
 
         return cls(
             schema_version=version,

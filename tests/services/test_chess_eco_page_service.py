@@ -125,14 +125,12 @@ Intouchables.
 
 
 def _fake_pdf(monkeypatch) -> Path:
-    lines = "\n".join(
-        f"{eco} nom officiel {eco} 1.d4 d5 2.Ff4 Cf6 3.e3 e6" for eco in ECOS
-    )
+    lines = "\n".join(f"{eco} nom officiel {eco} 1.d4 d5 2.Ff4 Cf6 3.e3 e6" for eco in ECOS)
     monkeypatch.setattr(
         "hanuman.services.chess_eco_page_service.subprocess.run",
         lambda *args, **kwargs: subprocess.CompletedProcess(args[0], 0, lines, ""),
     )
-    return Path("/fixture/File_ECOMast-Codes_ECO.pdf")
+    return Path("/fixture/ecomast-codes-eco.pdf")
 
 
 def _digest(path: Path) -> str:
@@ -160,8 +158,7 @@ def test_industrial_generation_rebuilds_44_ecos_deterministically(
     other_index.write_text("dashboard humain\n", encoding="utf-8")
     protected_before = {path: _digest(path) for path in [*prototypes, other_index]}
     notes_before = {
-        chess_game_path(root, game): _digest(chess_game_path(root, game))
-        for game in games
+        chess_game_path(root, game): _digest(chess_game_path(root, game)) for game in games
     }
 
     first = write_eco_pages(root, games, theory_pdf=_fake_pdf(monkeypatch))
@@ -169,9 +166,7 @@ def test_industrial_generation_rebuilds_44_ecos_deterministically(
         path.name: path.read_bytes()
         for path in (root / "_Index/Ouvertures").glob("[A-E][0-9][0-9].md")
     }
-    second = write_eco_pages(
-        root, list(reversed(games)), theory_pdf=_fake_pdf(monkeypatch)
-    )
+    second = write_eco_pages(root, list(reversed(games)), theory_pdf=_fake_pdf(monkeypatch))
     second_pages = {
         path.name: path.read_bytes()
         for path in (root / "_Index/Ouvertures").glob("[A-E][0-9][0-9].md")
@@ -357,9 +352,7 @@ def test_mate_opening_exit_is_classified_by_sign_and_never_as_cp(
 ) -> None:
     root = tmp_path / "Echecs"
     game = _game(root, "D00", 0)
-    _persist_opening_exit(
-        root, game, evaluation_type="mate", evaluation_value=evaluation_value
-    )
+    _persist_opening_exit(root, game, evaluation_type="mate", evaluation_value=evaluation_value)
 
     write_eco_pages(root, [game], theory_pdf=_fake_pdf(monkeypatch))
     content = (root / "_Index/Ouvertures/D00.md").read_text(encoding="utf-8")

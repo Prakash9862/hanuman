@@ -1,3 +1,0 @@
-.RECIPEPREFIX := >
-all:
-> echo "OK"

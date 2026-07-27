@@ -95,6 +95,7 @@ def chess_player_name() -> str:
         raise RuntimeError("CHESS_COM_USERNAME manquant dans la configuration Hanuman")
     return player_name
 
+
 # ---------------------------------------------------------------------------
 # CHECK OPTIONNEL DES VALEURS CRITIQUES
 # ---------------------------------------------------------------------------

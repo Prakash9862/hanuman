@@ -141,11 +141,7 @@ def _turning_label(analysis: GameAnalysis) -> str:
         (item for item in analysis.moves if item.ply == analysis.turning_point_ply),
         None,
     )
-    return (
-        _move_label(move)
-        if move is not None
-        else f"demi-coup {analysis.turning_point_ply}"
-    )
+    return _move_label(move) if move is not None else f"demi-coup {analysis.turning_point_ply}"
 
 
 def _quality(move: Any) -> str:
@@ -229,9 +225,7 @@ def render_analysis_markdown(analysis: GameAnalysis) -> str:
         lines.append("Aucune gaffe ni coup excellent adverse détecté.")
     else:
         for move in opponent:
-            description = (
-                "gaffe" if move.classification == "blunder" else "coup excellent"
-            )
+            description = "gaffe" if move.classification == "blunder" else "coup excellent"
             best = f" · meilleur : `{move.best_move_san}`" if move.best_move_san else ""
             lines.append(
                 f"- **{_move_label(move)}** — {description}, perte {move.loss_cp} cp{best}"

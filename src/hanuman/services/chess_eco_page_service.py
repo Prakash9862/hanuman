@@ -104,13 +104,16 @@ class EcoGenerationReport:
 
 def resolve_eco_reference_pdf() -> Path:
     chess_docs = Path(__file__).resolve().parents[3] / "docs" / "chess"
-    expected = chess_docs / "File_ECOMast-Codes_ECO.pdf"
-    if expected.is_file():
-        return expected
-    candidates = sorted(chess_docs.glob("*ECOMast*Codes_ECO.pdf"))
-    if len(candidates) != 1:
-        raise FileNotFoundError("Référence ECO unique introuvable dans docs/chess.")
-    return candidates[0]
+
+    pdfs = sorted(chess_docs.glob("*.pdf"))
+
+    if len(pdfs) != 1:
+        raise FileNotFoundError(
+            f"Un unique PDF de référence ECO est attendu dans {chess_docs} "
+            f"(trouvé(s) : {len(pdfs)})."
+        )
+
+    return pdfs[0]
 
 
 def _success(wins: int, draws: int, losses: int) -> float:
@@ -170,9 +173,7 @@ def _variant_prefixes(games: tuple[EcoGame, ...]) -> tuple[Variant, ...]:
             for prefix, count in prefix_counts.items()
             if count >= 3 and len(prefix) >= 2 and item.san[: len(prefix)] == prefix
         ]
-        prefix = max(
-            candidates, key=lambda value: (len(value), value), default=item.san[:2]
-        )
+        prefix = max(candidates, key=lambda value: (len(value), value), default=item.san[:2])
         grouped[prefix].append(item)
 
     variants = [Variant(san, tuple(items)) for san, items in grouped.items() if san]
@@ -225,9 +226,7 @@ def load_eco_theory(pdf_path: Path) -> dict[str, tuple[EcoTheory, ...]]:
     for eco, entries in choices.items():
         result[eco] = tuple(
             EcoTheory(name, reference, bool(reference))
-            for _, name, reference in sorted(
-                entries, key=lambda item: (item[1], item[2])
-            )
+            for _, name, reference in sorted(entries, key=lambda item: (item[1], item[2]))
         )
     return result
 
@@ -243,9 +242,7 @@ def _matching_theory(
         return next(
             (
                 index
-                for index, (expected, actual) in enumerate(
-                    zip(entry.reference_san, played)
-                )
+                for index, (expected, actual) in enumerate(zip(entry.reference_san, played))
                 if expected != actual
             ),
             min(len(entry.reference_san), len(played)),
@@ -333,9 +330,7 @@ def _svg(board: chess.Board, orientation: str) -> str:
         for column, file in enumerate(files):
             x, y = 28 + column * 48, 28 + row * 48
             fill = "#e8d7b9" if (file + rank) % 2 else "#8b5e3c"
-            lines.append(
-                f'<rect x="{x}" y="{y}" width="48" height="48" fill="{fill}"/>'
-            )
+            lines.append(f'<rect x="{x}" y="{y}" width="48" height="48" fill="{fill}"/>')
             piece = board.piece_at(chess.square(file, rank))
             if piece:
                 lines.append(
@@ -404,9 +399,7 @@ def _opening_exit_cp(item: EcoGame) -> int | None:
 def _opening_exit_evaluation(item: EcoGame) -> tuple[str, int] | None:
     exit_data = _opening_exit(item)
     value = exit_data.get("evaluation_value") if exit_data is not None else None
-    evaluation_type = (
-        exit_data.get("evaluation_type") if exit_data is not None else None
-    )
+    evaluation_type = exit_data.get("evaluation_type") if exit_data is not None else None
     if (
         not isinstance(evaluation_type, str)
         or evaluation_type not in {"centipawn", "mate"}
@@ -476,18 +469,12 @@ def _eco_position_recurrences(games: tuple[EcoGame, ...], category: str) -> str:
         )
     occurrences = recurrent[0]
     insight = occurrences[0][1]
-    links = " · ".join(
-        dict.fromkeys(chess_game_note_link(item.game) for item, _ in occurrences)
-    )
+    links = " · ".join(dict.fromkeys(chess_game_note_link(item.game) for item, _ in occurrences))
     return (
         f"> [!example] Position réellement récurrente · {len(occurrences)} occurrences\n"
         f"> FEN avant le coup : `{insight.fen_before}`  \n"
         f"> Coup joué : `{insight.san}`"
-        + (
-            f" · meilleur coup : `{insight.best_move_san}`"
-            if insight.best_move_san
-            else ""
-        )
+        + (f" · meilleur coup : `{insight.best_move_san}`" if insight.best_move_san else "")
         + f"  \n> Parties : {links}"
     )
 
@@ -499,9 +486,7 @@ def _monthly(games: tuple[EcoGame, ...]) -> list[tuple[str, int, int, int, int, 
     rows = []
     for month, items in sorted(grouped.items()):
         wins, draws, losses = _result_counts(tuple(items))
-        rows.append(
-            (month, len(items), wins, draws, losses, _success(wins, draws, losses))
-        )
+        rows.append((month, len(items), wins, draws, losses, _success(wins, draws, losses)))
     return rows
 
 
@@ -524,16 +509,10 @@ def build_eco_page(
         if len(item.games) >= 5 or (len(item.games) >= 3 and item.success_rate >= 80)
     )
     displayed = (main, *secondaries)
-    health_variants = (main,) + tuple(
-        item for item in secondaries if item.success_rate >= 80
-    )
-    health_ids = {
-        item.game.game_id for variant in health_variants for item in variant.games
-    }
+    health_variants = (main,) + tuple(item for item in secondaries if item.success_rate >= 80)
+    health_ids = {item.game.game_id for variant in health_variants for item in variant.games}
     health_games = tuple(item for item in games if item.game.game_id in health_ids)
-    analysed = tuple(
-        item for item in games if read_analysis_summary(item.path).analysed
-    )
+    analysed = tuple(item for item in games if read_analysis_summary(item.path).analysed)
     health_analysed = tuple(
         item for item in health_games if read_analysis_summary(item.path).analysed
     )
@@ -541,8 +520,7 @@ def build_eco_page(
     hw, hd, hl = _result_counts(health_games)
     colors = Counter(item.game.color for item in games)
     players = Counter(
-        item.game.white if item.game.color == "white" else item.game.black
-        for item in games
+        item.game.white if item.game.color == "white" else item.game.black for item in games
     )
     player = sorted(players, key=lambda value: (-players[value], value))[0]
     official_name = theory.official_name if theory else games[0].game.opening_name
@@ -552,14 +530,10 @@ def build_eco_page(
     exit_data = persisted_exit[1] if persisted_exit else None
     exit_frequency = persisted_exit[2] if persisted_exit else 0
     exit_fen = exit_data.get("fen") if exit_data else None
-    board = (
-        chess.Board(exit_fen) if isinstance(exit_fen, str) else _board_after(main.san)
-    )
+    board = chess.Board(exit_fen) if isinstance(exit_fen, str) else _board_after(main.san)
     orientation = main.color
     fen = board.fen() if board else ""
-    digest = hashlib.sha256(f"{eco}|{' '.join(main.san)}|{fen}".encode()).hexdigest()[
-        :12
-    ]
+    digest = hashlib.sha256(f"{eco}|{' '.join(main.san)}|{fen}".encode()).hexdigest()[:12]
     board_id = f"hanuman-board-{eco.lower()}-main-{digest}-v1"
     pgn = (
         exit_item.pgn
@@ -588,11 +562,7 @@ def build_eco_page(
         if exit_cp_evaluations
         else None
     )
-    exit_median = (
-        round(float(median(exit_cp_evaluations)), 1)
-        if exit_cp_evaluations
-        else None
-    )
+    exit_median = round(float(median(exit_cp_evaluations)), 1) if exit_cp_evaluations else None
     exit_favorable = sum(
         (evaluation_type == "mate" and value > 0)
         or (evaluation_type == "centipawn" and value > OPENING_EXIT_FAVORABLE_CP)
@@ -605,12 +575,10 @@ def build_eco_page(
     )
     exit_balanced = len(exit_evaluations) - exit_favorable - exit_unfavorable
     exit_mate_favorable = sum(
-        evaluation_type == "mate" and value > 0
-        for evaluation_type, value in exit_evaluations
+        evaluation_type == "mate" and value > 0 for evaluation_type, value in exit_evaluations
     )
     exit_mate_unfavorable = sum(
-        evaluation_type == "mate" and value < 0
-        for evaluation_type, value in exit_evaluations
+        evaluation_type == "mate" and value < 0 for evaluation_type, value in exit_evaluations
     )
     months = _monthly(games)
     displayed_count = sum(len(item.games) for item in displayed)
@@ -619,9 +587,7 @@ def build_eco_page(
     coverage = round(len(analysed) / len(games) * 100, 1)
     health_rate = _success(hw, hd, hl)
     health_exit_coverage = (
-        round(len(exit_evaluations) / len(health_games) * 100, 1)
-        if health_games
-        else 0.0
+        round(len(exit_evaluations) / len(health_games) * 100, 1) if health_games else 0.0
     )
     raw_position_ply = exit_data.get("ply") if exit_data else None
     position_ply = raw_position_ply if type(raw_position_ply) is int else len(main.san)
@@ -654,9 +620,7 @@ def build_eco_page(
         "eco": eco,
         "opening_name": official_name,
         "opening_name_source": "ECOMast Codes ECO",
-        "aliases": sorted(
-            {eco, official_name, *(item.game.opening_name for item in games)}
-        ),
+        "aliases": sorted({eco, official_name, *(item.game.opening_name for item in games)}),
         "colors_played": {"white": colors["white"], "black": colors["black"]},
         "games": {
             "total": len(games),
@@ -700,7 +664,7 @@ def build_eco_page(
             },
         },
         "theory": {
-            "source": "docs/chess/File_ECOMast-Codes_ECO.pdf",
+            "source": "docs/chess/ecomast-codes-eco.pdf",
             "official_entry": f"{eco} {official_name}",
             "reference_line_san": _line(theory_line),
         },
@@ -716,21 +680,17 @@ def build_eco_page(
                 "id": board_id,
                 "kind": "opening-position-widget",
                 "position_role": (
-                    "persisted-opening-exit"
-                    if persisted_exit
-                    else "repertoire-reference"
+                    "persisted-opening-exit" if persisted_exit else "repertoire-reference"
                 ),
                 "recurrent_position": exit_frequency >= 2,
                 "eco": eco,
                 "variant": "main-line",
                 "variant_san": _line(main.san),
                 "exit_move": (
-                    str(exit_data.get("last_move_san", ""))
-                    if exit_data
-                    else main.san[-1]
-                )
-                if main.san
-                else "",
+                    (str(exit_data.get("last_move_san", "")) if exit_data else main.san[-1])
+                    if main.san
+                    else ""
+                ),
                 "position_after_ply": position_ply,
                 "fen": fen,
                 "pgn": pgn,
@@ -759,11 +719,7 @@ def build_eco_page(
     secondary_blocks = []
     for variant in secondaries:
         icon = "⚪" if variant.color == "white" else "⚫"
-        reason = (
-            "volume ≥ 5"
-            if len(variant.games) >= 5
-            else "≥ 3 parties et ≥ 80 % de réussite"
-        )
+        reason = "volume ≥ 5" if len(variant.games) >= 5 else "≥ 3 parties et ≥ 80 % de réussite"
         secondary_blocks.append(
             f"> [!abstract]- {icon} {variant.color.title()} · {len(variant.games)} parties "
             f"· {variant.success_rate:.1f} % de réussite\n"
@@ -773,9 +729,7 @@ def build_eco_page(
     secondary = "\n\n".join(secondary_blocks) or (
         "> [!info] Aucune variante secondaire ne franchit les seuils validés."
     )
-    theory_display = (
-        _numbered_line(theory_line) if theory_line else "Indisponible dans le PDF"
-    )
+    theory_display = _numbered_line(theory_line) if theory_line else "Indisponible dans le PDF"
     theory_limit = (
         "> [!info] Limite de la source\n"
         "> Le PDF ne fournit pas de ligne exploitable pour cette ECO ; aucun contenu n’est inventé."
@@ -785,19 +739,13 @@ def build_eco_page(
     )
     if exit_evaluations:
         if health_exit_coverage < 50:
-            exit_finding = (
-                "Couverture trop faible pour conclure sur la qualité habituelle."
-            )
+            exit_finding = "Couverture trop faible pour conclure sur la qualité habituelle."
         elif exit_favorable > max(exit_balanced, exit_unfavorable):
-            exit_finding = (
-                "La sortie est généralement favorable dans les parties évaluables."
-            )
+            exit_finding = "La sortie est généralement favorable dans les parties évaluables."
         elif exit_unfavorable > max(exit_balanced, exit_favorable):
             exit_finding = "L’ouverture est souvent quittée en position défavorable."
         else:
-            exit_finding = (
-                "La sortie est généralement équilibrée dans les parties évaluables."
-            )
+            exit_finding = "La sortie est généralement équilibrée dans les parties évaluables."
         cp_summary = (
             f"> Évaluation joueur moyenne : **{exit_average / 100:+.2f}** · "
             f"médiane : **{exit_median / 100:+.2f}** "
@@ -1061,9 +1009,7 @@ def write_eco_pages(
                 raise ValueError(f"Page ECO humaine protégée : {path}")
         planned.append((path, content))
         widgets += 1
-        analysed_total += sum(
-            read_analysis_summary(item.path).analysed for item in items
-        )
+        analysed_total += sum(read_analysis_summary(item.path).analysed for item in items)
         if selected_theory and selected_theory.reference_san:
             available += 1
         else:

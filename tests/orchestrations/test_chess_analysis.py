@@ -287,9 +287,7 @@ color: black
         ("opportunity", "player"),
     ]
     assert all(item.category != "motif" for item in first_envelope.insights)
-    player_blunder = next(
-        item for item in first_envelope.insights if item.category == "blunder"
-    )
+    player_blunder = next(item for item in first_envelope.insights if item.category == "blunder")
     assert player_blunder.fen_before.endswith(" b KQkq - 0 1")
     assert player_blunder.fen_after.endswith(" w KQkq - 0 2")
     assert player_blunder.played_move_uci == "c7c5"

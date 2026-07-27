@@ -78,9 +78,7 @@ def rebuild_chess_views(
     )
     all_files_before = {path for path in root.rglob("*") if path.is_file()}
 
-    summaries = [
-        read_analysis_summary(chess_game_path(root, game)) for game in read_result.games
-    ]
+    summaries = [read_analysis_summary(chess_game_path(root, game)) for game in read_result.games]
     valid = sum(summary.status == "analysed" for summary in summaries)
     pending = sum(summary.status == "pending" for summary in summaries)
     invalid = sum(summary.status == "unreadable" for summary in summaries)
@@ -119,8 +117,7 @@ def rebuild_chess_views(
         human_files_protected=write_report.human_files_protected,
         legacy_files=_legacy_files(root),
         errors=tuple(
-            f"{item.path.relative_to(root)} : {item.reason}"
-            for item in read_result.ignored_notes
+            f"{item.path.relative_to(root)} : {item.reason}" for item in read_result.ignored_notes
         ),
         analyses_valid=valid,
         games_pending=pending,

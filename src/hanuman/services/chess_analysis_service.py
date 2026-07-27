@@ -136,9 +136,7 @@ def score_for_perspective(
     if mate is not None:
         return int(mate), "mate"
     centipawns = pov_score.score()
-    return (
-        (int(centipawns), "centipawn") if centipawns is not None else (None, "unknown")
-    )
+    return (int(centipawns), "centipawn") if centipawns is not None else (None, "unknown")
 
 
 def classify_loss(loss_cp: int, config: AnalysisConfig) -> tuple[str, str]:
@@ -182,12 +180,8 @@ def _material_balance(board: chess.Board, color: chess.Color) -> int:
         chess.ROOK: 500,
         chess.QUEEN: 900,
     }
-    own = sum(
-        len(board.pieces(piece, color)) * value for piece, value in values.items()
-    )
-    other = sum(
-        len(board.pieces(piece, not color)) * value for piece, value in values.items()
-    )
+    own = sum(len(board.pieces(piece, color)) * value for piece, value in values.items())
+    other = sum(len(board.pieces(piece, not color)) * value for piece, value in values.items())
     return own - other
 
 
@@ -200,9 +194,7 @@ def _is_excellent(
 ) -> bool:
     if played_loss_cp > 20:
         return False
-    unique_gap = (
-        second_cp is not None and best_cp - second_cp >= config.excellent_gap_cp
-    )
+    unique_gap = second_cp is not None and best_cp - second_cp >= config.excellent_gap_cp
     tactical_gain = best_cp >= config.brilliant_gain_cp
     sound_sacrifice = material_delta < 0 and best_cp >= 80
     return bool(unique_gap and (tactical_gain or sound_sacrifice))
@@ -271,11 +263,7 @@ class StockfishAnalyzer:
                 if best_move is not None and best_move in board.legal_moves
                 else None
             )
-            second_cp = (
-                score_to_cp(info_list[1]["score"], mover)
-                if len(info_list) > 1
-                else None
-            )
+            second_cp = score_to_cp(info_list[1]["score"], mover) if len(info_list) > 1 else None
 
             board.push(move)
             fen_after = board.fen()
@@ -328,15 +316,10 @@ class StockfishAnalyzer:
                     opening_phase=ply <= cfg.opening_plies,
                     fen_before=fen_before,
                     fen_after=fen_after,
-                    depth_reached=int(depth_reached)
-                    if isinstance(depth_reached, int)
-                    else None,
+                    depth_reached=int(depth_reached) if isinstance(depth_reached, int) else None,
                 )
             )
-            if (
-                ply == min(cfg.opening_plies, game.end().ply())
-                and player_color is not None
-            ):
+            if ply == min(cfg.opening_plies, game.end().ply()) and player_color is not None:
                 evaluation_value, evaluation_type = score_for_perspective(
                     played_info["score"], player_color
                 )
@@ -351,31 +334,19 @@ class StockfishAnalyzer:
                     evaluation_value=(
                         int(evaluation_value) if evaluation_value is not None else None
                     ),
-                    evaluation_type=evaluation_type
-                    if evaluation_value is not None
-                    else "unknown",
+                    evaluation_type=evaluation_type if evaluation_value is not None else "unknown",
                     evaluation_perspective="hanuman-player",
-                    depth_reached=(
-                        int(depth_reached) if isinstance(depth_reached, int) else None
-                    ),
+                    depth_reached=(int(depth_reached) if isinstance(depth_reached, int) else None),
                     principal_variation=_pv_to_san(board, exit_pv),
                 )
 
-        significant = [
-            move for move in analysed_moves if move.classification != "normal"
-        ]
+        significant = [move for move in analysed_moves if move.classification != "normal"]
         losses = [move.loss_cp for move in analysed_moves]
         worst = max(analysed_moves, key=lambda item: item.loss_cp, default=None)
-        turning = next(
-            (move.ply for move in analysed_moves if move.turning_point), None
-        )
+        turning = next((move.ply for move in analysed_moves if move.turning_point), None)
         counts = {
-            "blunders": sum(
-                move.classification == "blunder" for move in analysed_moves
-            ),
-            "mistakes": sum(
-                move.classification == "mistake" for move in analysed_moves
-            ),
+            "blunders": sum(move.classification == "blunder" for move in analysed_moves),
+            "mistakes": sum(move.classification == "mistake" for move in analysed_moves),
             "dubious": sum(move.classification == "dubious" for move in analysed_moves),
             "excellent": sum(move.excellent for move in analysed_moves),
             "missed_excellent": sum(move.missed_excellent for move in analysed_moves),
@@ -396,9 +367,7 @@ class StockfishAnalyzer:
             depth=cfg.depth,
             moves=analysed_moves,
             counts=counts,
-            average_centipawn_loss=round(sum(losses) / len(losses), 1)
-            if losses
-            else 0.0,
+            average_centipawn_loss=round(sum(losses) / len(losses), 1) if losses else 0.0,
             worst_move=worst_move,
             turning_point_ply=turning,
             analysed_at=datetime.now(UTC).isoformat(),

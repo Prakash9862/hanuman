@@ -111,9 +111,7 @@ def count_analysis_queue() -> dict[str, int]:
     return {"total": len(paths), "analysed": analysed, "pending": len(paths) - analysed}
 
 
-def _run_queue(
-    paths: list[Path], root: Path, depth: int, batch_limit: int | None
-) -> None:
+def _run_queue(paths: list[Path], root: Path, depth: int, batch_limit: int | None) -> None:
     global _WORKER
     state = _default_state()
     state.update(

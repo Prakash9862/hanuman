@@ -14,9 +14,7 @@ from hanuman.services.chess_analysis_service import GameAnalysis, MoveAnalysis
 
 def _derived_game_key(analysis: GameAnalysis) -> str:
     moves = "|".join(f"{move.ply}:{move.san}" for move in analysis.moves)
-    source = (
-        f"{analysis.white}|{analysis.black}|{analysis.result}|{analysis.eco}|{moves}"
-    )
+    source = f"{analysis.white}|{analysis.black}|{analysis.result}|{analysis.eco}|{moves}"
     return f"derived-{hashlib.sha256(source.encode('utf-8')).hexdigest()[:16]}"
 
 
