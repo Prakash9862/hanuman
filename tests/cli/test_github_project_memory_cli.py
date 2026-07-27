@@ -47,6 +47,7 @@ def test_cli_delegates_to_flow_and_prints_plan(monkeypatch: pytest.MonkeyPatch) 
     assert exit_code == 0
     assert len(calls) == 1
     assert calls[0].session_window_hours == 24
+    assert calls[0].session_max_duration_hours == 12
     rendered = output.getvalue()
     assert "0 écriture exécutée" in rendered
     assert "not_applied" in rendered
@@ -80,6 +81,7 @@ def test_cli_json_output_contains_structured_run(monkeypatch: pytest.MonkeyPatch
     assert payload["result"]["verification"] == "not_applied"
     assert payload["metrics"]["external_writes"] == 0
     assert payload["result"]["plan"]["schema_version"] == 2
+    assert payload["input"]["session_max_duration_hours"] == 12
 
 
 def test_detailed_plan_groups_commits_under_sessions(
@@ -109,9 +111,11 @@ def test_detailed_plan_groups_commits_under_sessions(
 
     rendered = output.getvalue()
     assert exit_code == 0
-    assert "main — Architecture des Flux" in rendered
+    assert "main — Documentation" in rendered
     assert "Development Sessions — détail" in rendered
     assert "Commits" in rendered
+    assert "durée :" in rendered
+    assert "ouverture :" in rendered
     assert SHA_1[:7] in rendered
     assert SHA_2[:7] in rendered
     assert rendered.index(SHA_1[:7]) < rendered.index(SHA_2[:7])

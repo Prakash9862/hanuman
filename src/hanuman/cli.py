@@ -51,6 +51,12 @@ def _parser() -> argparse.ArgumentParser:
         help="Fenêtre d'inactivité d'une session en heures (défaut : 24).",
     )
     plan.add_argument(
+        "--session-max-duration-hours",
+        type=int,
+        default=12,
+        help="Durée maximale d'une session en heures (défaut : 12).",
+    )
+    plan.add_argument(
         "--detailed-plan",
         action="store_true",
         help="Afficher les sessions, leurs commits et les effets planifiés.",
@@ -102,6 +108,8 @@ def _print_run(run: FlowRun, *, detailed: bool, console: Console) -> None:
             table.add_column("Branche")
             table.add_column("Début")
             table.add_column("Dernière activité")
+            table.add_column("Durée")
+            table.add_column("Ouverture")
             table.add_column("État")
             table.add_column("Commits", justify="right")
             for session in plan.sessions:
@@ -110,6 +118,8 @@ def _print_run(run: FlowRun, *, detailed: bool, console: Console) -> None:
                     session.primary_ref,
                     session.started_at.isoformat(),
                     session.last_activity_at.isoformat(),
+                    str(session.last_activity_at - session.started_at),
+                    session.opening_reason,
                     session.status,
                     str(len(session.commit_ids)),
                 )
@@ -129,6 +139,8 @@ def _print_run(run: FlowRun, *, detailed: bool, console: Console) -> None:
                 console.print(f"     état : {session.status}")
                 console.print(f"     début : {session.started_at.isoformat()}")
                 console.print(f"     dernière activité : {session.last_activity_at.isoformat()}")
+                console.print(f"     durée : {session.last_activity_at - session.started_at}")
+                console.print(f"     ouverture : {session.opening_reason}")
                 console.print(f"     commits : {len(session.commit_ids)}")
                 for warning in session.warnings:
                     console.print(f"     [yellow]avertissement :[/yellow] {warning}")
@@ -191,6 +203,7 @@ def run_cli(
         end_ref=args.end_ref,
         max_commits=args.max_commits,
         session_window_hours=args.session_window_hours,
+        session_max_duration_hours=args.session_max_duration_hours,
         allowed_repositories=GITHUB_ALLOWED_REPOSITORIES,
     )
     run = plan_github_project_memory(flow_input)

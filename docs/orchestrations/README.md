@@ -96,12 +96,17 @@ hanuman flows github-project-memory plan \
   --repository Prakash9862/hanuman \
   --branch main \
   --max-commits 50 \
-  --session-window-hours 24
+  --session-window-hours 24 \
+  --session-max-duration-hours 12
 ```
 
 `--start-ref` fixe un SHA de départ exclusif, `--end-ref` un SHA ou une ref de
 fin, `--detailed-plan` groupe les commits sous chaque session et `--json`
 sérialise le Run complet, associations comprises.
+
+La fenêtre d'inactivité (24 h par défaut) mesure l'intervalle sans commit. La
+durée maximale (12 h par défaut) borne une session continue pour préserver sa
+lisibilité ; elle ne limite pas le nombre de commits.
 
 Cette Phase 1 lit uniquement GitHub, normalise les commits, calcule des
 Development Sessions et produit un plan, un FlowResult et un Run structurés.
