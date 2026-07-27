@@ -12,7 +12,7 @@ class ProgramDefinition:
     id: str
     label: str
     candidates: tuple[str, ...]
-    version_args: tuple[str, ...] = ("--version",)
+    version_args: tuple[str, ...] | None = ("--version",)
     stdin: str | None = None
 
 
@@ -20,7 +20,9 @@ PROGRAMS: tuple[ProgramDefinition, ...] = (
     ProgramDefinition(
         "stockfish", "Stockfish", ("stockfish", "/usr/games/stockfish"), (), "quit\n"
     ),
-    ProgramDefinition("scid", "SCID", ("scid", "/usr/games/scid"), ("--help",)),
+    # SCID est une application graphique : même --help ouvre une fenêtre sur certaines
+    # distributions. On vérifie donc uniquement la présence de l'exécutable.
+    ProgramDefinition("scid", "SCID", ("scid", "/usr/games/scid"), None),
     ProgramDefinition("lc0", "Leela Chess Zero", ("lc0", "leelaz"), ("--version",)),
     ProgramDefinition("ffmpeg", "FFmpeg", ("ffmpeg",), ("-version",)),
 )
@@ -55,19 +57,20 @@ def inspect_program(program_id: str) -> dict[str, Any]:
         }
 
     version: str | None = None
-    try:
-        result = subprocess.run(
-            [executable, *definition.version_args],
-            input=definition.stdin,
-            text=True,
-            capture_output=True,
-            timeout=4,
-            check=False,
-        )
-        output = (result.stdout or result.stderr).strip().splitlines()
-        version = output[0][:180] if output else None
-    except (OSError, subprocess.SubprocessError):
-        version = None
+    if definition.version_args is not None:
+        try:
+            result = subprocess.run(
+                [executable, *definition.version_args],
+                input=definition.stdin,
+                text=True,
+                capture_output=True,
+                timeout=4,
+                check=False,
+            )
+            output = (result.stdout or result.stderr).strip().splitlines()
+            version = output[0][:180] if output else None
+        except (OSError, subprocess.SubprocessError):
+            version = None
 
     return {
         "id": definition.id,
