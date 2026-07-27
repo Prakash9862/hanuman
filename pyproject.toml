@@ -18,6 +18,9 @@ dependencies = [
     "python-chess (>=1.999,<2.0)",
 ]
 
+[project.scripts]
+hanuman = "hanuman.cli:main"
+
 [tool.poetry]
 packages = [{include = "hanuman", from = "src"}]
 
