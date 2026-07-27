@@ -241,7 +241,7 @@ Son unique rôle est de montrer l'écart entre la théorie officielle et la prat
 La nomenclature officielle provient du document :
 
 ```
-docs/chess/File_ECOMast-Codes_ECO.pdf
+docs/chess/ecomast-codes-eco.pdf
 ```
 
 Ce document est considéré comme la référence officielle du module Chess.
