@@ -100,7 +100,8 @@ hanuman flows github-project-memory plan \
 ```
 
 `--start-ref` fixe un SHA de départ exclusif, `--end-ref` un SHA ou une ref de
-fin, `--detailed-plan` affiche les associations et `--json` sérialise le Run.
+fin, `--detailed-plan` groupe les commits sous chaque session et `--json`
+sérialise le Run complet, associations comprises.
 
 Cette Phase 1 lit uniquement GitHub, normalise les commits, calcule des
 Development Sessions et produit un plan, un FlowResult et un Run structurés.

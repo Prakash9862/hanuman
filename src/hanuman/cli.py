@@ -53,7 +53,7 @@ def _parser() -> argparse.ArgumentParser:
     plan.add_argument(
         "--detailed-plan",
         action="store_true",
-        help="Afficher les identités, associations et effets planifiés.",
+        help="Afficher les sessions, leurs commits et les effets planifiés.",
     )
     plan.add_argument(
         "--json",
@@ -79,19 +79,20 @@ def _print_run(run: FlowRun, *, detailed: bool, console: Console) -> None:
     else:
         plan = run.result.plan
         console.print("[bold]Repository[/bold]")
-        console.print(f"  {plan.repository.full_name} (ID {plan.repository.repository_id})")
-        console.print(f"  ref : {plan.full_ref}\n")
-        console.print("[bold]Collecte[/bold]")
-        console.print(f"  {plan.commits_read} commits lus")
-        console.print(f"  {plan.commits_valid} commits valides")
-        console.print(f"  {plan.commits_skipped} commits ignorés\n")
+        console.print(
+            f"  identité : {plan.repository.full_name} (ID {plan.repository.repository_id})"
+        )
+        console.print(f"  branche : {plan.full_ref}")
+        console.print(f"  borne : {plan.start_ref or 'début'} → {plan.end_ref}")
+        console.print(f"  commits : {plan.commits_valid} valides, {plan.commits_skipped} ignorés\n")
         console.print("[bold]Development Sessions[/bold]")
         console.print(f"  {len(plan.sessions)} sessions calculées")
         console.print(f"  {plan.sessions_closed} clôturées")
         console.print(f"  {plan.sessions_open} ouvertes\n")
-        console.print("[bold]Plan[/bold]")
+        console.print("[bold]Effets planifiés[/bold]")
         console.print(f"  {run.result.resources_created} créations planifiées")
         console.print(f"  {len(plan.commit_sessions)} commits à intégrer")
+        console.print(f"  {plan.sessions_closed} fermetures")
         console.print("  0 écriture exécutée")
         console.print(f"  empreinte : {plan.fingerprint}\n")
 
@@ -119,17 +120,51 @@ def _print_run(run: FlowRun, *, detailed: bool, console: Console) -> None:
                 )
 
         if detailed:
-            detail = Table(title="Effets planifiés")
-            detail.add_column("Type")
-            detail.add_column("Identité")
-            detail.add_column("Description")
+            commits_by_id = {commit.commit_id: commit for commit in plan.commits}
+            console.print("\n[bold]Development Sessions — détail[/bold]")
+            for index, session in enumerate(plan.sessions, start=1):
+                console.print(f"\n  [bold]{index}. {session.computed_title}[/bold]")
+                console.print(f"     session_id : {session.session_id}")
+                console.print(f"     grouping_key : {session.grouping_key[:12]}…")
+                console.print(f"     état : {session.status}")
+                console.print(f"     début : {session.started_at.isoformat()}")
+                console.print(f"     dernière activité : {session.last_activity_at.isoformat()}")
+                console.print(f"     commits : {len(session.commit_ids)}")
+                for warning in session.warnings:
+                    console.print(f"     [yellow]avertissement :[/yellow] {warning}")
+                console.print("     [bold]Commits[/bold]")
+                for commit_id in session.commit_ids:
+                    commit = commits_by_id[commit_id]
+                    author = commit.github_author or commit.git_author
+                    console.print(
+                        f"       - {commit.short_sha} | {commit.committed_at.isoformat()} | "
+                        f"{commit.message_subject} | {author} | {commit.url}"
+                    )
+
+            grouped_effects: dict[str, list[Any]] = {
+                "Repository": [],
+                "Development Sessions": [],
+                "Fermetures": [],
+                "Sans changement": [],
+            }
             for effect in plan.effects:
-                detail.add_row(effect.effect_type, effect.identity, effect.description)
-            console.print()
-            console.print(detail)
-            console.print("\n[bold]Associations commit → session[/bold]")
-            for commit_id, session_id in plan.commit_sessions.items():
-                console.print(f"  {commit_id} → {session_id}")
+                if effect.effect_type == "repository.create":
+                    grouped_effects["Repository"].append(effect)
+                elif effect.effect_type == "development_session.close":
+                    grouped_effects["Fermetures"].append(effect)
+                elif effect.effect_type == "no_change":
+                    grouped_effects["Sans changement"].append(effect)
+                else:
+                    grouped_effects["Development Sessions"].append(effect)
+            console.print("\n[bold]Effets planifiés — détail[/bold]")
+            for label, effects in grouped_effects.items():
+                if not effects:
+                    continue
+                console.print(f"  [bold]{label}[/bold]")
+                for effect in effects:
+                    console.print(
+                        f"    - {effect.effect_type} | {effect.identity} | " f"{effect.description}"
+                    )
 
         for warning in plan.warnings:
             console.print(f"[yellow]Avertissement :[/yellow] {warning}")
