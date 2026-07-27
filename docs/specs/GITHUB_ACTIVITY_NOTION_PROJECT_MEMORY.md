@@ -1036,3 +1036,65 @@ La spécification et, ultérieurement, le Flux conforme sont acceptés si :
 - le nouveau Flux utilise des services réutilisables et aucun appel externe
   direct depuis l'orchestration ;
 - toute future API utilise uniquement `hanuman.main:app`.
+
+## 23. Utilisation dans Hanuman et automatisation
+
+Un **Flow** est le cas d’usage GitHub Activity → Notion Project Memory. Un
+**Trigger** indique seulement son origine (`manual_ui`, `cli` ou
+`github_actions`) : tous appellent la même orchestration
+`apply_github_project_memory`, puis sa vérification.
+
+### Lancement manuel
+
+Lancer le backend canonique et le frontend avec `make run`, ouvrir **Flux**,
+choisir **GitHub → Notion**, puis **Lancer maintenant**. La page affiche le
+résultat métier, la vérification et les Runs conservés dans
+`data/github_project_memory_runs.jsonl`. Ce journal est local au processus qui
+exécute Hanuman : un Run produit sur un runner GitHub hébergé n’est donc pas
+rapatrié dans le journal de l’ordinateur. Il reste visible dans GitHub Actions.
+
+La CLI reste disponible :
+
+```bash
+poetry run hanuman flows github-project-memory apply \
+  --repository Prakash9862/hanuman \
+  --branch main \
+  --max-commits 100 \
+  --session-window-hours 24 \
+  --session-max-duration-hours 12
+```
+
+### GitHub Actions
+
+Le workflow `.github/workflows/github-project-memory.yml` s’exécute sur chaque
+push de `main` et via `workflow_dispatch`. Il utilise uniquement la permission
+`contents: read`, le jeton natif `${{ github.token }}`, sérialise les Runs avec
+`concurrency` et n’effectue aucun commit.
+
+Configurer exactement ces secrets dans **Settings → Secrets and variables →
+Actions** :
+
+- `NOTION_TOKEN` : token de l’intégration Notion ;
+- `NOTION_PROJECT_MEMORY_PARENT_PAGE_ID` : page parente partagée avec cette
+  intégration.
+
+Il n’est pas possible de lire les valeurs des secrets GitHub depuis Hanuman ;
+l’interface indique donc honnêtement un état inconnu. Aucun PAT GitHub
+supplémentaire n’est requis. Le repository et la branche viennent du contexte
+GitHub ; les réglages locaux peuvent être remplacés par
+`GITHUB_PROJECT_MEMORY_REPOSITORY`, `GITHUB_PROJECT_MEMORY_BRANCH` et
+`GITHUB_ALLOWED_REPOSITORIES`.
+
+Le runner GitHub étant hébergé, l’automatisation continue lorsque l’ordinateur
+local est éteint. Pour la désactiver, désactiver le workflow depuis GitHub
+Actions ou retirer le fichier du dépôt. En diagnostic, consulter d’abord le
+Step **Synchronize and verify Project Memory** : la CLI retourne un code non nul
+si l’application ou la vérification échoue. Vérifier ensuite le partage de la
+page Notion avec l’intégration et les deux noms de secrets, sans jamais afficher
+leurs valeurs.
+
+La route de lancement écrit dans Notion et ne possède pas de couche
+d’authentification applicative dédiée : Hanuman est actuellement un outil
+local, lié à `127.0.0.1` par les commandes de développement. Elle ne doit pas
+être publiée sur Internet sans le mécanisme d’authentification d’une plateforme
+d’hébergement existante.
