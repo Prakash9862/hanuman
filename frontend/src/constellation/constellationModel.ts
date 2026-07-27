@@ -7,8 +7,9 @@ export type ConnectorHealth = 'healthy' | 'degraded' | 'down' | 'unknown'
 export type ConstellationConnector = ConnectorDefinition & {
   x: number
   y: number
-  size: 'small' | 'medium' | 'large'
+  size: 'dwarf' | 'small' | 'medium' | 'large' | 'giant'
   palette: string
+  family: 'terrestrial' | 'gas' | 'ice' | 'oceanic' | 'crystalline' | 'desert' | 'metallic' | 'volcanic' | 'forest'
   healthEndpoint?: string
 }
 
@@ -21,20 +22,20 @@ export type ConstellationRelation = {
 }
 
 const visualMetadata: Record<string, Omit<ConstellationConnector, keyof ConnectorDefinition>> = {
-  notion: { x: 74, y: 27, size: 'large', palette: 'ivory', healthEndpoint: '/notion/ping' },
-  obsidian: { x: 27, y: 30, size: 'large', palette: 'violet', healthEndpoint: '/obsidian/ping' },
-  github: { x: 51, y: 13, size: 'medium', palette: 'graphite', healthEndpoint: '/github/ping' },
-  gmail: { x: 10, y: 17, size: 'medium', palette: 'coral', healthEndpoint: '/gmail/status' },
-  calendar: { x: 88, y: 49, size: 'medium', palette: 'azure', healthEndpoint: '/calendar/status' },
-  wikipedia: { x: 89, y: 79, size: 'medium', palette: 'silver', healthEndpoint: '/wikipedia/ping' },
-  chess: { x: 29, y: 79, size: 'large', palette: 'umber', healthEndpoint: '/chess/ping' },
-  stockfish: { x: 10, y: 87, size: 'small', palette: 'steel', healthEndpoint: '/resources/programs/stockfish/status' },
-  openai: { x: 12, y: 53, size: 'medium', palette: 'jade', healthEndpoint: '/openai/ping' },
-  youtube: { x: 91, y: 17, size: 'medium', palette: 'red', healthEndpoint: '/resources/youtube/status' },
-  gallica: { x: 73, y: 86, size: 'medium', palette: 'gold', healthEndpoint: '/resources/gallica/status' },
-  imslp: { x: 54, y: 88, size: 'small', palette: 'rose', healthEndpoint: '/resources/imslp/status' },
-  maps: { x: 94, y: 63, size: 'small', palette: 'green', healthEndpoint: '/resources/maps/status' },
-  scid: { x: 17, y: 72, size: 'small', palette: 'blue', healthEndpoint: '/resources/programs/scid/status' },
+  notion: { x: 72, y: 24, size: 'giant', palette: 'ivory', family: 'terrestrial', healthEndpoint: '/notion/ping' },
+  obsidian: { x: 29, y: 32, size: 'large', palette: 'violet', family: 'crystalline', healthEndpoint: '/obsidian/ping' },
+  github: { x: 48, y: 11, size: 'small', palette: 'graphite', family: 'metallic', healthEndpoint: '/github/ping' },
+  gmail: { x: 8, y: 20, size: 'medium', palette: 'coral', family: 'gas', healthEndpoint: '/gmail/status' },
+  calendar: { x: 86, y: 45, size: 'large', palette: 'azure', family: 'ice', healthEndpoint: '/calendar/status' },
+  wikipedia: { x: 91, y: 82, size: 'medium', palette: 'silver', family: 'terrestrial', healthEndpoint: '/wikipedia/ping' },
+  chess: { x: 31, y: 81, size: 'giant', palette: 'umber', family: 'desert', healthEndpoint: '/chess/ping' },
+  stockfish: { x: 7, y: 91, size: 'dwarf', palette: 'steel', family: 'metallic', healthEndpoint: '/resources/programs/stockfish/status' },
+  openai: { x: 11, y: 56, size: 'large', palette: 'jade', family: 'oceanic', healthEndpoint: '/openai/ping' },
+  youtube: { x: 93, y: 14, size: 'small', palette: 'red', family: 'volcanic', healthEndpoint: '/resources/youtube/status' },
+  gallica: { x: 75, y: 89, size: 'large', palette: 'gold', family: 'gas', healthEndpoint: '/resources/gallica/status' },
+  imslp: { x: 56, y: 93, size: 'dwarf', palette: 'rose', family: 'ice', healthEndpoint: '/resources/imslp/status' },
+  maps: { x: 96, y: 61, size: 'dwarf', palette: 'green', family: 'forest', healthEndpoint: '/resources/maps/status' },
+  scid: { x: 17, y: 73, size: 'small', palette: 'blue', family: 'oceanic', healthEndpoint: '/resources/programs/scid/status' },
 }
 
 export const constellationConnectors: readonly ConstellationConnector[] = connectorDefinitions

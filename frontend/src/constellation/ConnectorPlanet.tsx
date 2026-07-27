@@ -26,6 +26,7 @@ export function ConnectorPlanet({
     'connector-planet',
     `connector-planet--${connector.size}`,
     `connector-planet--${connector.palette}`,
+    `connector-planet--${connector.family}`,
     `is-${health}`,
     selected ? 'is-selected' : '',
     muted ? 'is-muted' : '',

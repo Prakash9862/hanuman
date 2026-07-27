@@ -13,10 +13,10 @@
   color: #ede9e3;
   isolation: isolate;
   background:
-    radial-gradient(ellipse at 18% 22%, rgba(67, 50, 112, .16), transparent 30%),
-    radial-gradient(ellipse at 78% 70%, rgba(33, 85, 96, .1), transparent 34%),
-    radial-gradient(ellipse at 51% 49%, rgba(125, 76, 41, .11), transparent 28%),
-    linear-gradient(145deg, #080c14 0%, #03050a 58%, #09080d 100%);
+    radial-gradient(ellipse at 13% 29%, rgba(64, 55, 111, .13), transparent 27%),
+    radial-gradient(ellipse at 82% 72%, rgba(27, 77, 91, .09), transparent 31%),
+    radial-gradient(ellipse at 53% 48%, rgba(120, 72, 39, .09), transparent 25%),
+    linear-gradient(148deg, #080c15 0%, #020409 57%, #08070c 100%);
 }
 
 .constellation::before,
@@ -30,9 +30,10 @@
 
 .constellation::before {
   background:
-    radial-gradient(ellipse at 36% 66%, transparent 0 13%, rgba(117, 102, 146, .035) 28%, transparent 52%),
-    radial-gradient(ellipse at 70% 29%, rgba(75, 118, 129, .035), transparent 38%);
-  filter: blur(12px);
+    radial-gradient(ellipse at 22% 74%, transparent 0 10%, rgba(100, 87, 135, .04) 27%, transparent 51%),
+    radial-gradient(ellipse at 76% 24%, rgba(65, 105, 121, .04), transparent 34%),
+    conic-gradient(from 128deg at 74% 28%, transparent 0 41%, rgba(103, 125, 144, .022) 45%, transparent 51%);
+  filter: blur(18px);
 }
 
 .constellation::after {
@@ -120,7 +121,8 @@
     linear-gradient(rgba(155, 178, 195, .012) 1px, transparent 1px),
     linear-gradient(90deg, rgba(155, 178, 195, .012) 1px, transparent 1px);
   background-size: 5.8rem 5.8rem;
-  mask-image: radial-gradient(ellipse, black, transparent 74%);
+  mask-image: radial-gradient(ellipse, rgba(0, 0, 0, .55), transparent 68%);
+  opacity: .55;
   pointer-events: none;
 }
 
@@ -132,23 +134,72 @@
 
 .constellation__stars--far {
   background-image:
-    radial-gradient(circle, rgba(224, 232, 243, .52) 0 .55px, transparent .9px),
-    radial-gradient(circle, rgba(186, 202, 222, .38) 0 .5px, transparent .85px),
-    radial-gradient(circle, rgba(234, 215, 197, .38) 0 .6px, transparent .95px);
-  background-position: 9px 17px, 53px 76px, 111px 39px;
-  background-size: 79px 83px, 137px 149px, 211px 193px;
-  opacity: .62;
+    radial-gradient(circle, rgba(224, 232, 243, .48) 0 .45px, transparent .8px),
+    radial-gradient(circle, rgba(186, 202, 222, .34) 0 .4px, transparent .75px),
+    radial-gradient(circle, rgba(234, 215, 197, .31) 0 .5px, transparent .85px),
+    radial-gradient(circle, rgba(182, 196, 216, .24) 0 .35px, transparent .7px);
+  background-position: 9px 17px, 53px 76px, 111px 39px, 31px 123px;
+  background-size: 67px 71px, 113px 127px, 179px 167px, 227px 211px;
+  opacity: .68;
 }
 
 .constellation__stars--near {
   background-image:
-    radial-gradient(circle, rgba(255, 255, 255, .9) 0 .8px, rgba(214, 225, 246, .25) 1px, transparent 1.7px),
-    radial-gradient(circle, rgba(227, 190, 157, .74) 0 .7px, transparent 1.45px),
-    radial-gradient(circle, rgba(199, 218, 236, .68) 0 .75px, transparent 1.5px);
+    radial-gradient(circle, rgba(255, 255, 255, .9) 0 .75px, rgba(214, 225, 246, .22) 1px, transparent 1.8px),
+    radial-gradient(circle, rgba(227, 190, 157, .7) 0 .65px, transparent 1.5px),
+    radial-gradient(circle, rgba(199, 218, 236, .64) 0 .7px, transparent 1.55px);
   background-position: 27px 63px, 88px 21px, 146px 104px;
   background-size: 251px 229px, 337px 281px, 421px 359px;
   opacity: .72;
 }
+
+.constellation__deep-sky,
+.constellation__deep-sky span {
+  position: absolute;
+  pointer-events: none;
+}
+
+.constellation__deep-sky { inset: 0; overflow: hidden; }
+
+.constellation__galaxy {
+  width: 8.5rem;
+  height: 2.3rem;
+  border-radius: 50%;
+  background:
+    radial-gradient(ellipse, rgba(238, 230, 217, .2), rgba(137, 151, 183, .07) 17%, transparent 58%),
+    linear-gradient(174deg, transparent 38%, rgba(157, 170, 201, .08) 48%, transparent 59%);
+  box-shadow: 0 0 2.8rem rgba(116, 133, 166, .06);
+  filter: blur(.35px);
+  opacity: .42;
+}
+
+.constellation__galaxy::after {
+  position: absolute;
+  inset: 48% 8%;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(225, 221, 211, .2), transparent);
+  content: "";
+  transform: rotate(-5deg);
+}
+
+.constellation__galaxy--one { top: 18%; left: 17%; transform: rotate(-21deg); }
+.constellation__galaxy--two { right: 10%; bottom: 14%; width: 5rem; opacity: .22; transform: rotate(14deg); }
+
+.constellation__cluster {
+  width: 7rem;
+  height: 6rem;
+  background:
+    radial-gradient(circle at 18% 37%, rgba(223, 232, 245, .75) 0 .6px, transparent 1.5px),
+    radial-gradient(circle at 42% 22%, rgba(255, 232, 203, .62) 0 .7px, transparent 1.7px),
+    radial-gradient(circle at 63% 58%, rgba(207, 223, 241, .56) 0 .55px, transparent 1.5px),
+    radial-gradient(circle at 81% 33%, rgba(225, 231, 241, .52) 0 .5px, transparent 1.4px),
+    radial-gradient(circle at 31% 78%, rgba(197, 214, 235, .46) 0 .5px, transparent 1.3px);
+  filter: drop-shadow(0 0 3px rgba(185, 209, 237, .18));
+  opacity: .55;
+}
+
+.constellation__cluster--one { top: 11%; right: 29%; }
+.constellation__cluster--two { bottom: 17%; left: 7%; opacity: .3; transform: scale(.72); }
 
 .constellation__world {
   position: absolute;
@@ -162,9 +213,9 @@
   position: absolute;
   top: 50%;
   left: 50%;
-  border: 1px solid rgba(187, 164, 143, .045);
+  border: 1px solid rgba(187, 164, 143, .022);
   border-radius: 50%;
-  box-shadow: inset 0 0 2rem rgba(181, 142, 109, .012);
+  box-shadow: inset 0 0 2.5rem rgba(181, 142, 109, .009), 0 0 3rem rgba(112, 139, 155, .008);
   transform: translate(-50%, -50%);
   pointer-events: none;
 }
@@ -172,7 +223,7 @@
 .constellation__orbit::before {
   position: absolute;
   inset: 18%;
-  border-top: 1px solid rgba(159, 184, 197, .035);
+  border-top: 1px solid rgba(159, 184, 197, .018);
   border-radius: 50%;
   content: "";
   transform: rotate(17deg);
@@ -299,6 +350,9 @@
   --planet-atmosphere: rgba(196, 199, 205, .3);
   --planet-detail: rgba(255, 255, 255, .15);
   --planet-surface: none;
+  --planet-geology: none;
+  --planet-rings: transparent;
+  --planet-axis: -12deg;
   position: absolute;
   z-index: 4;
   top: var(--planet-y);
@@ -320,8 +374,11 @@
   transition: opacity 160ms ease;
 }
 
-.connector-planet--small { --planet-size: 2.75rem; }
-.connector-planet--large { --planet-size: 3.75rem; }
+.connector-planet--dwarf { --planet-size: 2.05rem; }
+.connector-planet--small { --planet-size: 2.7rem; }
+.connector-planet--medium { --planet-size: 3.25rem; }
+.connector-planet--large { --planet-size: 4rem; }
+.connector-planet--giant { --planet-size: 4.85rem; }
 
 .connector-planet__body {
   position: relative;
@@ -332,8 +389,8 @@
   border: 0;
   border-radius: 50%;
   background:
-    radial-gradient(circle at 26% 21%, rgba(255, 255, 255, .62) 0 2%, rgba(255, 255, 255, .14) 8%, transparent 20%),
-    radial-gradient(circle at 33% 30%, var(--planet-light) 0, var(--planet-mid) 43%, var(--planet-dark) 79%);
+    radial-gradient(circle at 25% 19%, rgba(255, 255, 255, .68) 0 1.5%, rgba(255, 255, 255, .13) 8%, transparent 19%),
+    radial-gradient(circle at 31% 28%, var(--planet-light) 0, var(--planet-mid) 41%, var(--planet-dark) 78%);
   box-shadow:
     inset calc(var(--planet-size) * -.24) calc(var(--planet-size) * -.14) calc(var(--planet-size) * .28) rgba(0, 0, 0, .7),
     inset calc(var(--planet-size) * .1) calc(var(--planet-size) * .08) calc(var(--planet-size) * .16) rgba(255, 255, 255, .08),
@@ -369,6 +426,7 @@
   inset: 0;
   border-radius: inherit;
   background:
+    var(--planet-geology),
     radial-gradient(circle at 24% 36%, var(--planet-detail) 0 2%, transparent 3%),
     radial-gradient(circle at 56% 64%, var(--planet-detail) 0 1.5%, transparent 3%),
     radial-gradient(circle at 68% 25%, rgba(0, 0, 0, .14) 0 3%, transparent 5%);
@@ -386,6 +444,99 @@
   box-shadow: 0 0 .85rem var(--planet-atmosphere), inset 0 0 .5rem color-mix(in srgb, var(--planet-atmosphere), transparent 55%);
   opacity: .52;
   pointer-events: none;
+}
+
+.connector-planet__halo::before {
+  position: absolute;
+  z-index: -1;
+  top: 44%;
+  left: -16%;
+  width: 132%;
+  height: 24%;
+  border: 1px solid var(--planet-rings);
+  border-radius: 50%;
+  box-shadow: 0 0 .35rem color-mix(in srgb, var(--planet-rings), transparent 65%);
+  content: "";
+  opacity: .72;
+  transform: rotate(var(--planet-axis));
+}
+
+.connector-planet__halo::after {
+  position: absolute;
+  top: 7%;
+  right: -11%;
+  width: calc(var(--planet-size) * .1);
+  height: calc(var(--planet-size) * .1);
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--planet-light), #8b929b 35%);
+  box-shadow: inset -.12rem -.1rem .15rem rgba(0, 0, 0, .65), 0 0 .25rem rgba(205, 218, 232, .18);
+  content: "";
+  opacity: 0;
+}
+
+/* Les familles décrivent une matière astronomique, indépendamment du rôle du connecteur. */
+.connector-planet--terrestrial {
+  --planet-geology:
+    radial-gradient(ellipse at 37% 48%, rgba(18, 25, 28, .26) 0 12%, transparent 14%),
+    radial-gradient(ellipse at 61% 29%, rgba(226, 218, 197, .16) 0 8%, transparent 10%),
+    radial-gradient(circle at 68% 68%, rgba(8, 11, 14, .28) 0 3%, transparent 5%);
+}
+
+.connector-planet--gas {
+  --planet-geology:
+    repeating-linear-gradient(176deg, transparent 0 9%, rgba(244, 229, 210, .14) 11% 14%, rgba(23, 18, 22, .09) 16% 19%, transparent 21% 28%),
+    radial-gradient(ellipse at 62% 57%, rgba(40, 19, 20, .32) 0 8%, transparent 10%);
+  --planet-rings: color-mix(in srgb, var(--planet-light), transparent 61%);
+  --planet-axis: -9deg;
+}
+
+.connector-planet--ice {
+  --planet-geology:
+    radial-gradient(ellipse at 46% 6%, rgba(235, 248, 255, .48) 0 13%, transparent 16%),
+    linear-gradient(127deg, transparent 36%, rgba(220, 244, 255, .3) 37% 39%, transparent 40% 63%, rgba(219, 241, 253, .2) 64% 65%, transparent 66%);
+}
+
+.connector-planet--oceanic {
+  --planet-geology:
+    radial-gradient(ellipse at 38% 42%, rgba(191, 224, 203, .22) 0 13%, transparent 15%),
+    radial-gradient(ellipse at 61% 61%, rgba(153, 204, 185, .17) 0 10%, transparent 12%),
+    repeating-linear-gradient(174deg, transparent 0 18%, rgba(203, 237, 235, .1) 19% 20%, transparent 21% 31%);
+}
+
+.connector-planet--crystalline {
+  --planet-geology:
+    linear-gradient(118deg, transparent 17%, rgba(234, 215, 255, .45) 18%, transparent 20% 57%, rgba(220, 196, 255, .28) 58%, transparent 60%),
+    linear-gradient(39deg, transparent 42%, rgba(15, 7, 25, .5) 43% 47%, transparent 48%);
+}
+
+.connector-planet--desert {
+  --planet-geology:
+    repeating-radial-gradient(ellipse at 34% 39%, transparent 0 8%, rgba(245, 213, 171, .14) 9% 10%, transparent 11% 17%),
+    radial-gradient(ellipse at 63% 58%, rgba(64, 34, 20, .3) 0 11%, transparent 13%);
+}
+
+.connector-planet--metallic {
+  --planet-geology:
+    linear-gradient(136deg, transparent 31%, rgba(226, 241, 249, .24) 33%, transparent 36% 61%, rgba(7, 12, 17, .38) 63%, transparent 67%),
+    radial-gradient(circle at 59% 48%, transparent 0 16%, rgba(207, 229, 239, .15) 17% 18%, transparent 20%);
+}
+
+.connector-planet--volcanic {
+  --planet-geology:
+    linear-gradient(109deg, transparent 20%, rgba(255, 134, 91, .4) 22% 24%, transparent 26% 54%, rgba(255, 93, 61, .25) 56%, transparent 58%),
+    radial-gradient(ellipse at 61% 62%, rgba(20, 3, 5, .75) 0 18%, transparent 20%);
+}
+
+.connector-planet--forest {
+  --planet-geology:
+    radial-gradient(ellipse at 31% 38%, rgba(11, 65, 43, .58) 0 15%, transparent 17%),
+    radial-gradient(ellipse at 64% 61%, rgba(18, 80, 49, .62) 0 19%, transparent 21%),
+    radial-gradient(ellipse at 48% 19%, rgba(184, 226, 204, .2) 0 9%, transparent 11%);
+}
+
+.connector-planet--terrestrial.connector-planet--giant .connector-planet__halo::after,
+.connector-planet--oceanic.connector-planet--large .connector-planet__halo::after {
+  opacity: .62;
 }
 
 .connector-planet__label {
