@@ -487,7 +487,7 @@ def test_computed_title_uses_multiple_commits_and_is_bounded() -> None:
 
     assert run.result.plan is not None
     title = run.result.plan.sessions[0].computed_title
-    assert title == "main — Documentation et Tests"
+    assert title == "main — Documentation"
     assert len(title) <= 80
 
 

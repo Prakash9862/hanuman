@@ -42,21 +42,18 @@ CONVENTIONAL_SUBJECT = re.compile(
     re.IGNORECASE,
 )
 MAX_TITLE_LENGTH = 80
-CATEGORY_LABELS = {
-    "feat": "Fonctionnalités",
-    "fix": "Corrections",
-    "docs": "Documentation",
-    "test": "Tests",
-    "refactor": "Refactorisation",
-    "chore": "Maintenance",
-    "style": "Formatage",
-}
-SCOPE_LABELS = {
-    "ui": "Interface",
-    "flows": "Flux",
-    "flow": "Flux",
-    "cli": "CLI",
-    "chess": "Échecs",
+DOMAIN_KEYWORDS = {
+    "UI": ("ui", "interface", "frontend", "css", "html", "template"),
+    "Documentation": ("docs", "doc", "readme", "documentation"),
+    "GitHub": ("github", "git"),
+    "Notion": ("notion",),
+    "Flow Engine": ("flow", "flows", "workflow", "orchestration"),
+    "CLI": ("cli", "command", "argparse"),
+    "Infrastructure": ("infra", "ci", "docker", "deploy", "configuration"),
+    "Chess.com": ("chess", "chess.com", "échecs"),
+    "Database": ("database", "db", "sql", "schema"),
+    "Synchronisation": ("sync", "synchronisation", "synchronize"),
+    "API": ("api", "endpoint", "http"),
 }
 
 GithubServiceFactory = Callable[[], GithubService]
@@ -181,20 +178,15 @@ def _ranked_themes(commits: list[NormalizedCommit]) -> list[str]:
     counts: dict[str, int] = {}
     first_seen: dict[str, int] = {}
     for index, commit in enumerate(commits):
-        match = CONVENTIONAL_SUBJECT.match(commit.message_subject)
-        if match is None:
-            continue
-        category = match.group("category").lower()
-        if category == "tests":
-            category = "test"
-        category_label = CATEGORY_LABELS[category]
-        counts[category_label] = counts.get(category_label, 0) + 1
-        first_seen.setdefault(category_label, index)
-        scope = (match.group("scope") or "").lower()
-        scope_label = SCOPE_LABELS.get(scope)
-        if scope_label is not None:
-            counts[scope_label] = counts.get(scope_label, 0) + 1
-            first_seen.setdefault(scope_label, index)
+        subject = commit.message_subject.casefold()
+        match = CONVENTIONAL_SUBJECT.match(subject)
+        scope = match.group("scope") if match is not None else ""
+        searchable = f"{scope or ''} {subject}"
+        tokens = set(re.findall(r"[\w.]+", searchable))
+        for domain, keywords in DOMAIN_KEYWORDS.items():
+            if any(keyword in tokens for keyword in keywords):
+                counts[domain] = counts.get(domain, 0) + 1
+                first_seen.setdefault(domain, index)
     return sorted(counts, key=lambda label: (-counts[label], first_seen[label], label))[:2]
 
 
