@@ -5,9 +5,15 @@ from typing import cast
 
 import pytest
 
+from hanuman.config import env
 from hanuman.orchestrations import chess_analysis
 from hanuman.services import chess_analysis_queue_service as queue
-from hanuman.services.chess_analysis_service import StockfishAnalyzer
+from hanuman.services.chess_analysis_service import (
+    GameAnalysis,
+    OpeningExitAnalysis,
+    StockfishAnalyzer,
+)
+from hanuman.services.chess_insight_storage_service import parse_insight_block
 from hanuman.services.chess_path_safety_service import UnsafeChessDestinationError
 
 
@@ -78,6 +84,78 @@ def test_queue_worker_refuses_symbolic_root_before_state_or_engine(tmp_path: Pat
         queue._run_queue([], symbolic, 12, 25)
 
     assert list(real.iterdir()) == []
+
+
+def test_queue_uses_configured_player_and_persists_opening_exit(
+    tmp_path: Path, monkeypatch
+) -> None:
+    root = tmp_path / "Echecs"
+    note = root / "2026/01/game.md"
+    note.parent.mkdir(parents=True)
+    note.write_text(
+        """```pgn
+[Event "Queue"]
+[White "ConfiguredPlayer"]
+[Black "Opponent"]
+[Result "1-0"]
+
+1. e4 e5 1-0
+```
+""",
+        encoding="utf-8",
+    )
+    analysis = GameAnalysis(
+        white="ConfiguredPlayer",
+        black="Opponent",
+        result="1-0",
+        eco="C20",
+        opening="King's Pawn Game",
+        engine="Fixture",
+        depth=12,
+        moves=[],
+        counts={},
+        average_centipawn_loss=0.0,
+        worst_move=None,
+        turning_point_ply=None,
+        opening_exit=OpeningExitAnalysis(
+            ply=2,
+            move_number=1,
+            side_to_move="white",
+            last_move_san="e5",
+            last_move_uci="e7e5",
+            fen="rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 2",
+            evaluation_value=20,
+            evaluation_type="centipawn",
+            evaluation_perspective="hanuman-player",
+            depth_reached=12,
+            principal_variation=[],
+        ),
+    )
+    captured = {}
+
+    class FakeAnalyzer:
+        def __init__(self, config) -> None:
+            captured["player_name"] = config.player_name
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_: object) -> None:
+            return None
+
+        def analyse_pgn(self, pgn: str) -> GameAnalysis:
+            return analysis
+
+    monkeypatch.setattr(env, "CHESS_COM_USERNAME", " ConfiguredPlayer ")
+    monkeypatch.setattr(queue, "StockfishAnalyzer", FakeAnalyzer)
+
+    queue._run_queue([note], root, 12, 25)
+
+    envelope = parse_insight_block(note.read_text(encoding="utf-8"))
+    assert captured["player_name"] == "ConfiguredPlayer"
+    assert envelope is not None
+    assert envelope.opening_exit is not None
+    assert envelope.opening_exit["evaluation_value"] == 20
 
 
 def test_analysis_refuses_broken_symbolic_root(tmp_path: Path, monkeypatch) -> None:

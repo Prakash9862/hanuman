@@ -6,8 +6,8 @@ import os
 from pathlib import Path
 from typing import Sequence
 
+from hanuman.config.env import chess_player_name
 from hanuman.orchestrations.chess_analysis import (
-    CHESS_USERNAME,
     _game_paths,
     _validated_chess_root,
     analyse_note,
@@ -54,7 +54,7 @@ def upgrade_analyses(
     config = AnalysisConfig(
         engine_path=os.environ.get("STOCKFISH_PATH"),
         depth=depth,
-        player_name=CHESS_USERNAME,
+        player_name=chess_player_name(),
     )
     if pending:
         with StockfishAnalyzer(config) as analyzer:

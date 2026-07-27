@@ -7,6 +7,7 @@ import re
 from pathlib import Path
 from typing import Any, Literal
 
+from hanuman.config.env import chess_player_name
 from hanuman.models.chess_insight import (
     CHESS_INSIGHT_SCHEMA_VERSION,
     ChessInsightEnvelope,
@@ -28,9 +29,7 @@ from hanuman.services.delimited_zone_service import (
     replace_delimited_zone,
 )
 
-CHESS_USERNAME = os.environ.get("CHESS_COM_USERNAME", "").strip()
-if not CHESS_USERNAME:
-    raise RuntimeError("CHESS_COM_USERNAME manquant dans l'environnement")
+CHESS_USERNAME = chess_player_name()
 
 PGN_PATTERN = re.compile(r"```pgn\s*(.*?)```", re.DOTALL | re.IGNORECASE)
 START_MARKER = "<!-- HANUMAN_CHESS_ANALYSIS_START -->"
@@ -86,11 +85,12 @@ def _format_eval(value_cp: int) -> str:
 
 
 def _player_color(analysis: GameAnalysis) -> Literal["white", "black"]:
-    if analysis.white.lower() == CHESS_USERNAME.lower():
+    player_name = chess_player_name()
+    if analysis.white.lower() == player_name.lower():
         return "white"
-    if analysis.black.lower() == CHESS_USERNAME.lower():
+    if analysis.black.lower() == player_name.lower():
         return "black"
-    raise ValueError(f"{CHESS_USERNAME} absent de la partie")
+    raise ValueError(f"{player_name} absent de la partie")
 
 
 def _player_moves(analysis: GameAnalysis) -> list[Any]:
@@ -341,7 +341,7 @@ def analyse_vault(limit: int | None = None, depth: int = 18) -> dict[str, Any]:
     config = AnalysisConfig(
         engine_path=os.environ.get("STOCKFISH_PATH"),
         depth=depth,
-        player_name=CHESS_USERNAME,
+        player_name=chess_player_name(),
     )
     analysed = 0
     skipped = 0

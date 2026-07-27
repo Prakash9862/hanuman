@@ -401,6 +401,23 @@ def _opening_exit_cp(item: EcoGame) -> int | None:
     return value
 
 
+def _opening_exit_evaluation(item: EcoGame) -> tuple[str, int] | None:
+    exit_data = _opening_exit(item)
+    value = exit_data.get("evaluation_value") if exit_data is not None else None
+    evaluation_type = (
+        exit_data.get("evaluation_type") if exit_data is not None else None
+    )
+    if (
+        not isinstance(evaluation_type, str)
+        or evaluation_type not in {"centipawn", "mate"}
+        or exit_data is None
+        or exit_data.get("evaluation_perspective") != "hanuman-player"
+        or type(value) is not int
+    ):
+        return None
+    return evaluation_type, value
+
+
 def _representative_exit(
     games: tuple[EcoGame, ...],
 ) -> tuple[EcoGame, dict[str, object], int] | None:
@@ -558,24 +575,43 @@ def build_eco_page(
         )[0]
     )
     all_game_ids = sorted(item.game.game_id for item in main.games)
-    exit_evaluations = [
+    exit_cp_evaluations = [
         value for item in health_games if (value := _opening_exit_cp(item)) is not None
     ]
+    exit_evaluations = [
+        evaluation
+        for item in health_games
+        if (evaluation := _opening_exit_evaluation(item)) is not None
+    ]
     exit_average = (
-        round(sum(exit_evaluations) / len(exit_evaluations), 1)
-        if exit_evaluations
+        round(sum(exit_cp_evaluations) / len(exit_cp_evaluations), 1)
+        if exit_cp_evaluations
         else None
     )
     exit_median = (
-        round(float(median(exit_evaluations)), 1) if exit_evaluations else None
+        round(float(median(exit_cp_evaluations)), 1)
+        if exit_cp_evaluations
+        else None
     )
     exit_favorable = sum(
-        value > OPENING_EXIT_FAVORABLE_CP for value in exit_evaluations
+        (evaluation_type == "mate" and value > 0)
+        or (evaluation_type == "centipawn" and value > OPENING_EXIT_FAVORABLE_CP)
+        for evaluation_type, value in exit_evaluations
     )
     exit_unfavorable = sum(
-        value < OPENING_EXIT_UNFAVORABLE_CP for value in exit_evaluations
+        (evaluation_type == "mate" and value < 0)
+        or (evaluation_type == "centipawn" and value < OPENING_EXIT_UNFAVORABLE_CP)
+        for evaluation_type, value in exit_evaluations
     )
     exit_balanced = len(exit_evaluations) - exit_favorable - exit_unfavorable
+    exit_mate_favorable = sum(
+        evaluation_type == "mate" and value > 0
+        for evaluation_type, value in exit_evaluations
+    )
+    exit_mate_unfavorable = sum(
+        evaluation_type == "mate" and value < 0
+        for evaluation_type, value in exit_evaluations
+    )
     months = _monthly(games)
     displayed_count = sum(len(item.games) for item in displayed)
     other_count = len(games) - displayed_count
@@ -653,6 +689,10 @@ def build_eco_page(
             "opening_exit_coverage_percent": health_exit_coverage,
             "opening_exit_average_cp": exit_average,
             "opening_exit_median_cp": exit_median,
+            "opening_exit_mate_positions": {
+                "favorable": exit_mate_favorable,
+                "unfavorable": exit_mate_unfavorable,
+            },
             "opening_exit_distribution": {
                 "favorable": exit_favorable,
                 "balanced": exit_balanced,
@@ -744,26 +784,37 @@ def build_eco_page(
         "> La comparaison est limitée à la portion explicitement documentée dans le PDF ECOMast."
     )
     if exit_evaluations:
-        assert exit_average is not None and exit_median is not None
         if health_exit_coverage < 50:
             exit_finding = (
                 "Couverture trop faible pour conclure sur la qualité habituelle."
             )
-        elif exit_average is not None and exit_average > OPENING_EXIT_FAVORABLE_CP:
+        elif exit_favorable > max(exit_balanced, exit_unfavorable):
             exit_finding = (
                 "La sortie est généralement favorable dans les parties évaluables."
             )
-        elif exit_average is not None and exit_average < OPENING_EXIT_UNFAVORABLE_CP:
+        elif exit_unfavorable > max(exit_balanced, exit_favorable):
             exit_finding = "L’ouverture est souvent quittée en position défavorable."
         else:
             exit_finding = (
                 "La sortie est généralement équilibrée dans les parties évaluables."
             )
+        cp_summary = (
+            f"> Évaluation joueur moyenne : **{exit_average / 100:+.2f}** · "
+            f"médiane : **{exit_median / 100:+.2f}** "
+            f"sur **{len(exit_cp_evaluations)} évaluation(s) en centipions**.  \n"
+            if exit_average is not None and exit_median is not None
+            else "> Aucune évaluation en centipions pour calculer moyenne ou médiane.  \n"
+        )
+        mate_summary = (
+            f"> Mats : **{exit_mate_favorable} favorable(s)** · "
+            f"**{exit_mate_unfavorable} défavorable(s)** "
+            "(distance de mat exclue des statistiques CP).  \n"
+        )
         quality = (
             f"> **{len(exit_evaluations)} parties évaluables sur {len(health_games)}** "
             f"dans le périmètre de santé ({health_exit_coverage:.1f} %).  \n"
-            f"> Évaluation joueur moyenne : **{exit_average / 100:+.2f}** · "
-            f"médiane : **{exit_median / 100:+.2f}**.  \n"
+            f"{cp_summary}"
+            f"{mate_summary}"
             f"> Favorables : **{exit_favorable}** · équilibrées : **{exit_balanced}** · "
             f"défavorables : **{exit_unfavorable}** "
             f"(seuils : ±{OPENING_EXIT_FAVORABLE_CP} cp).  \n"

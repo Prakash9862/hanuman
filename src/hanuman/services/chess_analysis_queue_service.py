@@ -7,6 +7,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from hanuman.config.env import chess_player_name
 from hanuman.orchestrations.chess_analysis import (
     END_MARKER,
     START_MARKER,
@@ -131,7 +132,7 @@ def _run_queue(
     config = AnalysisConfig(
         engine_path=os.environ.get("STOCKFISH_PATH"),
         depth=depth,
-        player_name=os.environ.get("CHESS_COM_USERNAME"),
+        player_name=chess_player_name(),
     )
     try:
         with StockfishAnalyzer(config) as analyzer:

@@ -19,11 +19,16 @@ position exacte après ce coup. Les regroupements retirent uniquement les compte
 demi-coups et de coups complets. Ils conservent placement, couleur au trait, droits de
 roque et case de prise en passant. La FEN originale est toujours conservée.
 
+Dans `analysis_metadata`, `depth_reached` désigne la profondeur maximale observée
+sur au moins un coup analysé. Elle ne garantit pas que tous les coups ont atteint
+cette profondeur ; `analysis_limit.depth` reste la limite demandée au moteur.
+
 Les évaluations des événements restent exprimées du point de vue du camp qui joue,
 comme en V1, afin de préserver le calcul de perte. L’évaluation de `opening_exit` est
 explicitement exprimée du point de vue du joueur Hanuman (`hanuman-player`) ; un score
 positif lui est favorable. Les pages ECO utilisent des seuils centralisés de `+50 cp`
-et `-50 cp`.
+et `-50 cp`. Une distance de mat est classée séparément selon son signe et n’entre
+jamais dans les moyennes ou médianes en centipions.
 
 La sortie d’ouverture réutilise la définition V1 : le dernier ply de la phase
 `opening_plies` (24 par défaut), ou le dernier ply de la partie si elle est plus courte.

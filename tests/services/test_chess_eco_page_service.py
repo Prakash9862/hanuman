@@ -5,6 +5,7 @@ import hashlib
 import subprocess
 from pathlib import Path
 
+import pytest
 import yaml
 
 from hanuman.models.chess import ChessGame, chess_game_path
@@ -304,3 +305,114 @@ def test_v2_opening_health_and_position_recurrence_use_persisted_data(
     assert metadata["boards"][0]["position_role"] == "persisted-opening-exit"
     assert "3 parties évaluables sur 3" in content
     assert "Position réellement récurrente · 2 occurrences" in content
+
+
+def _persist_opening_exit(
+    root: Path,
+    game: ChessGame,
+    *,
+    evaluation_type: str,
+    evaluation_value: int | None,
+) -> None:
+    path = chess_game_path(root, game)
+    envelope = ChessInsightEnvelope(
+        schema_version=2,
+        game_id=game.game_id,
+        eco=game.eco,
+        insights=(),
+        analysis_metadata={"evaluation_unit": "centipawn"},
+        opening_exit={
+            "ply": 6,
+            "move_number": 3,
+            "side_to_move": "white",
+            "last_move_san": "e6",
+            "last_move_uci": "e7e6",
+            "fen": "rnbqkb1r/ppp2ppp/4pn2/3p4/3P1B2/4P3/PPP2PPP/RN1QKBNR w KQkq - 1 4",
+            "evaluation_value": evaluation_value,
+            "evaluation_type": evaluation_type,
+            "evaluation_perspective": "hanuman-player",
+            "depth_reached": 18,
+            "principal_variation": [],
+        },
+    )
+    path.write_text(
+        inject_insight_block(path.read_text(encoding="utf-8"), envelope),
+        encoding="utf-8",
+    )
+
+
+@pytest.mark.parametrize(
+    ("evaluation_value", "expected_distribution", "expected_finding"),
+    [
+        (3, {"favorable": 1, "balanced": 0, "unfavorable": 0}, "généralement favorable"),
+        (-3, {"favorable": 0, "balanced": 0, "unfavorable": 1}, "position défavorable"),
+    ],
+)
+def test_mate_opening_exit_is_classified_by_sign_and_never_as_cp(
+    tmp_path: Path,
+    monkeypatch,
+    evaluation_value: int,
+    expected_distribution: dict[str, int],
+    expected_finding: str,
+) -> None:
+    root = tmp_path / "Echecs"
+    game = _game(root, "D00", 0)
+    _persist_opening_exit(
+        root, game, evaluation_type="mate", evaluation_value=evaluation_value
+    )
+
+    write_eco_pages(root, [game], theory_pdf=_fake_pdf(monkeypatch))
+    content = (root / "_Index/Ouvertures/D00.md").read_text(encoding="utf-8")
+    metadata = yaml.safe_load(content[4 : content.find("\n---\n", 4)])
+    health = metadata["health_scope"]
+
+    assert health["opening_exit_evaluable_games"] == 1
+    assert health["opening_exit_average_cp"] is None
+    assert health["opening_exit_median_cp"] is None
+    assert health["opening_exit_distribution"] == expected_distribution
+    assert health["opening_exit_mate_positions"] == {
+        "favorable": int(evaluation_value > 0),
+        "unfavorable": int(evaluation_value < 0),
+    }
+    assert expected_finding in content
+    assert "Aucune évaluation en centipions" in content
+
+
+def test_mixed_cp_mate_and_unknown_keep_cp_statistics_and_evaluable_coverage_separate(
+    tmp_path: Path, monkeypatch
+) -> None:
+    root = tmp_path / "Echecs"
+    games = [_game(root, "D00", index) for index in range(3)]
+    for game, evaluation_type, value in zip(
+        games,
+        ("centipawn", "mate", "unknown"),
+        (100, 3, None),
+        strict=True,
+    ):
+        _persist_opening_exit(
+            root,
+            game,
+            evaluation_type=evaluation_type,
+            evaluation_value=value,
+        )
+
+    write_eco_pages(root, games, theory_pdf=_fake_pdf(monkeypatch))
+    content = (root / "_Index/Ouvertures/D00.md").read_text(encoding="utf-8")
+    metadata = yaml.safe_load(content[4 : content.find("\n---\n", 4)])
+    health = metadata["health_scope"]
+
+    assert health["opening_exit_evaluable_games"] == 2
+    assert health["opening_exit_coverage_percent"] == 66.7
+    assert health["opening_exit_average_cp"] == 100.0
+    assert health["opening_exit_median_cp"] == 100.0
+    assert health["opening_exit_distribution"] == {
+        "favorable": 2,
+        "balanced": 0,
+        "unfavorable": 0,
+    }
+    assert health["opening_exit_mate_positions"] == {
+        "favorable": 1,
+        "unfavorable": 0,
+    }
+    assert "2 parties évaluables sur 3" in content
+    assert "sur **1 évaluation(s) en centipions**" in content

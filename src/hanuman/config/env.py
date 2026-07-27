@@ -86,6 +86,15 @@ BASE_URL: str = os.environ.get("BASE_URL", "http://127.0.0.1:8000")
 # Échecs
 CHESS_COM_USERNAME: str | None = os.environ.get("CHESS_COM_USERNAME")
 
+
+def chess_player_name() -> str:
+    """Retourne le joueur Chess configuré pour toutes les analyses Hanuman."""
+
+    player_name = (CHESS_COM_USERNAME or "").strip()
+    if not player_name:
+        raise RuntimeError("CHESS_COM_USERNAME manquant dans la configuration Hanuman")
+    return player_name
+
 # ---------------------------------------------------------------------------
 # CHECK OPTIONNEL DES VALEURS CRITIQUES
 # ---------------------------------------------------------------------------
