@@ -95,11 +95,14 @@ class GameAnalysis:
         return payload
 
     def analysis_metadata(self) -> dict[str, object]:
+        reached_depths = [
+            move.depth_reached for move in self.moves if move.depth_reached is not None
+        ]
         return {
             "analysis_schema_version": self.analysis_schema_version,
             "engine": self.engine,
             "analysed_at": self.analysed_at,
-            "depth_reached": self.depth,
+            "depth_reached": max(reached_depths) if reached_depths else None,
             "analysis_limit": self.analysis_limit,
             "evaluation_perspective": self.evaluation_perspective,
             "evaluation_unit": self.evaluation_unit,
