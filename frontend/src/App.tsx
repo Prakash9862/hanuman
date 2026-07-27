@@ -1,16 +1,7 @@
 import {
-  ArrowRight,
-  BookOpen,
-  Boxes,
-  CalendarDays,
   ChevronRight,
-  GitBranch,
-  GitCompareArrows,
   HeartPulse,
-  Library,
-  Mail,
   Sparkles,
-  Swords,
 } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import {
@@ -25,9 +16,11 @@ import {
 
 import CalendarPage from './CalendarPage'
 import ChessObsidianPage from './ChessObsidianPage'
+import FlowsPage from './FlowsPage'
 import GmailPage from './GmailPage'
 import HanumanOSPage from './HanumanOSPage'
 import HealthPage from './HealthPage'
+import { navigationItems } from './models/navigation'
 import ObsidianNotionPage from './ObsidianNotionPage'
 import ResourcesPage from './ResourcesPage'
 import WikipediaNotionPage from './WikipediaNotionPage'
@@ -42,57 +35,6 @@ const healthEndpoints = [
   '/openai/ping',
   '/wikipedia/ping',
   '/chess/ping',
-]
-
-const orchestrationCards = [
-  {
-    title: 'Obsidian ↔ Notion',
-    description: 'Explorer le vault, publier, importer, comparer et suivre les échanges.',
-    path: '/orchestrations/obsidian-notion',
-    tone: 'violet',
-    status: 'Opérationnelle',
-    icon: GitCompareArrows,
-  },
-  {
-    title: 'Gmail → Hanuman',
-    description: 'Lire la boîte de réception, repérer les messages importants et préparer leur traitement.',
-    path: '/orchestrations/gmail',
-    tone: 'graphite',
-    status: 'Lecture seule',
-    icon: Mail,
-  },
-  {
-    title: 'Google Calendar → Hanuman',
-    description: 'Consulter les calendriers et afficher les prochains événements.',
-    path: '/orchestrations/calendar',
-    tone: 'green',
-    status: 'Lecture seule',
-    icon: CalendarDays,
-  },
-  {
-    title: 'Wikipédia → Notion',
-    description: 'Transformer une recherche encyclopédique en page Notion structurée.',
-    path: '/orchestrations/wikipedia-notion',
-    tone: 'green',
-    status: 'Opérationnelle',
-    icon: BookOpen,
-  },
-  {
-    title: 'Chess.com → Obsidian',
-    description: 'Importer les parties de prakasch et les organiser par note et code ECO.',
-    path: '/orchestrations/chess-obsidian',
-    tone: 'red',
-    status: 'Opérationnelle',
-    icon: Swords,
-  },
-  {
-    title: 'GitHub → Notion',
-    description: 'Faire remonter projets, issues et activité technique dans Notion.',
-    path: '/orchestrations',
-    tone: 'graphite',
-    status: 'À consolider',
-    icon: GitBranch,
-  },
 ]
 
 function SidebarHealth() {
@@ -145,13 +87,12 @@ function AppShell() {
       <aside className="sidebar">
         <NavLink to="/" className="brand">
           <div className="brand__mark"><Sparkles size={21} /></div>
-          <div><strong>Hanuman</strong><span>Orchestration system</span></div>
+          <div><strong>Hanuman</strong><span>Système de coordination</span></div>
         </NavLink>
         <nav className="nav">
-          <NavLink to="/" end><Sparkles size={18} /> Hanuman</NavLink>
-          <NavLink to="/orchestrations"><Boxes size={18} /> Orchestrations</NavLink>
-          <NavLink to="/resources"><Library size={18} /> Ressources</NavLink>
-          <NavLink to="/health"><HeartPulse size={18} /> Santé</NavLink>
+          {navigationItems.map(({ label, path, end, icon: Icon }) => (
+            <NavLink key={path} to={path} end={end}><Icon size={18} /> {label}</NavLink>
+          ))}
         </nav>
         {location.pathname === '/' && <SidebarHealth />}
         <div className="sidebar__footer"><span className="engine-dot" /> Moteur connecté</div>
@@ -160,42 +101,16 @@ function AppShell() {
         <Routes>
           <Route path="/" element={<HanumanOSPage />} />
           <Route path="/constellation" element={<Navigate to="/" replace />} />
-          <Route path="/orchestrations" element={<OrchestrationsPage />} />
-          <Route path="/orchestrations/gmail" element={<GmailPage />} />
-          <Route path="/orchestrations/calendar" element={<CalendarPage />} />
-          <Route path="/orchestrations/obsidian-notion" element={<ObsidianNotionPage />} />
-          <Route path="/orchestrations/wikipedia-notion" element={<WikipediaNotionPage />} />
-          <Route path="/orchestrations/chess-obsidian" element={<ChessObsidianPage />} />
-          <Route path="/resources" element={<ResourcesPage />} />
-          <Route path="/library" element={<Navigate to="/resources" replace />} />
+          <Route path="/flows" element={<FlowsPage />} />
+          <Route path="/flows/gmail" element={<GmailPage />} />
+          <Route path="/flows/calendar" element={<CalendarPage />} />
+          <Route path="/flows/obsidian-notion" element={<ObsidianNotionPage />} />
+          <Route path="/flows/wikipedia-notion" element={<WikipediaNotionPage />} />
+          <Route path="/flows/chess-obsidian" element={<ChessObsidianPage />} />
+          <Route path="/connectors" element={<ResourcesPage />} />
           <Route path="/health" element={<HealthPage />} />
         </Routes>
       </main>
-    </div>
-  )
-}
-
-function OrchestrationsPage() {
-  const navigate = useNavigate()
-  return (
-    <div className="page">
-      <header className="page-header">
-        <div>
-          <p className="eyebrow">Hanuman / Orchestrations</p>
-          <h1>Les espaces où les outils coopèrent.</h1>
-          <p>Chaque orchestration possède sa propre logique et son ambiance, mais reste intégrée au même système Hanuman.</p>
-        </div>
-      </header>
-      <section className="catalog-grid">
-        {orchestrationCards.map(({ title, description, path, tone, status, icon: Icon }) => (
-          <button key={title} className={`catalog-card tone-${tone}`} onClick={() => navigate(path)}>
-            <span className="catalog-card__top"><span className="orchestration-card__icon"><Icon size={21} /></span><span className="catalog-status">{status}</span></span>
-            <b>{title}</b>
-            <p>{description}</p>
-            <span className="catalog-card__footer">Entrer dans l’espace <ArrowRight size={16} /></span>
-          </button>
-        ))}
-      </section>
     </div>
   )
 }

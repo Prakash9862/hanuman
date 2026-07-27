@@ -67,7 +67,7 @@ const definitions = [
   { id: 'wikipedia', label: 'Wikipédia', endpoint: '/wikipedia/ping' },
   { id: 'chess', label: 'Chess.com', endpoint: '/chess/ping' },
 
-  // Ressources documentaires et pratiques
+  // Connecteurs documentaires et pratiques
   { id: 'youtube', label: 'YouTube', endpoint: '/resources/youtube/status' },
   { id: 'gallica', label: 'Gallica', endpoint: '/resources/gallica/status' },
   { id: 'imslp', label: 'IMSLP', endpoint: '/resources/imslp/status' },
