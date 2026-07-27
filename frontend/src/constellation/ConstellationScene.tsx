@@ -1,5 +1,5 @@
 import { Minus, Plus, RotateCcw } from 'lucide-react'
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 
 import { ConnectorInspector } from './ConnectorInspector'
@@ -41,8 +41,19 @@ export function ConstellationScene() {
     if (route) navigate(route)
   }
 
+  useEffect(() => {
+    function closeInspection(event: KeyboardEvent) {
+      if (event.key === 'Escape') {
+        setSelectedId(null)
+        setPreviewedId(null)
+      }
+    }
+    window.addEventListener('keydown', closeInspection)
+    return () => window.removeEventListener('keydown', closeInspection)
+  }, [])
+
   return (
-    <section className="constellation" aria-labelledby="constellation-title">
+    <section className="constellation" aria-labelledby="constellation-title" aria-describedby="constellation-help">
       <header className="constellation__header">
         <div><p>Hanuman / Constellation</p><h1 id="constellation-title">Écosystème connecté</h1></div>
         <p className="constellation__legend"><span><i className="is-healthy" /> Opérationnel</span><span><i className="is-degraded" /> Dégradé</span><span><i className="is-down" /> Erreur</span><span><i className="is-unknown" /> Inconnu</span></p>
@@ -95,7 +106,7 @@ export function ConstellationScene() {
         <button type="button" onClick={() => zoomBy(.12)} aria-label="Zoomer"><Plus size={16} /></button>
         <button type="button" onClick={() => setViewport(initialViewport)} aria-label="Recentrer"><RotateCcw size={15} /></button>
       </div>
-      <p className="constellation__help">Survoler ou sélectionner pour révéler les flux · Double-cliquer ou utiliser la fiche pour ouvrir</p>
+      <p id="constellation-help" className="constellation__help">Survoler ou sélectionner pour révéler les flux · Double-cliquer ou utiliser la fiche pour ouvrir · Échap pour fermer</p>
 
       {selectedId === 'hanuman' && !inspectedConnector && (
         <aside className="connector-inspector connector-inspector--core" aria-label="Inspection de Hanuman">

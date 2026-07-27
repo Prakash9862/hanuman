@@ -1,6 +1,7 @@
 import type { CSSProperties, FocusEvent, MouseEvent } from 'react'
 
 import type { ConnectorHealth, ConstellationConnector } from './constellationModel'
+import { healthLabel } from './constellationModel'
 
 type Props = {
   connector: ConstellationConnector
@@ -44,7 +45,7 @@ export function ConnectorPlanet({
       type="button"
       className={className}
       style={{ '--planet-x': `${connector.x}%`, '--planet-y': `${connector.y}%` } as CSSProperties}
-      aria-label={`${connector.label}, ${connector.description}`}
+      aria-label={`${connector.label}, ${connector.description}, ${healthLabel(health)}`}
       aria-pressed={selected}
       onClick={() => onInspect(connector.id)}
       onDoubleClick={() => onOpen(connector.route)}
