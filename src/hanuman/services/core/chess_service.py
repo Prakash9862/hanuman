@@ -146,7 +146,7 @@ class ChessService:
                 # Temps de fin
                 end_ts = g.get("end_time") or g.get("last_move_at")
                 if end_ts is None:
-                    end_time = dt.datetime.utcnow()
+                    end_time = dt.datetime.now(dt.UTC).replace(tzinfo=None)
                 else:
                     end_time = dt.datetime.fromtimestamp(end_ts)
 
