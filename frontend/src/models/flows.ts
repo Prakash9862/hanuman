@@ -46,11 +46,11 @@ export const flowDefinitions: readonly FlowDefinition[] = [
     id: 'github-notion',
     title: 'GitHub → Notion',
     description: 'Faire remonter projets, issues et activité technique dans Notion.',
-    path: '/flows',
+    path: '/flows/github-project-memory',
     connectorIds: ['github', 'notion'],
     relations: [['github', 'notion']],
     tone: 'graphite',
-    status: 'À consolider',
+    status: 'Disponible',
     icon: GitBranch,
   },
   {

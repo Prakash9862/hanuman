@@ -8,6 +8,7 @@ import './hanuman-os.css'
 import './gmail.css'
 import './health.css'
 import './resources.css'
+import './project-memory.css'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

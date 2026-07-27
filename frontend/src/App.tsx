@@ -21,6 +21,7 @@ import CalendarPage from './CalendarPage'
 import ChessObsidianPage from './ChessObsidianPage'
 import FlowsPage from './FlowsPage'
 import GmailPage from './GmailPage'
+import GitHubProjectMemoryPage from './GitHubProjectMemoryPage'
 import HanumanOSPage from './HanumanOSPage'
 import HealthPage from './HealthPage'
 import { navigationItems } from './models/navigation'
@@ -112,6 +113,7 @@ function AppShell() {
           <Route path="/constellation" element={<Navigate to="/" replace />} />
           <Route path="/flows" element={<FlowsPage />} />
           <Route path="/flows/gmail" element={<GmailPage />} />
+          <Route path="/flows/github-project-memory" element={<GitHubProjectMemoryPage />} />
           <Route path="/flows/calendar" element={<CalendarPage />} />
           <Route path="/flows/obsidian-notion" element={<ObsidianNotionPage />} />
           <Route path="/flows/wikipedia-notion" element={<WikipediaNotionPage />} />
