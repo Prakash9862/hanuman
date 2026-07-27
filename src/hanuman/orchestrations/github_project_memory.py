@@ -10,6 +10,7 @@ from time import perf_counter
 from typing import Any, Callable, Iterable
 
 from hanuman.models.github_project_memory import (
+    ContinuityStatus,
     DevelopmentSession,
     FlowResult,
     FlowRun,
@@ -31,9 +32,15 @@ from hanuman.services.core.github_service import (
 
 FLOW_ID = "github-activity-notion-project-memory"
 FLOW_VERSION = "1.0"
-GROUPING_VERSION = 1
+GROUPING_VERSION = 2
 SESSION_NAMESPACE = uuid.UUID("b942def8-2247-59be-94bb-63d7b4def622")
 SHA_PATTERN = re.compile(r"^[0-9a-fA-F]{40}$")
+CONVENTIONAL_PREFIX = re.compile(
+    r"^(?:feat|fix|docs|test|tests|refactor|build|ci|chore|perf|style|revert)"
+    r"(?:\([^)]*\))?!?:\s*",
+    re.IGNORECASE,
+)
+MAX_TITLE_LENGTH = 80
 
 GithubServiceFactory = Callable[[], GithubService]
 
@@ -146,6 +153,26 @@ def _session_id(grouping_key: str) -> str:
     return str(uuid.uuid5(SESSION_NAMESPACE, grouping_key))
 
 
+def _clean_subject(subject: str) -> str:
+    cleaned = CONVENTIONAL_PREFIX.sub("", " ".join(subject.split())).strip(" -–—:")
+    if not cleaned:
+        return ""
+    return cleaned[0].upper() + cleaned[1:]
+
+
+def _computed_title(commit: NormalizedCommit) -> str:
+    branch = commit.full_ref.removeprefix("refs/heads/")
+    subject = _clean_subject(commit.message_subject)
+    if not subject:
+        return branch[:MAX_TITLE_LENGTH]
+    available = MAX_TITLE_LENGTH - len(branch) - 3
+    if available < 1:
+        return branch[:MAX_TITLE_LENGTH]
+    if len(subject) > available:
+        subject = subject[: max(1, available - 1)].rstrip() + "…"
+    return f"{branch} — {subject}"
+
+
 def _summary(session: DevelopmentSession, commits: list[NormalizedCommit]) -> str:
     session_commits = [commit for commit in commits if commit.commit_id in set(session.commit_ids)]
     subjects = [commit.message_subject for commit in session_commits[:5]]
@@ -160,11 +187,22 @@ def _summary(session: DevelopmentSession, commits: list[NormalizedCommit]) -> st
     )
 
 
+def _continuity(
+    previous_sha: str,
+    commit: NormalizedCommit,
+) -> ContinuityStatus:
+    if commit.continuity_with_previous is not None:
+        return commit.continuity_with_previous
+    if previous_sha in commit.parent_shas:
+        return "confirmed"
+    return "unknown"
+
+
 def group_development_sessions(
     commits: list[NormalizedCommit],
     *,
     session_window_hours: int,
-) -> tuple[list[DevelopmentSession], dict[str, str], list[str]]:
+) -> tuple[list[DevelopmentSession], dict[str, str], list[str], dict[str, int]]:
     """Regroupe des commits sans état persistant ni déduction probabiliste."""
 
     if session_window_hours < 1:
@@ -183,6 +221,11 @@ def group_development_sessions(
     active: dict[tuple[int, str], DevelopmentSession] = {}
     associations: dict[str, str] = {}
     warnings: list[str] = []
+    continuity_metrics = {
+        "continuity_confirmed": 0,
+        "continuity_unknown": 0,
+        "continuity_broken": 0,
+    }
     window = timedelta(hours=session_window_hours)
 
     for commit in ordered:
@@ -191,19 +234,23 @@ def group_development_sessions(
         if current is not None:
             previous_sha = current.commit_ids[-1].split(":", maxsplit=1)[1]
             gap = commit.committed_at - current.last_activity_at
-            continuous = previous_sha in commit.parent_shas
-            if not continuous:
+            continuity = _continuity(previous_sha, commit)
+            continuity_metrics[f"continuity_{continuity}"] += 1
+            if gap > window:
                 current.status = "closed"
                 current.ended_at = current.last_activity_at
-                warnings.append(
-                    f"Continuité inconnue entre {previous_sha[:7]} et {commit.short_sha}; "
-                    "une nouvelle session est ouverte."
+                current = None
+            elif continuity == "broken":
+                current.status = "closed"
+                current.ended_at = current.last_activity_at
+                current = None
+            elif continuity == "unknown":
+                warning = (
+                    f"Continuité Git non démontrée entre {previous_sha[:7]} et "
+                    f"{commit.short_sha} ; regroupement temporel conservé."
                 )
-                current = None
-            elif gap > window:
-                current.status = "closed"
-                current.ended_at = current.last_activity_at
-                current = None
+                warnings.append(warning)
+                current.warnings.append(warning)
 
         if current is None:
             grouping_key = _grouping_key(commit)
@@ -218,7 +265,7 @@ def group_development_sessions(
                 commit_ids=[],
                 branches=[commit.full_ref],
                 status="open",
-                computed_title=commit.full_ref.removeprefix("refs/heads/"),
+                computed_title=_computed_title(commit),
                 generated_summary="",
                 github_links=[],
                 primary_ref=commit.full_ref,
@@ -234,7 +281,7 @@ def group_development_sessions(
 
     for session in sessions:
         session.generated_summary = _summary(session, ordered)
-    return sessions, associations, warnings
+    return sessions, associations, warnings, continuity_metrics
 
 
 def _plan_fingerprint_payload(
@@ -437,7 +484,7 @@ def plan_github_project_memory(
     )
 
     group_started = _now()
-    sessions, associations, warnings = group_development_sessions(
+    sessions, associations, warnings, continuity_metrics = group_development_sessions(
         commits,
         session_window_hours=flow_input.session_window_hours,
     )
@@ -451,6 +498,7 @@ def plan_github_project_memory(
                 "sessions": len(sessions),
                 "sessions_open": sum(session.status == "open" for session in sessions),
                 "sessions_closed": sum(session.status == "closed" for session in sessions),
+                **continuity_metrics,
             },
             warnings=warnings,
         )
@@ -504,6 +552,7 @@ def plan_github_project_memory(
         }
     )
     plan = GitHubProjectMemoryPlan(
+        schema_version=2,
         repository=repository,
         full_ref=full_ref,
         start_ref=flow_input.start_ref,
@@ -511,6 +560,7 @@ def plan_github_project_memory(
         commits_read=len(raw_commits),
         commits_valid=len(commits),
         commits_skipped=0,
+        commits=commits,
         sessions=sessions,
         sessions_open=sum(session.status == "open" for session in sessions),
         sessions_closed=sum(session.status == "closed" for session in sessions),
@@ -523,6 +573,7 @@ def plan_github_project_memory(
             "commits_valid": len(commits),
             "commits_skipped": 0,
             "sessions": len(sessions),
+            **continuity_metrics,
         },
         fingerprint=fingerprint,
     )
@@ -590,6 +641,7 @@ def plan_github_project_memory(
             "sessions": len(sessions),
             "sessions_open": plan.sessions_open,
             "sessions_closed": plan.sessions_closed,
+            **continuity_metrics,
             "effects_planned": len(effects),
             "external_writes": 0,
         },

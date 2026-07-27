@@ -291,7 +291,7 @@ n'affirme pas une intention que GitHub ne permet pas d'établir.
 | `generated_summary` | Résumé déterministe des sujets de commits |
 | `github_links` | Branche, comparaison et commits utiles |
 | `related_pr`, `related_release`, `milestone` | Facultatifs ; hors alimentation V1 |
-| `grouping_version` | Version de la règle, `1` en V1 |
+| `grouping_version` | Version de la règle ; `2` pour la Phase 1 révisée |
 
 Une session est une unité de mémoire, pas une branche permanente : plusieurs
 sessions peuvent se succéder sur la même branche. Son résumé V1 liste de façon
@@ -350,12 +350,18 @@ Pour chaque commit d'un push, dans l'ordre d'ascendance :
 
 1. chercher une association manuelle explicite `repository_id + SHA →
    session_id` ; si elle existe, l'appliquer ;
-2. sinon rechercher une session `open` du même dépôt et de la même ref primaire
-   dont le dernier commit est ancêtre ou `before_sha` du push ;
+2. sinon rechercher une session `open` du même dépôt et de la même ref
+   primaire ;
 3. exiger que le commit courant soit au plus à 24 heures du
    `last_activity_at` de cette session ;
-4. si une seule session satisfait ces critères, la mettre à jour ;
-5. sinon ouvrir une nouvelle session avec un `session_id` opaque et stable.
+4. qualifier la continuité Git en `confirmed`, `unknown` ou `broken` :
+   une ascendance prouvée confirme la continuité, des données insuffisantes
+   restent inconnues, et seule une incompatibilité explicitement démontrée
+   constitue une rupture ;
+5. rattacher le commit si la continuité est `confirmed` ou `unknown` ; dans ce
+   dernier cas, produire un avertissement non bloquant ;
+6. ouvrir une nouvelle session si la continuité est `broken`, si la fenêtre
+   est dépassée, ou si le dépôt ou la ref primaire diffèrent.
 
 Le `grouping_key` d'ouverture est une empreinte de
 `grouping_version + repository_id + full_ref + first_commit_sha`. Il permet de
@@ -363,11 +369,17 @@ retrouver la même ouverture lors d'une réexécution, sans faire du titre une
 identité. Une table de correspondance Hanuman conserve `commit_id →
 session_id`; cette association vérifiée prévaut lors des retries.
 
+La Phase 1 révisée utilise `grouping_version = 2`, car les mêmes commits peuvent
+être regroupés différemment lorsque leur continuité est inconnue. La version
+entre dans le `grouping_key` : une version donnée reste idempotente, mais la
+migration ne conserve pas artificiellement les anciens `session_id`.
+
 ### 7.3 Ouverture, mise à jour et clôture
 
 - **Ouverture :** premier commit non associé ne rejoignant aucune session
-  admissible. Le titre calculé utilise le nom lisible de branche, ou le sujet
-  du premier commit sur la branche par défaut.
+  admissible. Le titre calculé préfixe le nom lisible de branche au premier
+  sujet non vide, après retrait d'un éventuel préfixe Conventional Commit et
+  avec une longueur bornée. À défaut de sujet utile, il revient à la branche.
 - **Retrouver :** priorité à l'association persistée, puis au
   `grouping_key`, puis à l'unique session ouverte satisfaisant continuité,
   branche et fenêtre.
@@ -386,12 +398,13 @@ session_id`; cette association vérifiée prévaut lors des retries.
 
 ### 7.4 Cas particuliers
 
-- **Plusieurs pushes :** ils prolongent la même session si la ref, la
-  continuité et la fenêtre correspondent. La livraison du push n'est pas
-  l'identité de la session.
+- **Plusieurs pushes :** ils prolongent la même session si le dépôt, la ref et
+  la fenêtre correspondent, sauf continuité explicitement rompue. Une
+  continuité inconnue conserve le regroupement temporel et produit un
+  avertissement. La livraison du push n'est pas l'identité de la session.
 - **Branche principale :** les commits directs sont regroupés selon la même
-  fenêtre de 24 heures. Un nouveau push sans continuité n'est pas rattaché
-  automatiquement.
+  fenêtre de 24 heures. Une absence de preuve de continuité ne suffit pas à
+  ouvrir une nouvelle session.
 - **Merge :** le commit de merge appartient à la session de la ref poussée. Il
   peut fermer une session de branche liée, mais ne déplace pas ses commits.
 - **Force-push :** aucun commit ni contenu éditorial n'est supprimé. Le Run
@@ -629,6 +642,13 @@ La preview est la présentation du plan à l'utilisateur lors d'une commande
 manuelle : nombre de sessions et commits concernés, pages créées ou mises à
 jour, regroupements proposés, avertissements et cible exacte. Un plan seulement
 journalisé ou calculé en mémoire n'est pas une preview.
+
+La sortie terminal détaillée présente le Repository, puis chaque Development
+Session avec son identité, sa clé abrégée, son état, ses dates, ses
+avertissements et ses commits. Les effets sont regroupés par Repository,
+sessions, fermetures et absence de changement. La sortie terminal par défaut
+reste synthétique ; les associations complètes restent disponibles dans le
+JSON structuré, dont le schéma de plan vaut `2`.
 
 La preview doit expirer ou être invalidée si l'empreinte GitHub, la cible ou
 l'état Notion pertinent change avant l'application.

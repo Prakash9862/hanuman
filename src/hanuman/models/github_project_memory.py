@@ -7,6 +7,7 @@ from typing import Any, Literal
 StepStatus = Literal["succeeded", "failed", "skipped"]
 RunStatus = Literal["succeeded", "failed", "skipped"]
 SessionStatus = Literal["open", "closed"]
+ContinuityStatus = Literal["confirmed", "unknown", "broken"]
 
 
 @dataclass(frozen=True)
@@ -44,6 +45,7 @@ class NormalizedCommit:
     message_subject: str
     url: str
     provenance: str = "github"
+    continuity_with_previous: ContinuityStatus | None = None
 
     @property
     def commit_id(self) -> str:
@@ -66,6 +68,7 @@ class DevelopmentSession:
     generated_summary: str
     github_links: list[str]
     primary_ref: str
+    warnings: list[str] = field(default_factory=list)
 
 
 @dataclass(frozen=True)
@@ -77,6 +80,7 @@ class PlannedEffect:
 
 @dataclass
 class GitHubProjectMemoryPlan:
+    schema_version: int
     repository: NormalizedRepository
     full_ref: str
     start_ref: str | None
@@ -84,6 +88,7 @@ class GitHubProjectMemoryPlan:
     commits_read: int
     commits_valid: int
     commits_skipped: int
+    commits: list[NormalizedCommit]
     sessions: list[DevelopmentSession]
     sessions_open: int
     sessions_closed: int

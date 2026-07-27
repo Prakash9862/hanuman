@@ -8,6 +8,7 @@ from hanuman.models.github_project_memory import (
     NormalizedCommit,
 )
 from hanuman.orchestrations.github_project_memory import (
+    GROUPING_VERSION,
     group_development_sessions,
     plan_github_project_memory,
 )
@@ -111,6 +112,7 @@ def normalized_commit(
     parent: str | None = None,
     committed_at: datetime | None = None,
     subject: str = "Change",
+    continuity: str | None = None,
 ) -> NormalizedCommit:
     timestamp = committed_at or datetime(2026, 7, 1, 9, tzinfo=UTC)
     return NormalizedCommit(
@@ -125,6 +127,7 @@ def normalized_commit(
         committed_at=timestamp,
         message_subject=subject,
         url=f"https://github.example/repository/commit/{sha}",
+        continuity_with_previous=continuity,  # type: ignore[arg-type]
     )
 
 
@@ -156,6 +159,48 @@ def test_continuous_commits_inside_window_share_session() -> None:
         f"{REPOSITORY_ID}:{SHA_1}",
         f"{REPOSITORY_ID}:{SHA_2}",
     ]
+    assert run.metrics["continuity_confirmed"] == 1
+
+
+def test_unknown_continuity_inside_window_keeps_session_with_warning() -> None:
+    first = datetime(2026, 7, 1, 9, tzinfo=UTC)
+    commits = [
+        normalized_commit(REPOSITORY_ID, SHA_1, committed_at=first),
+        normalized_commit(
+            REPOSITORY_ID,
+            SHA_2,
+            committed_at=first + timedelta(minutes=10),
+        ),
+    ]
+
+    sessions, _, warnings, metrics = group_development_sessions(commits, session_window_hours=24)
+
+    assert len(sessions) == 1
+    assert warnings == [
+        f"Continuité Git non démontrée entre {SHA_1[:7]} et {SHA_2[:7]} ; "
+        "regroupement temporel conservé."
+    ]
+    assert sessions[0].warnings == warnings
+    assert metrics["continuity_unknown"] == 1
+
+
+def test_explicitly_broken_continuity_inside_window_opens_session() -> None:
+    first = datetime(2026, 7, 1, 9, tzinfo=UTC)
+    commits = [
+        normalized_commit(REPOSITORY_ID, SHA_1, committed_at=first),
+        normalized_commit(
+            REPOSITORY_ID,
+            SHA_2,
+            committed_at=first + timedelta(minutes=10),
+            continuity="broken",
+        ),
+    ]
+
+    sessions, _, warnings, metrics = group_development_sessions(commits, session_window_hours=24)
+
+    assert [session.status for session in sessions] == ["closed", "open"]
+    assert warnings == []
+    assert metrics["continuity_broken"] == 1
 
 
 def test_commits_after_window_create_two_sessions_and_close_first() -> None:
@@ -183,7 +228,7 @@ def test_two_branches_create_distinct_sessions() -> None:
             parent=SHA_1,
         ),
     ]
-    sessions, _, _ = group_development_sessions(commits, session_window_hours=24)
+    sessions, _, _, _ = group_development_sessions(commits, session_window_hours=24)
     assert len(sessions) == 2
     assert {session.primary_ref for session in sessions} == {
         "refs/heads/main",
@@ -196,7 +241,7 @@ def test_two_repositories_never_share_session() -> None:
         normalized_commit(1, SHA_1),
         normalized_commit(2, SHA_2, parent=SHA_1),
     ]
-    sessions, _, _ = group_development_sessions(commits, session_window_hours=24)
+    sessions, _, _, _ = group_development_sessions(commits, session_window_hours=24)
     assert len(sessions) == 2
     assert {session.repository_id for session in sessions} == {1, 2}
 
@@ -210,7 +255,8 @@ def test_title_is_not_an_identity_and_identical_run_is_stable() -> None:
     first_session = first.result.plan.sessions[0]
     second_session = second.result.plan.sessions[0]
 
-    assert first_session.computed_title == "main"
+    assert first_session.computed_title == "main — Title A"
+    assert first_session.grouping_version == GROUPING_VERSION == 2
     assert first_session.session_id == second_session.session_id
     assert first_session.grouping_key == second_session.grouping_key
     assert first.result.plan.fingerprint == second.result.plan.fingerprint
@@ -227,7 +273,7 @@ def test_commits_are_ordered_chronologically() -> None:
             committed_at=early - timedelta(hours=1),
         ),
     ]
-    sessions, _, _ = group_development_sessions(commits, session_window_hours=24)
+    sessions, _, _, _ = group_development_sessions(commits, session_window_hours=24)
     assert sessions[0].commit_ids == [
         f"{REPOSITORY_ID}:{SHA_1}",
         f"{REPOSITORY_ID}:{SHA_2}",
@@ -330,3 +376,58 @@ def test_sensitive_commit_data_is_not_exposed() -> None:
     assert "secret@example.test" not in serialized
     assert "do-not-expose" not in serialized
     assert "Visible subject" in serialized
+
+
+def test_computed_title_removes_conventional_prefix_and_is_bounded() -> None:
+    subject = "refactor(ui): improve navigation and project data " + "x" * 100
+    service = FakeGithubService([raw_commit(SHA_1, message=subject)])
+    run = plan_github_project_memory(flow_input(), github_factory=lambda: service)
+
+    assert run.result.plan is not None
+    title = run.result.plan.sessions[0].computed_title
+    assert title.startswith("main — Improve navigation and project data")
+    assert "refactor(ui)" not in title
+    assert len(title) <= 80
+
+
+def test_grouping_version_is_part_of_grouping_key(
+    monkeypatch: Any,
+) -> None:
+    import hanuman.orchestrations.github_project_memory as project_memory
+
+    commits = [normalized_commit(REPOSITORY_ID, SHA_1)]
+    current, _, _, _ = group_development_sessions(commits, session_window_hours=24)
+    monkeypatch.setattr(project_memory, "GROUPING_VERSION", GROUPING_VERSION + 1)
+    next_version, _, _, _ = group_development_sessions(commits, session_window_hours=24)
+
+    assert current[0].grouping_key != next_version[0].grouping_key
+    assert current[0].session_id != next_version[0].session_id
+
+
+def test_real_unknown_continuity_pattern_no_longer_creates_unit_sessions() -> None:
+    start = datetime(2026, 7, 1, 8, tzinfo=UTC)
+    commits: list[NormalizedCommit] = []
+    previous: str | None = None
+    for index in range(50):
+        sha = f"{index + 1:040x}"
+        parent = previous if index < 32 or index >= 37 else None
+        commits.append(
+            normalized_commit(
+                REPOSITORY_ID,
+                sha,
+                parent=parent,
+                committed_at=start + timedelta(minutes=index * 10),
+                subject=f"docs: change {index + 1}",
+            )
+        )
+        previous = sha
+
+    sessions, _, warnings, metrics = group_development_sessions(commits, session_window_hours=24)
+
+    assert [len(session.commit_ids) for session in sessions] == [50]
+    assert len(warnings) == 5
+    assert metrics == {
+        "continuity_confirmed": 44,
+        "continuity_unknown": 5,
+        "continuity_broken": 0,
+    }
