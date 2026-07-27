@@ -93,9 +93,7 @@ def _print_run(run: FlowRun, *, detailed: bool, console: Console) -> None:
     if run.result.verification == "not_applied":
         console.print("[yellow]Phase 1 — plan uniquement, aucune écriture Notion[/yellow]\n")
     else:
-        console.print(
-            "[yellow]Phase 2 — créations contrôlées dans la cible Notion de test[/yellow]\n"
-        )
+        console.print("[yellow]Phase 2 — synchronisation incrémentale Notion[/yellow]\n")
 
     if run.result.plan is None:
         console.print(f"[red]Échec :[/red] {run.result.summary}")
@@ -203,10 +201,28 @@ def _print_run(run: FlowRun, *, detailed: bool, console: Console) -> None:
 
         if run.result.verification != "not_applied":
             console.print("\n[bold]Apply / Verify[/bold]")
-            console.print(f"  créations : {run.result.resources_created}")
-            console.print(f"  sans changement : {run.result.resources_skipped}")
-            console.print(f"  mises à jour : {run.result.resources_updated}")
-            console.print(f"  vérification : {run.result.verification}")
+            effects = run.result.effects
+            for label, prefix in (
+                ("Repositories", "repository."),
+                ("Development Sessions", "development_session."),
+            ):
+                console.print(f"  [bold]{label}[/bold]")
+                console.print(
+                    f"    created : {sum(e.effect_type == prefix + 'create' for e in effects)}"
+                )
+                console.print(
+                    f"    updated : {sum(e.effect_type == prefix + 'update' for e in effects)}"
+                )
+                console.print(
+                    "    unchanged : "
+                    f"{sum(e.effect_type == prefix + 'no_change' for e in effects)}"
+                )
+            console.print("  [bold]Commits[/bold]")
+            console.print(f"    added : {run.metrics.get('commits_added', 0)}")
+            console.print(f"    already present : {run.metrics.get('commits_already_present', 0)}")
+            console.print(f"    ignored : {run.metrics.get('commits_ignored', 0)}")
+            console.print("  [bold]Verification[/bold]")
+            console.print(f"    {run.result.verification}")
             for effect in run.result.effects:
                 console.print(
                     f"  - {effect.effect_type} | {effect.identity} | {effect.description}"
