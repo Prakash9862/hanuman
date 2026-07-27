@@ -3,12 +3,45 @@ from __future__ import annotations
 import json
 import time
 import urllib.error
+import urllib.parse
 from pathlib import Path
 from typing import Any
 
 import pytest
 
 from hanuman.core import gmail
+
+
+class FakeResponse:
+    def __init__(self, payload: object) -> None:
+        self.payload = payload
+
+    def __enter__(self) -> FakeResponse:
+        return self
+
+    def __exit__(self, *args: object) -> None:
+        return None
+
+    def read(self) -> bytes:
+        return json.dumps(self.payload).encode()
+
+
+def test_json_request_encodes_form_and_rejects_non_object(monkeypatch):
+    captured = {}
+
+    def fake_urlopen(request, timeout):
+        captured["request"] = request
+        captured["timeout"] = timeout
+        return FakeResponse({"ok": True})
+
+    monkeypatch.setattr(gmail.urllib.request, "urlopen", fake_urlopen)
+    assert gmail._json_request("https://test", method="POST", data={"a": "b"}) == {"ok": True}
+    assert captured["request"].get_header("Content-type") == ("application/x-www-form-urlencoded")
+    assert captured["request"].data == b"a=b"
+
+    monkeypatch.setattr(gmail.urllib.request, "urlopen", lambda *args, **kwargs: FakeResponse([]))
+    with pytest.raises(RuntimeError, match="inattendue"):
+        gmail._json_request("https://test")
 
 
 def test_credentials_prefers_environment(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
@@ -81,6 +114,22 @@ def test_save_token_sets_expiry_and_restricts_permissions(
     assert token_path.stat().st_mode & 0o777 == 0o600
 
 
+def test_authorization_url_and_exchange_code_delegate(monkeypatch):
+    monkeypatch.setattr(gmail, "_credentials", lambda: ("client", "secret"))
+    monkeypatch.setenv("GMAIL_REDIRECT_URI", "https://callback.test")
+    url, state = gmail.authorization_url("fixed-state")
+    query = urllib.parse.parse_qs(urllib.parse.urlparse(url).query)
+    assert state == "fixed-state"
+    assert query["client_id"] == ["client"]
+    assert query["state"] == ["fixed-state"]
+
+    saved = []
+    monkeypatch.setattr(gmail, "_json_request", lambda *args, **kwargs: {"token": "value"})
+    monkeypatch.setattr(gmail, "_save_token", lambda token: saved.append(token))
+    gmail.exchange_code("code")
+    assert saved == [{"token": "value"}]
+
+
 def test_access_token_refreshes_expired_token(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -111,6 +160,19 @@ def test_access_token_refreshes_expired_token(
             "refresh_token": "dummy-refresh-token",
         }
     ]
+
+
+def test_access_token_prefers_environment_and_valid_cached_token(monkeypatch):
+    monkeypatch.setenv("GMAIL_ACCESS_TOKEN", "environment")
+    assert gmail._access_token() == "environment"
+
+    monkeypatch.delenv("GMAIL_ACCESS_TOKEN")
+    monkeypatch.setattr(
+        gmail,
+        "_load_token",
+        lambda: {"access_token": "cached", "expires_at": time.time() + 100},
+    )
+    assert gmail._access_token() == "cached"
 
 
 def test_access_token_rejects_expired_token_without_refresh(
@@ -157,6 +219,31 @@ def test_body_decodes_nested_unicode_plain_text() -> None:
     }
 
     assert gmail._body(payload) == "Bonjour 🙂"
+
+
+def test_api_builds_authenticated_encoded_url(monkeypatch):
+    captured = {}
+    monkeypatch.setattr(gmail, "_access_token", lambda: "token")
+
+    def fake_request(url, **kwargs):
+        captured["url"] = url
+        captured.update(kwargs)
+        return {"ok": True}
+
+    monkeypatch.setattr(gmail, "_json_request", fake_request)
+    assert gmail._api("/messages", {"q": "from:alice"}) == {"ok": True}
+    assert captured["url"].endswith("messages?q=from%3Aalice")
+    assert captured["headers"] == {"Authorization": "Bearer token"}
+
+
+def test_decode_empty_and_invalid_header(monkeypatch):
+    assert gmail._decode(None) == ""
+    monkeypatch.setattr(
+        gmail,
+        "decode_header",
+        lambda value: (_ for _ in ()).throw(LookupError("encoding")),
+    )
+    assert gmail._decode("raw") == "raw"
 
 
 def test_list_messages_ignores_malformed_references(
@@ -221,3 +308,36 @@ def test_status_reports_configuration_and_connection_failures(
     assert disconnected.configured is True
     assert disconnected.connected is False
     assert disconnected.message == "jeton invalide"
+
+
+def test_status_success_and_message_detail(monkeypatch):
+    monkeypatch.setattr(gmail, "_credentials", lambda: ("client", "secret"))
+
+    def fake_api(path, params=None):
+        if path == "profile":
+            return {"emailAddress": "user@example.test"}
+        if path == "labels/INBOX":
+            return {"messagesUnread": 7}
+        return {
+            "id": "message",
+            "threadId": "thread",
+            "payload": {
+                "mimeType": "text/plain",
+                "body": {"data": "SGVsbG8"},
+                "headers": [
+                    {"name": "To", "value": "one@test, two@test"},
+                    {"name": "Cc", "value": "copy@test"},
+                ],
+            },
+        }
+
+    monkeypatch.setattr(gmail, "_api", fake_api)
+    status = gmail.status()
+    assert status.connected is True
+    assert status.email == "user@example.test"
+    assert status.unread == 7
+
+    detail = gmail.get_message("message/with slash")
+    assert detail.recipients == ["one@test", "two@test"]
+    assert detail.cc == ["copy@test"]
+    assert detail.body == "Hello"
