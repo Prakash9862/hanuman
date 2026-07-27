@@ -8,10 +8,12 @@ from pathlib import Path
 import yaml
 
 from hanuman.models.chess import ChessGame, chess_game_path
+from hanuman.models.chess_insight import ChessInsight, ChessInsightEnvelope
 from hanuman.services.chess_eco_page_service import (
     SECTION_HEADINGS,
     write_eco_pages,
 )
+from hanuman.services.chess_insight_storage_service import inject_insight_block
 
 ECOS = (
     "A00",
@@ -122,7 +124,9 @@ Intouchables.
 
 
 def _fake_pdf(monkeypatch) -> Path:
-    lines = "\n".join(f"{eco} nom officiel {eco} 1.d4 d5 2.Ff4 Cf6 3.e3 e6" for eco in ECOS)
+    lines = "\n".join(
+        f"{eco} nom officiel {eco} 1.d4 d5 2.Ff4 Cf6 3.e3 e6" for eco in ECOS
+    )
     monkeypatch.setattr(
         "hanuman.services.chess_eco_page_service.subprocess.run",
         lambda *args, **kwargs: subprocess.CompletedProcess(args[0], 0, lines, ""),
@@ -155,7 +159,8 @@ def test_industrial_generation_rebuilds_44_ecos_deterministically(
     other_index.write_text("dashboard humain\n", encoding="utf-8")
     protected_before = {path: _digest(path) for path in [*prototypes, other_index]}
     notes_before = {
-        chess_game_path(root, game): _digest(chess_game_path(root, game)) for game in games
+        chess_game_path(root, game): _digest(chess_game_path(root, game))
+        for game in games
     }
 
     first = write_eco_pages(root, games, theory_pdf=_fake_pdf(monkeypatch))
@@ -163,7 +168,9 @@ def test_industrial_generation_rebuilds_44_ecos_deterministically(
         path.name: path.read_bytes()
         for path in (root / "_Index/Ouvertures").glob("[A-E][0-9][0-9].md")
     }
-    second = write_eco_pages(root, list(reversed(games)), theory_pdf=_fake_pdf(monkeypatch))
+    second = write_eco_pages(
+        root, list(reversed(games)), theory_pdf=_fake_pdf(monkeypatch)
+    )
     second_pages = {
         path.name: path.read_bytes()
         for path in (root / "_Index/Ouvertures").glob("[A-E][0-9][0-9].md")
@@ -197,7 +204,13 @@ def test_industrial_generation_rebuilds_44_ecos_deterministically(
         assert board["fen"]
         assert board["pgn"]
         assert "<svg " in content
-        assert board["actions"] == ["open-scid", "open-games", "copy-fen", "copy-pgn", "open-note"]
+        assert board["actions"] == [
+            "open-scid",
+            "open-games",
+            "copy-fen",
+            "copy-pgn",
+            "open-note",
+        ]
         assert content.rstrip().endswith("Intouchables.") is False
 
 
@@ -215,3 +228,79 @@ def test_secondary_threshold_uses_win_rate_without_inventing_lines(
     assert "Aucune variante secondaire" in content
     assert "Autres essais · 0 parties" in content
     assert "Aucune récurrence ni aucun échiquier n’est fabriqué" in content
+
+
+def test_v2_opening_health_and_position_recurrence_use_persisted_data(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    root = tmp_path / "Echecs"
+    games = [_game(root, "D00", index) for index in range(3)]
+    exit_fen = "rnbqkb1r/ppp2ppp/4pn2/3p4/3P1B2/4P3/PPP2PPP/RN1QKBNR w KQkq - 1 4"
+    event_fen = "rnbqkbnr/ppp1pppp/8/3p4/3P4/8/PPP1PPPP/RNBQKBNR w KQkq - 0 2"
+    evaluations = (100, 0, -100)
+    for index, game in enumerate(games):
+        path = chess_game_path(root, game)
+        insight = ChessInsight(
+            insight_id=f"{game.game_id}:3:blunder:player",
+            game_id=game.game_id,
+            category="blunder",
+            subtype="opening",
+            ply=3,
+            move_number=2,
+            color="white",
+            san="Bf4",
+            annotation="??",
+            fen_before=event_fen if index < 2 else exit_fen,
+            fen_after=exit_fen,
+            eval_before_cp=100,
+            eval_after_cp=-120,
+            loss_cp=220,
+            best_move_san="Nf3",
+            principal_variation=("Nf3", "Nf6"),
+            opening_phase=True,
+            eco="D00",
+            player_role="player",
+            played_move_uci="c1f4",
+            best_move_uci="g1f3",
+        )
+        envelope = ChessInsightEnvelope(
+            schema_version=2,
+            game_id=game.game_id,
+            eco="D00",
+            insights=(insight,),
+            analysis_metadata={"evaluation_unit": "centipawn"},
+            opening_exit={
+                "ply": 6,
+                "move_number": 3,
+                "side_to_move": "white",
+                "last_move_san": "e6",
+                "last_move_uci": "e7e6",
+                "fen": exit_fen,
+                "evaluation_value": evaluations[index],
+                "evaluation_type": "centipawn",
+                "evaluation_perspective": "hanuman-player",
+                "depth_reached": 18,
+                "principal_variation": ["Nf3", "Nf6"],
+            },
+        )
+        path.write_text(
+            inject_insight_block(path.read_text(encoding="utf-8"), envelope),
+            encoding="utf-8",
+        )
+
+    write_eco_pages(root, games, theory_pdf=_fake_pdf(monkeypatch))
+    content = (root / "_Index/Ouvertures/D00.md").read_text(encoding="utf-8")
+    metadata = yaml.safe_load(content[4 : content.find("\n---\n", 4)])
+
+    assert metadata["health_scope"]["opening_exit_evaluable_games"] == 3
+    assert metadata["health_scope"]["opening_exit_average_cp"] == 0.0
+    assert metadata["health_scope"]["opening_exit_distribution"] == {
+        "favorable": 1,
+        "balanced": 1,
+        "unfavorable": 1,
+    }
+    assert metadata["boards"][0]["fen"] == exit_fen
+    assert metadata["boards"][0]["position_role"] == "persisted-opening-exit"
+    assert "3 parties évaluables sur 3" in content
+    assert "Position réellement récurrente · 2 occurrences" in content

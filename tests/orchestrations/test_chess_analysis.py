@@ -7,6 +7,7 @@ from hanuman.orchestrations import chess_analysis as mod
 from hanuman.services.chess_analysis_service import (
     GameAnalysis,
     MoveAnalysis,
+    OpeningExitAnalysis,
     StockfishAnalyzer,
 )
 from hanuman.services.chess_insight_storage_service import (
@@ -140,6 +141,8 @@ def _critical_analysis() -> GameAnalysis:
             excellent=True,
             missed_excellent=False,
             opening_phase=True,
+            fen_before="rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+            fen_after="rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1",
         ),
         MoveAnalysis(
             ply=2,
@@ -159,6 +162,8 @@ def _critical_analysis() -> GameAnalysis:
             excellent=False,
             missed_excellent=True,
             opening_phase=True,
+            fen_before="rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1",
+            fen_after="rnbqkbnr/pp1ppppp/8/2p5/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 2",
         ),
     ]
     return GameAnalysis(
@@ -174,6 +179,21 @@ def _critical_analysis() -> GameAnalysis:
         average_centipawn_loss=127.5,
         worst_move="1...c5??",
         turning_point_ply=2,
+        analysed_at="2026-07-27T12:00:00+00:00",
+        analysis_limit={"depth": 18},
+        opening_exit=OpeningExitAnalysis(
+            ply=2,
+            move_number=1,
+            side_to_move="white",
+            last_move_san="c5",
+            last_move_uci="c7c5",
+            fen="rnbqkbnr/pp1ppppp/8/2p5/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 2",
+            evaluation_value=35,
+            evaluation_type="centipawn",
+            evaluation_perspective="hanuman-player",
+            depth_reached=18,
+            principal_variation=["Nf3", "d6"],
+        ),
     )
 
 
@@ -253,9 +273,24 @@ color: black
     assert first_envelope is not None
     assert first_envelope.game_id == "game-42"
     assert first_envelope.eco == "B20"
+    assert first_envelope.schema_version == 2
+    assert first_envelope.analysis_metadata is not None
+    assert first_envelope.analysis_metadata["analysis_limit"] == {"depth": 18}
+    assert first_envelope.opening_exit is not None
+    assert first_envelope.opening_exit["evaluation_perspective"] == "hanuman-player"
+    assert first_envelope.opening_exit["fen"] == (
+        "rnbqkbnr/pp1ppppp/8/2p5/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 2"
+    )
     assert [(item.category, item.player_role) for item in first_envelope.insights] == [
         ("excellent", "opponent"),
         ("blunder", "player"),
         ("opportunity", "player"),
     ]
     assert all(item.category != "motif" for item in first_envelope.insights)
+    player_blunder = next(
+        item for item in first_envelope.insights if item.category == "blunder"
+    )
+    assert player_blunder.fen_before.endswith(" b KQkq - 0 1")
+    assert player_blunder.fen_after.endswith(" w KQkq - 0 2")
+    assert player_blunder.played_move_uci == "c7c5"
+    assert player_blunder.best_move_uci == "e7e5"

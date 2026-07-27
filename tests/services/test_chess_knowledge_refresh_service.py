@@ -98,7 +98,7 @@ def test_refresh_makes_45_plus_483_analyses_visible_without_rerunning_stockfish(
     assert first.games_pending == 469
     assert first.analyses_invalid == 0
     assert first.analyses_orphaned == 0
-    assert first.opening_indexes_written == 0
+    assert first.opening_indexes_written == 1
     assert second.analyses_valid == first.analyses_valid
     assert second_files == first_files
     assert {path: _digest(path) for path in notes} == before
