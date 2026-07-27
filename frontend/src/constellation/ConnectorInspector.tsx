@@ -16,7 +16,7 @@ export function ConnectorInspector({ connector, health, checkedAt, onClose, onOp
   const flowCount = relatedFlowCount(connector.id)
 
   return (
-    <aside className="connector-inspector" aria-label={`Inspection de ${connector.label}`} aria-live="polite">
+    <aside className={`connector-inspector connector-inspector--${connector.palette}`} aria-label={`Inspection de ${connector.label}`} aria-live="polite">
       <div className="connector-inspector__heading">
         <span className={`connector-inspector__emblem connector-inspector__emblem--${connector.palette}`}><Icon size={19} /></span>
         <div><p>Connecteur / inspection</p><h1>{connector.label}</h1></div>

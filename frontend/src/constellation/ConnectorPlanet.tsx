@@ -22,7 +22,6 @@ export function ConnectorPlanet({
   onPreview,
   onOpen,
 }: Props) {
-  const Icon = connector.icon
   const className = [
     'connector-planet',
     `connector-planet--${connector.size}`,
@@ -55,10 +54,12 @@ export function ConnectorPlanet({
       onBlur={stopPreview}
     >
       <span className="connector-planet__halo" aria-hidden="true" />
-      <span className="connector-planet__body"><Icon aria-hidden="true" /></span>
+      <span className="connector-planet__body" aria-hidden="true">
+        <span className="connector-planet__surface" />
+      </span>
       <span className="connector-planet__label">
         <b>{connector.label}</b>
-        <small>{connector.description}</small>
+        <i className={`connector-planet__status is-${health}`} aria-hidden="true" />
       </span>
     </button>
   )

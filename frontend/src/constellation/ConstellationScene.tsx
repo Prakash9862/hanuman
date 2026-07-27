@@ -80,6 +80,8 @@ export function ConstellationScene() {
         onPointerCancel={() => { dragStart.current = null }}
       >
         <div className="constellation__grid" aria-hidden="true" />
+        <div className="constellation__stars constellation__stars--near" aria-hidden="true" />
+        <div className="constellation__stars constellation__stars--far" aria-hidden="true" />
         <div className="constellation__world" style={{ transform: `translate(${viewport.x}px, ${viewport.y}px) scale(${viewport.scale})` }}>
           <span className="constellation__orbit constellation__orbit--inner" aria-hidden="true" />
           <span className="constellation__orbit constellation__orbit--outer" aria-hidden="true" />
