@@ -1,11 +1,12 @@
 import datetime as dt
 import hashlib
+import re
 from dataclasses import replace
 
 import pytest
 
 from hanuman.models.chess import ChessGame, chess_game_path
-from hanuman.models.chess_insight import ChessInsight, ChessInsightEnvelope
+from hanuman.models.chess_insight import ChessInsightEnvelope
 from hanuman.orchestrations import chess_to_obsidian as mod
 from hanuman.services.chess_insight_storage_service import (
     inject_insight_block,
@@ -619,30 +620,50 @@ def test_limited_sync_rebuilds_views_from_complete_vault(tmp_path, monkeypatch) 
         path.parent.mkdir(parents=True, exist_ok=True)
         note = mod._game_note(game)
         if index <= 7:
-            insight = ChessInsight(
-                insight_id=f"{game.game_id}:1:blunder:player",
-                game_id=game.game_id,
-                category="blunder",
-                subtype="opening",
-                ply=1,
-                move_number=1,
-                color="white",
-                san="e4",
-                annotation="??",
-                fen_before=None,
-                fen_after=None,
-                eval_before_cp=100,
-                eval_after_cp=-100,
-                loss_cp=200,
-                best_move_san="d4",
-                principal_variation=("d4",),
-                opening_phase=True,
-                eco="B20",
-                player_role="player",
-            )
-            note = inject_insight_block(
+            visible_analysis = """<!-- HANUMAN_CHESS_ANALYSIS_START -->
+## Analyse Stockfish
+
+### Ton bilan
+
+- **Moteur :** Stockfish 17
+- **Profondeur :** 18
+- **Perte moyenne :** 20.0 cp par coup joué
+- **Pire coup :** 1.e4??
+- **Moment de bascule :** 1.e4??
+
+| Qualité | Nombre |
+|---|---:|
+| `??` Gaffes | 1 |
+| `?` Erreurs | 0 |
+| `?!` Coups douteux | 0 |
+| `!!` Excellents coups | 0 |
+| Excellents coups manqués | 0 |
+
+### Tes coups critiques
+
+| Coup | Qualité | Éval. avant | Éval. après | Perte | Meilleur coup |
+|---|:---:|---:|---:|---:|---|
+| **1.e4??** | ?? | +1.00 | -1.00 | 200 cp | `d4` |
+
+### Variantes critiques
+
+#### 1.e4??
+
+- **Meilleur coup :** `d4`
+- **Perte :** 200 cp
+- **Phase :** ouverture
+
+```text
+d4
+```
+
+<!-- HANUMAN_CHESS_ANALYSIS_END -->"""
+            note = re.sub(
+                r"<!-- HANUMAN_CHESS_ANALYSIS_START -->.*?"
+                r"<!-- HANUMAN_CHESS_ANALYSIS_END -->",
+                visible_analysis,
                 note,
-                ChessInsightEnvelope(1, game.game_id, "B20", (insight,)),
+                flags=re.DOTALL,
             )
         path.write_text(note, encoding="utf-8")
     before = {

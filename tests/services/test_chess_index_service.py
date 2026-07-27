@@ -5,17 +5,12 @@ from pathlib import Path
 import pytest
 
 from hanuman.models.chess import ChessGame, chess_game_path
-from hanuman.models.chess_insight import ChessInsight, ChessInsightEnvelope
+from hanuman.models.chess_insight import ChessInsight
 from hanuman.services.chess_analysis_summary_service import (
     ANALYSIS_END,
     ANALYSIS_START,
 )
 from hanuman.services.chess_index_service import write_chess_indexes
-from hanuman.services.chess_insight_storage_service import (
-    INSIGHTS_END,
-    INSIGHTS_START,
-    inject_insight_block,
-)
 
 
 def _games() -> list[ChessGame]:
@@ -424,6 +419,98 @@ def _structured_insight(
     )
 
 
+def _render_analysis_from_insights(insights: list[ChessInsight]) -> str:
+    rows: list[str] = []
+    variants: list[str] = []
+    for insight in insights:
+        separator = "." if insight.color == "white" else "..."
+        annotation = {"blunder": "??", "excellent": "!!", "opportunity": ""}[
+            insight.category
+        ]
+        quality = annotation or "occasion manquée"
+        label = f"{insight.move_number}{separator}{insight.san}{annotation}"
+        rows.append(
+            f"| **{label}** | {quality} | +1.00 | -1.00 | "
+            f"{insight.loss_cp} cp | `{insight.best_move_san}` |"
+        )
+        variants.append(
+            f"#### {label}\n\n"
+            f"- **Phase :** {'ouverture' if insight.opening_phase else 'milieu ou finale'}\n\n"
+            "```text\n"
+            f"{' '.join(insight.principal_variation)}\n"
+            "```"
+        )
+    counts = {
+        category: sum(item.category == category for item in insights)
+        for category in ("blunder", "excellent", "opportunity")
+    }
+    return f"""{ANALYSIS_START}
+## Analyse Stockfish
+
+### Ton bilan
+
+- **Moteur :** Stockfish 17
+- **Profondeur :** 18
+- **Perte moyenne :** 25.0 cp par coup joué
+- **Pire coup :** —
+- **Moment de bascule :** —
+
+| Qualité | Nombre |
+|---|---:|
+| `??` Gaffes | {counts["blunder"]} |
+| `?` Erreurs | 0 |
+| `?!` Coups douteux | 0 |
+| `!!` Excellents coups | {counts["excellent"]} |
+| Excellents coups manqués | {counts["opportunity"]} |
+
+### Tes coups critiques
+
+| Coup | Qualité | Éval. avant | Éval. après | Perte | Meilleur coup |
+|---|:---:|---:|---:|---:|---|
+{chr(10).join(rows)}
+
+### Variantes critiques
+
+{chr(10).join(variants)}
+{ANALYSIS_END}
+"""
+
+
+def test_note_with_blunder_is_automatically_linked_from_blunder_index(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "Echecs"
+    template = _games()[0]
+    games = [
+        replace(
+            template,
+            game_id=f"gaffe-{index}",
+            end_time=dt.datetime(2024, 2, index, 12, tzinfo=dt.timezone.utc),
+            black=f"Opponent{index}",
+        )
+        for index in range(1, 6)
+    ]
+    for game in games:
+        path = chess_game_path(root, game)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        blunder = _structured_insight(
+            game.game_id,
+            "visible-analysis-only",
+            "blunder",
+            "opening",
+            1,
+        )
+        path.write_text(_render_analysis_from_insights([blunder]), encoding="utf-8")
+
+    write_chess_indexes(root, games)
+
+    blunder_summary = (root / "_Index/Gaffes/En ouverture.md").read_text(
+        encoding="utf-8"
+    )
+    for game in games:
+        assert chess_game_path(root, game).stem in blunder_summary
+
+
 def test_write_chess_indexes_integrates_thresholds_without_touching_sources(
     tmp_path: Path,
 ) -> None:
@@ -494,22 +581,13 @@ def test_write_chess_indexes_integrates_thresholds_without_touching_sources(
             )
         path = chess_game_path(root, game)
         path.parent.mkdir(parents=True, exist_ok=True)
-        envelope = ChessInsightEnvelope(1, game.game_id, game.eco, tuple(insights))
-        path.write_text(
-            inject_insight_block(
-                "<!-- HANUMAN_CHESS_ANALYSIS_START -->\n"
-                "Analyse visible intacte\n"
-                "<!-- HANUMAN_CHESS_ANALYSIS_END -->\n",
-                envelope,
-            ),
-            encoding="utf-8",
-        )
+        path.write_text(_render_analysis_from_insights(insights), encoding="utf-8")
 
     absent_path = chess_game_path(root, games[5])
     absent_path.write_text("Ancienne note sans insights", encoding="utf-8")
     invalid_path = chess_game_path(root, games[6])
     invalid_path.write_text(
-        f"{INSIGHTS_START}\n```json\n{{invalid\n```\n{INSIGHTS_END}",
+        f"{ANALYSIS_START}\nbloc tronqué",
         encoding="utf-8",
     )
     human_summary = root / "_Index/Excellents coups/En ouverture.md"

@@ -4,18 +4,14 @@ from pathlib import Path
 import pytest
 
 from hanuman.models.chess import ChessGame, chess_game_path
-from hanuman.models.chess_insight import ChessInsight, ChessInsightEnvelope
+from hanuman.models.chess_insight import ChessInsight
+from hanuman.services.chess_analysis_summary_service import ANALYSIS_END, ANALYSIS_START
 from hanuman.services.chess_insight_aggregation_service import (
     STATUS_CONFIRMED,
     STATUS_DURABLE,
     STATUS_EMERGING,
     aggregate_persisted_chess_insights,
     insight_status,
-)
-from hanuman.services.chess_insight_storage_service import (
-    INSIGHTS_END,
-    INSIGHTS_START,
-    inject_insight_block,
 )
 
 
@@ -73,9 +69,65 @@ def _write_note(
 ) -> None:
     path = chess_game_path(root, game)
     path.parent.mkdir(parents=True, exist_ok=True)
-    envelope = ChessInsightEnvelope(1, game.game_id, game.eco, insights)
+    rows = []
+    variants = []
+    for insight in insights:
+        separator = "." if insight.color == "white" else "..."
+        annotation = {
+            "blunder": "??",
+            "excellent": "!!",
+            "opportunity": "",
+        }.get(insight.category, "")
+        quality = annotation or "occasion manquée"
+        label = f"{insight.move_number}{separator}{insight.san}{annotation}"
+        rows.append(
+            f"| **{label}** | {quality} | +1.00 | -1.00 | "
+            f"{insight.loss_cp} cp | `{insight.best_move_san}` |"
+        )
+        variants.append(
+            f"#### {label}\n\n"
+            f"- **Phase :** {'ouverture' if insight.opening_phase else 'milieu ou finale'}\n\n"
+            "```text\n"
+            f"{' '.join(insight.principal_variation)}\n"
+            "```"
+        )
+    counts = {
+        category: sum(insight.category == category for insight in insights)
+        for category in ("blunder", "excellent", "opportunity")
+    }
     path.write_text(
-        inject_insight_block("# Partie\n", envelope),
+        f"""# Partie
+
+{ANALYSIS_START}
+## Analyse Stockfish
+
+### Ton bilan
+
+- **Moteur :** Stockfish 17
+- **Profondeur :** 18
+- **Perte moyenne :** 25.0 cp par coup joué
+- **Pire coup :** —
+- **Moment de bascule :** —
+
+| Qualité | Nombre |
+|---|---:|
+| `??` Gaffes | {counts["blunder"]} |
+| `?` Erreurs | 0 |
+| `?!` Coups douteux | 0 |
+| `!!` Excellents coups | {counts["excellent"]} |
+| Excellents coups manqués | {counts["opportunity"]} |
+
+### Tes coups critiques
+
+| Coup | Qualité | Éval. avant | Éval. après | Perte | Meilleur coup |
+|---|:---:|---:|---:|---:|---|
+{chr(10).join(rows)}
+
+### Variantes critiques
+
+{chr(10).join(variants)}
+{ANALYSIS_END}
+""",
         encoding="utf-8",
     )
 
@@ -137,7 +189,10 @@ def test_many_occurrences_in_one_game_do_not_cross_threshold(
     _write_note(
         root,
         game,
-        tuple(_insight(f"g1:{index}", "g1", ply=index) for index in range(1, 7)),
+        tuple(
+            _insight(f"g1:{index}", "g1", ply=index * 2 - 1)
+            for index in range(1, 7)
+        ),
     )
 
     group = aggregate_persisted_chess_insights(root, [game]).groups[0]
@@ -147,47 +202,38 @@ def test_many_occurrences_in_one_game_do_not_cross_threshold(
     assert group.status is None
 
 
-def test_aggregation_reports_absent_invalid_unknown_and_unsupported(
+def test_aggregation_reports_absent_and_invalid_analysis_blocks(
     tmp_path: Path,
 ) -> None:
     root = tmp_path / "Echecs"
-    valid, absent, invalid, unknown = [_game(index) for index in range(1, 5)]
-    _write_note(
-        root,
-        valid,
-        (
-            _insight(
-                "motif",
-                valid.game_id,
-                category="motif",
-                subtype="unimplemented",
-            ),
-        ),
-    )
+    valid, absent, invalid, old_chess_insight = [_game(index) for index in range(1, 5)]
+    _write_note(root, valid, ())
     invalid_path = chess_game_path(root, invalid)
     invalid_path.parent.mkdir(parents=True, exist_ok=True)
     invalid_path.write_text(
-        f"{INSIGHTS_START}\n```json\n{{invalid\n```\n{INSIGHTS_END}",
+        f"{ANALYSIS_START}\nbloc tronqué",
         encoding="utf-8",
     )
-    unknown_path = chess_game_path(root, unknown)
-    unknown_path.write_text(
-        f"""{INSIGHTS_START}
+    old_path = chess_game_path(root, old_chess_insight)
+    old_path.write_text(
+        """<!-- HANUMAN_CHESS_INSIGHTS_START -->
 ```json
-{{"schema_version": 2, "game_id": "g4", "eco": "B20", "insights": []}}
+{"schema_version": 1, "game_id": "g4", "eco": "B20", "insights": []}
 ```
-{INSIGHTS_END}""",
+<!-- HANUMAN_CHESS_INSIGHTS_END -->""",
         encoding="utf-8",
     )
 
-    result = aggregate_persisted_chess_insights(root, [valid, absent, invalid, unknown])
+    result = aggregate_persisted_chess_insights(
+        root, [valid, absent, invalid, old_chess_insight]
+    )
 
     assert result.groups == ()
     assert result.diagnostics.blocks_valid == 1
-    assert result.diagnostics.blocks_absent == 1
+    assert result.diagnostics.blocks_absent == 2
     assert result.diagnostics.blocks_invalid == 1
-    assert result.diagnostics.versions_unknown == 1
-    assert result.diagnostics.unsupported_insights_ignored == 1
+    assert result.diagnostics.versions_unknown == 0
+    assert result.diagnostics.unsupported_insights_ignored == 0
 
 
 def test_aggregation_is_stable_when_game_input_order_changes(

@@ -100,6 +100,7 @@ export default function ResourcesPage() {
   const [analysisQueue, setAnalysisQueue] = useState<AnalysisQueue>({ total: 0, analysed: 0, pending: 0 })
   const [analysisState, setAnalysisState] = useState<AnalysisState>({ status: 'idle', total: 0, completed: 0, failed: 0, remaining: 0 })
   const [analysisBusy, setAnalysisBusy] = useState(false)
+  const [knowledgeBusy, setKnowledgeBusy] = useState(false)
 
   const current = useMemo(() => resources.find((resource) => resource.id === active)!, [active])
   const analysisRunning = ['running', 'stopping'].includes(analysisState.status)
@@ -230,6 +231,22 @@ export default function ResourcesPage() {
     }
   }
 
+  async function refreshChessKnowledge() {
+    setKnowledgeBusy(true)
+    setMessage(null)
+    try {
+      const response = await fetch(`${API_BASE}/resources/chess/knowledge/refresh`, { method: 'POST' })
+      const payload = await response.json() as AnalysisPayload
+      if (!response.ok) throw new Error((payload as SearchPayload).detail ?? 'Actualisation Chess impossible')
+      setMessage(payload.message ?? 'Connaissances Chess actualisées')
+      await refreshChessStatus()
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Actualisation Chess impossible')
+    } finally {
+      setKnowledgeBusy(false)
+    }
+  }
+
   const ActiveIcon = current.icon
 
   return (
@@ -310,6 +327,12 @@ export default function ResourcesPage() {
                   ) : (
                     <button type="button" onClick={() => void stopAnalysis()} disabled={analysisBusy}><Pause size={15} /> Arrêter après la position en cours</button>
                   )}
+                </div>
+                <div style={{ marginTop: 18, paddingTop: 18, borderTop: '1px solid var(--border, #d7d1c5)' }}>
+                  <button type="button" onClick={() => void refreshChessKnowledge()} disabled={knowledgeBusy || analysisRunning}>
+                    <RefreshCw size={15} className={knowledgeBusy ? 'spin' : ''} /> {knowledgeBusy ? 'Actualisation…' : 'Actualiser les connaissances Chess'}
+                  </button>
+                  <p style={{ marginBottom: 0, opacity: 0.72 }}>Relit les analyses persistées et reconstruit les vues Obsidian, sans Chess.com ni Stockfish.</p>
                 </div>
                 <p style={{ marginBottom: 0, opacity: 0.72 }}>Les parties déjà analysées sont ignorées. Une interruption ne détruit rien : le prochain lot reprend sur les notes restantes.</p>
               </section>

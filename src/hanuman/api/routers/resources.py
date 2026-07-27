@@ -2,12 +2,14 @@ from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException, Query
 
+from hanuman.orchestrations.chess_analysis import _validated_chess_root
 from hanuman.services.chess_analysis_queue_service import (
     count_analysis_queue,
     get_analysis_queue_status,
     start_analysis_queue,
     stop_analysis_queue,
 )
+from hanuman.services.chess_view_rebuild_service import refresh_chess_knowledge
 from hanuman.services.local_programs_service import inspect_program, inspect_programs
 from hanuman.services.resources_service import (
     build_gallica_search_url,
@@ -159,3 +161,30 @@ def chess_analysis_start(
 @router.post("/chess/analysis/stop")
 def chess_analysis_stop() -> dict[str, object]:
     return stop_analysis_queue()
+
+
+@router.post("/chess/knowledge/refresh")
+def chess_knowledge_refresh() -> dict[str, object]:
+    try:
+        report = refresh_chess_knowledge(_validated_chess_root())
+    except (OSError, UnicodeError, ValueError, RuntimeError) as exc:
+        raise HTTPException(status_code=500, detail=f"Actualisation Chess impossible : {exc}") from exc
+    return {
+        "ok": True,
+        "message": (
+            f"{report.notes_discovered} parties trouvées ; "
+            f"{report.analyses_valid} analyses valides ; "
+            f"{report.games_pending} parties non analysées ; "
+            f"{report.analyses_orphaned} analyse(s) orpheline(s) ; "
+            f"{report.views_written} vue(s) Obsidian reconstruite(s)."
+        ),
+        "report": {
+            "games_found": report.notes_discovered,
+            "analyses_valid": report.analyses_valid,
+            "games_pending": report.games_pending,
+            "analyses_invalid": report.analyses_invalid,
+            "analyses_orphaned": report.analyses_orphaned,
+            "views_written": report.views_written,
+            "opening_indexes_written": report.opening_indexes_written,
+        },
+    }

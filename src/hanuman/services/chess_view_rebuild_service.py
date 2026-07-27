@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
+from hanuman.services.chess_analysis_summary_service import read_analysis_summary
 from hanuman.services.chess_index_service import write_chess_indexes_report
 from hanuman.services.chess_vault_reader_service import read_chess_vault
 
@@ -24,6 +25,20 @@ class ChessViewRebuildReport:
     human_files_protected: int
     legacy_files: tuple[str, ...]
     errors: tuple[str, ...]
+    analyses_valid: int
+    games_pending: int
+    analyses_invalid: int
+    analyses_orphaned: int
+
+    @property
+    def views_written(self) -> int:
+        return (
+            self.general_views_written
+            + self.opening_indexes_written
+            + self.thematic_indexes_written
+            + self.active_summaries_written
+            + self.inactive_summaries_updated
+        )
 
 
 def _legacy_files(root: Path) -> tuple[str, ...]:
@@ -38,7 +53,11 @@ def _legacy_files(root: Path) -> tuple[str, ...]:
     return tuple(str(path.relative_to(root)) for path in paths if path.is_file())
 
 
-def rebuild_chess_views(root: Path) -> ChessViewRebuildReport:
+def rebuild_chess_views(
+    root: Path,
+    *,
+    include_openings: bool = True,
+) -> ChessViewRebuildReport:
     read_result = read_chess_vault(root)
     source_before = {
         ignored.path: ignored.path.read_bytes() for ignored in read_result.ignored_notes
@@ -58,7 +77,25 @@ def rebuild_chess_views(root: Path) -> ChessViewRebuildReport:
     )
     all_files_before = {path for path in root.rglob("*") if path.is_file()}
 
-    write_report = write_chess_indexes_report(root, list(read_result.games))
+    summaries = [
+        read_analysis_summary(
+            root / game.year / game.end_time.strftime("%m") / game.note_filename
+        )
+        for game in read_result.games
+    ]
+    valid = sum(summary.status == "analysed" for summary in summaries)
+    pending = sum(summary.status == "pending" for summary in summaries)
+    invalid = sum(summary.status == "unreadable" for summary in summaries)
+    orphaned = 0
+    for ignored in read_result.ignored_notes:
+        if read_analysis_summary(ignored.path).status == "analysed":
+            orphaned += 1
+
+    write_report = write_chess_indexes_report(
+        root,
+        list(read_result.games),
+        include_openings=include_openings,
+    )
 
     source_after = {path: path.read_bytes() for path in source_before}
     if source_after != source_before:
@@ -86,4 +123,14 @@ def rebuild_chess_views(root: Path) -> ChessViewRebuildReport:
         errors=tuple(
             f"{item.path.relative_to(root)} : {item.reason}" for item in read_result.ignored_notes
         ),
+        analyses_valid=valid,
+        games_pending=pending,
+        analyses_invalid=invalid,
+        analyses_orphaned=orphaned,
     )
+
+
+def refresh_chess_knowledge(root: Path) -> ChessViewRebuildReport:
+    """Relit les notes persistées et reconstruit les vues, hors index ECO."""
+
+    return rebuild_chess_views(root, include_openings=False)

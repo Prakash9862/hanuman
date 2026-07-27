@@ -15,6 +15,10 @@ from hanuman.services.chess_analysis_summary_service import (
     build_chess_profile_stats,
     read_analysis_summary,
 )
+from hanuman.services.chess_eco_page_service import (
+    resolve_eco_reference_pdf,
+    write_eco_pages,
+)
 from hanuman.services.chess_insight_aggregation_service import (
     STATUS_CONFIRMED,
     STATUS_DURABLE,
@@ -490,7 +494,12 @@ Cette section sera préservée lors des prochaines générations.
 """
 
 
-def write_chess_indexes_report(root: Path, games: list[ChessGame]) -> ChessIndexWriteReport:
+def write_chess_indexes_report(
+    root: Path,
+    games: list[ChessGame],
+    *,
+    include_openings: bool = True,
+) -> ChessIndexWriteReport:
     """Génère les vues ADR-0005 sans supprimer les fichiers existants."""
 
     games = sorted(games, key=lambda game: game.end_time, reverse=True)
@@ -499,29 +508,32 @@ def write_chess_indexes_report(root: Path, games: list[ChessGame]) -> ChessIndex
     insight_aggregation = aggregate_persisted_chess_insights(root, games)
 
     by_opening: dict[str, list[ChessGame]] = defaultdict(list)
-
     for game in games:
         by_opening[game.eco].append(game)
 
     opening_written = 0
-    opening_root = index_root / "Ouvertures"
     plan = ChessViewWritePlan()
     protected = 0
-    for eco, grouped_games in by_opening.items():
-        grouped_games.sort(key=lambda game: game.end_time, reverse=True)
-        title = f"{eco} — {grouped_games[0].opening_name}"
-        planned = plan_generated_view(
-            root,
-            opening_root / f"{eco}.md",
-            initial=_index_note("opening", eco, title, grouped_games),
-            generated=_index_note_generated("opening", eco, title, grouped_games),
-            start_marker=GENERATED_START,
-            end_marker=GENERATED_END,
-            owned_frontmatter_keys=OPENING_FRONTMATTER_KEYS,
-        )
-        plan = plan.merged(planned)
-        opening_written += int(bool(planned.writes))
-        protected += len(planned.protected_files)
+    eco_source_ready = bool(games) and all(
+        chess_game_path(root, game).is_file() for game in games
+    )
+    if include_openings and not eco_source_ready:
+        opening_root = index_root / "Ouvertures"
+        for eco, grouped_games in by_opening.items():
+            grouped_games.sort(key=lambda game: game.end_time, reverse=True)
+            title = f"{eco} — {grouped_games[0].opening_name}"
+            planned = plan_generated_view(
+                root,
+                opening_root / f"{eco}.md",
+                initial=_index_note("opening", eco, title, grouped_games),
+                generated=_index_note_generated("opening", eco, title, grouped_games),
+                start_marker=GENERATED_START,
+                end_marker=GENERATED_END,
+                owned_frontmatter_keys=OPENING_FRONTMATTER_KEYS,
+            )
+            plan = plan.merged(planned)
+            opening_written += int(bool(planned.writes))
+            protected += len(planned.protected_files)
 
     dashboard_plan = plan_generated_view(
         root,
@@ -567,6 +579,12 @@ def write_chess_indexes_report(root: Path, games: list[ChessGame]) -> ChessIndex
     insight_plan, insight_report = plan_chess_insight_views_report(root, insight_aggregation)
     plan = plan.merged(insight_plan)
     plan.execute()
+    if include_openings and eco_source_ready:
+        opening_written = write_eco_pages(
+            root,
+            games,
+            theory_pdf=resolve_eco_reference_pdf(),
+        ).pages_written
 
     return ChessIndexWriteReport(
         general_views_written=general_written,

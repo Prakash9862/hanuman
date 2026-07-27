@@ -5,14 +5,10 @@ from pathlib import Path
 from typing import Final, Literal
 
 from hanuman.models.chess import ChessGame, chess_game_note_link, chess_game_path
-from hanuman.models.chess_insight import (
-    ChessInsight,
-    InsightCategory,
-    UnsupportedChessInsightSchemaError,
-)
-from hanuman.services.chess_insight_storage_service import (
-    ChessInsightBlockError,
-    parse_insight_block,
+from hanuman.models.chess_insight import ChessInsight, InsightCategory
+from hanuman.services.chess_analysis_insight_service import (
+    ChessAnalysisInsightError,
+    parse_analysis_insights,
 )
 
 INSIGHT_THRESHOLD_EMERGING = 3
@@ -118,18 +114,19 @@ def aggregate_persisted_chess_insights(
             blocks_absent += 1
             continue
         try:
-            envelope = parse_insight_block(path.read_text(encoding="utf-8"))
-        except UnsupportedChessInsightSchemaError:
-            versions_unknown += 1
-            continue
-        except (ChessInsightBlockError, ValueError, OSError, UnicodeError):
+            insights = parse_analysis_insights(
+                path.read_text(encoding="utf-8"),
+                game_id=game.game_id,
+                eco=game.eco,
+            )
+        except (ChessAnalysisInsightError, ValueError, OSError, UnicodeError):
             blocks_invalid += 1
             continue
-        if envelope is None:
+        if insights is None:
             blocks_absent += 1
             continue
         blocks_valid += 1
-        for insight in envelope.insights:
+        for insight in insights:
             candidates.append(
                 ChessInsightOccurrence(
                     insight=insight,
