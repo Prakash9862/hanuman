@@ -13,6 +13,7 @@ directement à une API externe.
 | Wikipédia → Notion | sujet ou page | création de page Notion | API, UI, CLI | disponible |
 | Context pack → Notion | sujet Wikipédia | page enrichie | CLI | disponible |
 | GitHub issues → Notion | dépôt | création/mise à jour Notion | CLI/service | disponible, alpha |
+| GitHub Activity → Notion Project Memory | dépôt et plage de commits | plan de Development Sessions, sans écriture | CLI | Phase 1 |
 | Chess.com → Obsidian | utilisateur et limite | notes et vues Chess | API, UI, CLI | disponible |
 | Stockfish → Obsidian | notes PGN | analyses et connaissances dérivées | UI Resources, CLI | disponible |
 | Chess insights → Notion | base de parties | synthèse Notion | CLI | disponible |
@@ -84,3 +85,25 @@ La source est définie par flux et par champ. Exemples actuels :
 - état technique d’exécution : Hanuman.
 
 Voir [ADR-0003](../adr/ADR-0003-source-of-truth-per-flow.md).
+
+## GitHub Project Memory — plan Phase 1
+
+Après avoir configuré `GITHUB_TOKEN` et la liste explicite
+`GITHUB_ALLOWED_REPOSITORIES` :
+
+```bash
+hanuman flows github-project-memory plan \
+  --repository Prakash9862/hanuman \
+  --branch main \
+  --max-commits 50 \
+  --session-window-hours 24
+```
+
+`--start-ref` fixe un SHA de départ exclusif, `--end-ref` un SHA ou une ref de
+fin, `--detailed-plan` affiche les associations et `--json` sérialise le Run.
+
+Cette Phase 1 lit uniquement GitHub, normalise les commits, calcule des
+Development Sessions et produit un plan, un FlowResult et un Run structurés.
+Elle n'importe aucun service Notion et ne peut effectuer aucune écriture
+Notion. Pull requests, releases, workflows, webhooks et déclenchement
+automatique restent hors périmètre.
