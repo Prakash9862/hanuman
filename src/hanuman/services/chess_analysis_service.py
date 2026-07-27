@@ -3,6 +3,7 @@ from __future__ import annotations
 import io
 import shutil
 from dataclasses import asdict, dataclass
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Self
 
@@ -24,6 +25,7 @@ class AnalysisConfig:
     brilliant_gain_cp: int = 200
     excellent_gap_cp: int = 120
     opening_plies: int = 24
+    player_name: str | None = None
 
 
 @dataclass(frozen=True)
@@ -45,6 +47,24 @@ class MoveAnalysis:
     excellent: bool
     missed_excellent: bool
     opening_phase: bool
+    fen_before: str | None = None
+    fen_after: str | None = None
+    depth_reached: int | None = None
+
+
+@dataclass(frozen=True)
+class OpeningExitAnalysis:
+    ply: int
+    move_number: int
+    side_to_move: str
+    last_move_san: str
+    last_move_uci: str
+    fen: str
+    evaluation_value: int | None
+    evaluation_type: str
+    evaluation_perspective: str
+    depth_reached: int | None
+    principal_variation: list[str]
 
 
 @dataclass(frozen=True)
@@ -61,11 +81,30 @@ class GameAnalysis:
     average_centipawn_loss: float
     worst_move: str | None
     turning_point_ply: int | None
+    analysis_schema_version: int = 2
+    analysed_at: str | None = None
+    evaluation_perspective: str = "side-to-move"
+    evaluation_unit: str = "centipawn"
+    analysis_limit: dict[str, int] | None = None
+    engine_configuration: dict[str, object] | None = None
+    opening_exit: OpeningExitAnalysis | None = None
 
     def to_dict(self) -> dict[str, Any]:
         payload = asdict(self)
         payload["moves"] = [asdict(move) for move in self.moves]
         return payload
+
+    def analysis_metadata(self) -> dict[str, object]:
+        return {
+            "analysis_schema_version": self.analysis_schema_version,
+            "engine": self.engine,
+            "analysed_at": self.analysed_at,
+            "depth_reached": self.depth,
+            "analysis_limit": self.analysis_limit,
+            "evaluation_perspective": self.evaluation_perspective,
+            "evaluation_unit": self.evaluation_unit,
+            "engine_configuration": self.engine_configuration,
+        }
 
 
 def resolve_stockfish_path(configured_path: str | None = None) -> str:
@@ -81,6 +120,22 @@ def resolve_stockfish_path(configured_path: str | None = None) -> str:
 def score_to_cp(score: chess.engine.PovScore, color: chess.Color) -> int:
     value = score.pov(color).score(mate_score=MATE_SCORE)
     return int(value or 0)
+
+
+def score_for_perspective(
+    score: chess.engine.PovScore,
+    color: chess.Color,
+) -> tuple[int | None, str]:
+    """Retourne cp ou distance de mat depuis la perspective explicitement fournie."""
+
+    pov_score = score.pov(color)
+    mate = pov_score.mate()
+    if mate is not None:
+        return int(mate), "mate"
+    centipawns = pov_score.score()
+    return (
+        (int(centipawns), "centipawn") if centipawns is not None else (None, "unknown")
+    )
 
 
 def classify_loss(loss_cp: int, config: AnalysisConfig) -> tuple[str, str]:
@@ -124,8 +179,12 @@ def _material_balance(board: chess.Board, color: chess.Color) -> int:
         chess.ROOK: 500,
         chess.QUEEN: 900,
     }
-    own = sum(len(board.pieces(piece, color)) * value for piece, value in values.items())
-    other = sum(len(board.pieces(piece, not color)) * value for piece, value in values.items())
+    own = sum(
+        len(board.pieces(piece, color)) * value for piece, value in values.items()
+    )
+    other = sum(
+        len(board.pieces(piece, not color)) * value for piece, value in values.items()
+    )
     return own - other
 
 
@@ -138,7 +197,9 @@ def _is_excellent(
 ) -> bool:
     if played_loss_cp > 20:
         return False
-    unique_gap = second_cp is not None and best_cp - second_cp >= config.excellent_gap_cp
+    unique_gap = (
+        second_cp is not None and best_cp - second_cp >= config.excellent_gap_cp
+    )
     tactical_gain = best_cp >= config.brilliant_gain_cp
     sound_sacrifice = material_delta < 0 and best_cp >= 80
     return bool(unique_gap and (tactical_gain or sound_sacrifice))
@@ -176,10 +237,19 @@ class StockfishAnalyzer:
         cfg = self.config
         board = game.board()
         analysed_moves: list[MoveAnalysis] = []
+        opening_exit: OpeningExitAnalysis | None = None
+        player_color: chess.Color | None = None
+        if cfg.player_name:
+            player = cfg.player_name.casefold()
+            if game.headers.get("White", "").casefold() == player:
+                player_color = chess.WHITE
+            elif game.headers.get("Black", "").casefold() == player:
+                player_color = chess.BLACK
 
         for ply, move in enumerate(game.mainline_moves(), start=1):
             mover = board.turn
             san = board.san(move)
+            fen_before = board.fen()
             material_before = _material_balance(board, mover)
 
             infos = self.engine.analyse(
@@ -198,14 +268,20 @@ class StockfishAnalyzer:
                 if best_move is not None and best_move in board.legal_moves
                 else None
             )
-            second_cp = score_to_cp(info_list[1]["score"], mover) if len(info_list) > 1 else None
+            second_cp = (
+                score_to_cp(info_list[1]["score"], mover)
+                if len(info_list) > 1
+                else None
+            )
 
             board.push(move)
+            fen_after = board.fen()
             played_info = self.engine.analyse(
                 board,
                 chess.engine.Limit(depth=cfg.depth),
             )
             after_cp = score_to_cp(played_info["score"], mover)
+            depth_reached = played_info.get("depth")
             loss_cp = max(0, best_cp - after_cp)
             annotation, classification = classify_loss(loss_cp, cfg)
 
@@ -247,16 +323,56 @@ class StockfishAnalyzer:
                     excellent=excellent,
                     missed_excellent=missed_excellent,
                     opening_phase=ply <= cfg.opening_plies,
+                    fen_before=fen_before,
+                    fen_after=fen_after,
+                    depth_reached=int(depth_reached)
+                    if isinstance(depth_reached, int)
+                    else None,
                 )
             )
+            if (
+                ply == min(cfg.opening_plies, game.end().ply())
+                and player_color is not None
+            ):
+                evaluation_value, evaluation_type = score_for_perspective(
+                    played_info["score"], player_color
+                )
+                exit_pv = list(played_info.get("pv", []))
+                opening_exit = OpeningExitAnalysis(
+                    ply=ply,
+                    move_number=(ply + 1) // 2,
+                    side_to_move="white" if board.turn == chess.WHITE else "black",
+                    last_move_san=san,
+                    last_move_uci=move.uci(),
+                    fen=fen_after,
+                    evaluation_value=(
+                        int(evaluation_value) if evaluation_value is not None else None
+                    ),
+                    evaluation_type=evaluation_type
+                    if evaluation_value is not None
+                    else "unknown",
+                    evaluation_perspective="hanuman-player",
+                    depth_reached=(
+                        int(depth_reached) if isinstance(depth_reached, int) else None
+                    ),
+                    principal_variation=_pv_to_san(board, exit_pv),
+                )
 
-        significant = [move for move in analysed_moves if move.classification != "normal"]
+        significant = [
+            move for move in analysed_moves if move.classification != "normal"
+        ]
         losses = [move.loss_cp for move in analysed_moves]
         worst = max(analysed_moves, key=lambda item: item.loss_cp, default=None)
-        turning = next((move.ply for move in analysed_moves if move.turning_point), None)
+        turning = next(
+            (move.ply for move in analysed_moves if move.turning_point), None
+        )
         counts = {
-            "blunders": sum(move.classification == "blunder" for move in analysed_moves),
-            "mistakes": sum(move.classification == "mistake" for move in analysed_moves),
+            "blunders": sum(
+                move.classification == "blunder" for move in analysed_moves
+            ),
+            "mistakes": sum(
+                move.classification == "mistake" for move in analysed_moves
+            ),
             "dubious": sum(move.classification == "dubious" for move in analysed_moves),
             "excellent": sum(move.excellent for move in analysed_moves),
             "missed_excellent": sum(move.missed_excellent for move in analysed_moves),
@@ -277,9 +393,19 @@ class StockfishAnalyzer:
             depth=cfg.depth,
             moves=analysed_moves,
             counts=counts,
-            average_centipawn_loss=round(sum(losses) / len(losses), 1) if losses else 0.0,
+            average_centipawn_loss=round(sum(losses) / len(losses), 1)
+            if losses
+            else 0.0,
             worst_move=worst_move,
             turning_point_ply=turning,
+            analysed_at=datetime.now(UTC).isoformat(),
+            evaluation_perspective="side-to-move for events; hanuman-player for opening_exit",
+            analysis_limit={"depth": cfg.depth},
+            engine_configuration={
+                "multipv": cfg.multipv,
+                "opening_plies": cfg.opening_plies,
+            },
+            opening_exit=opening_exit,
         )
 
 

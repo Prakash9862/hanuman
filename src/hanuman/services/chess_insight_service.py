@@ -14,7 +14,9 @@ from hanuman.services.chess_analysis_service import GameAnalysis, MoveAnalysis
 
 def _derived_game_key(analysis: GameAnalysis) -> str:
     moves = "|".join(f"{move.ply}:{move.san}" for move in analysis.moves)
-    source = f"{analysis.white}|{analysis.black}|{analysis.result}|{analysis.eco}|{moves}"
+    source = (
+        f"{analysis.white}|{analysis.black}|{analysis.result}|{analysis.eco}|{moves}"
+    )
     return f"derived-{hashlib.sha256(source.encode('utf-8')).hexdigest()[:16]}"
 
 
@@ -56,8 +58,8 @@ def _build_insight(
         color=color,
         san=move.san,
         annotation=move.annotation or None,
-        fen_before=None,
-        fen_after=None,
+        fen_before=move.fen_before,
+        fen_after=move.fen_after,
         eval_before_cp=move.eval_before_cp,
         eval_after_cp=move.eval_after_cp,
         loss_cp=move.loss_cp,
@@ -66,6 +68,8 @@ def _build_insight(
         opening_phase=move.opening_phase,
         eco=eco if eco is not None else analysis.eco,
         player_role=role,
+        played_move_uci=move.uci,
+        best_move_uci=move.best_move_uci,
     )
 
 

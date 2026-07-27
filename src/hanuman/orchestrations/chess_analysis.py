@@ -141,7 +141,11 @@ def _turning_label(analysis: GameAnalysis) -> str:
         (item for item in analysis.moves if item.ply == analysis.turning_point_ply),
         None,
     )
-    return _move_label(move) if move is not None else f"demi-coup {analysis.turning_point_ply}"
+    return (
+        _move_label(move)
+        if move is not None
+        else f"demi-coup {analysis.turning_point_ply}"
+    )
 
 
 def _quality(move: Any) -> str:
@@ -225,7 +229,9 @@ def render_analysis_markdown(analysis: GameAnalysis) -> str:
         lines.append("Aucune gaffe ni coup excellent adverse détecté.")
     else:
         for move in opponent:
-            description = "gaffe" if move.classification == "blunder" else "coup excellent"
+            description = (
+                "gaffe" if move.classification == "blunder" else "coup excellent"
+            )
             best = f" · meilleur : `{move.best_move_san}`" if move.best_move_san else ""
             lines.append(
                 f"- **{_move_label(move)}** — {description}, perte {move.loss_cp} cp{best}"
@@ -291,6 +297,24 @@ def analyse_note(
         game_id=game_id,
         eco=eco,
         insights=insights,
+        analysis_metadata=analysis.analysis_metadata(),
+        opening_exit=(
+            None
+            if analysis.opening_exit is None
+            else {
+                "ply": analysis.opening_exit.ply,
+                "move_number": analysis.opening_exit.move_number,
+                "side_to_move": analysis.opening_exit.side_to_move,
+                "last_move_san": analysis.opening_exit.last_move_san,
+                "last_move_uci": analysis.opening_exit.last_move_uci,
+                "fen": analysis.opening_exit.fen,
+                "evaluation_value": analysis.opening_exit.evaluation_value,
+                "evaluation_type": analysis.opening_exit.evaluation_type,
+                "evaluation_perspective": analysis.opening_exit.evaluation_perspective,
+                "depth_reached": analysis.opening_exit.depth_reached,
+                "principal_variation": analysis.opening_exit.principal_variation,
+            }
+        ),
     )
     with_analysis = inject_analysis(markdown, render_analysis_markdown(analysis))
     atomic_write_text(
@@ -317,6 +341,7 @@ def analyse_vault(limit: int | None = None, depth: int = 18) -> dict[str, Any]:
     config = AnalysisConfig(
         engine_path=os.environ.get("STOCKFISH_PATH"),
         depth=depth,
+        player_name=CHESS_USERNAME,
     )
     analysed = 0
     skipped = 0

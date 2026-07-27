@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
+from hanuman.models.chess import chess_game_path
 from hanuman.services.chess_analysis_summary_service import read_analysis_summary
 from hanuman.services.chess_index_service import write_chess_indexes_report
 from hanuman.services.chess_vault_reader_service import read_chess_vault
@@ -78,8 +79,7 @@ def rebuild_chess_views(
     all_files_before = {path for path in root.rglob("*") if path.is_file()}
 
     summaries = [
-        read_analysis_summary(root / game.year / game.end_time.strftime("%m") / game.note_filename)
-        for game in read_result.games
+        read_analysis_summary(chess_game_path(root, game)) for game in read_result.games
     ]
     valid = sum(summary.status == "analysed" for summary in summaries)
     pending = sum(summary.status == "pending" for summary in summaries)
@@ -119,7 +119,8 @@ def rebuild_chess_views(
         human_files_protected=write_report.human_files_protected,
         legacy_files=_legacy_files(root),
         errors=tuple(
-            f"{item.path.relative_to(root)} : {item.reason}" for item in read_result.ignored_notes
+            f"{item.path.relative_to(root)} : {item.reason}"
+            for item in read_result.ignored_notes
         ),
         analyses_valid=valid,
         games_pending=pending,
@@ -129,6 +130,6 @@ def rebuild_chess_views(
 
 
 def refresh_chess_knowledge(root: Path) -> ChessViewRebuildReport:
-    """Relit les notes persistées et reconstruit les vues, hors index ECO."""
+    """Relit les notes persistées et reconstruit toutes les vues, sans moteur ni réseau."""
 
-    return rebuild_chess_views(root, include_openings=False)
+    return rebuild_chess_views(root, include_openings=True)

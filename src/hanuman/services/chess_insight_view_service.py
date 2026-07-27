@@ -3,6 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
+import chess
+
 from hanuman.models.chess_insight import InsightCategory
 from hanuman.services.chess_insight_aggregation_service import (
     STATUS_CONFIRMED,
@@ -128,12 +130,14 @@ def _has_hanuman_markers(root: Path, path: Path) -> bool:
             is not None
         )
     except DelimitedZoneError as exc:
-        raise ChessInsightViewError(f"Marqueurs de vue Hanuman invalides : {path}") from exc
+        raise ChessInsightViewError(
+            f"Marqueurs de vue Hanuman invalides : {path}"
+        ) from exc
 
 
 def _summary_link(definition: InsightViewDefinition) -> str:
     stem = definition.filename[:-3]
-    return f"[[Echecs/_Index/{definition.directory}/{stem}|" f"{definition.title}]]"
+    return f"[[Echecs/_Index/{definition.directory}/{stem}|{definition.title}]]"
 
 
 def _index_entry(
@@ -170,7 +174,9 @@ def _thematic_index_generated(
         key = (group.category, group.subtype)
         item = definitions[key]
         if key in inactive_links:
-            inactive.append(_index_entry(item, group, link=True, status=STATUS_INACTIVE))
+            inactive.append(
+                _index_entry(item, group, link=True, status=STATUS_INACTIVE)
+            )
         elif group.status == STATUS_DURABLE:
             durable.append(
                 _index_entry(
@@ -181,13 +187,19 @@ def _thematic_index_generated(
                 )
             )
         elif group.status == STATUS_CONFIRMED:
-            confirmed.append(_index_entry(item, group, link=False, status=STATUS_CONFIRMED))
+            confirmed.append(
+                _index_entry(item, group, link=False, status=STATUS_CONFIRMED)
+            )
         elif group.status == STATUS_EMERGING:
-            emerging.append(_index_entry(item, group, link=False, status=STATUS_EMERGING))
+            emerging.append(
+                _index_entry(item, group, link=False, status=STATUS_EMERGING)
+            )
 
     sections = [
-        "## Synthèses durables actives\n\n" + ("\n".join(durable) if durable else "Aucune."),
-        "## Tendances confirmées\n\n" + ("\n".join(confirmed) if confirmed else "Aucune."),
+        "## Synthèses durables actives\n\n"
+        + ("\n".join(durable) if durable else "Aucune."),
+        "## Tendances confirmées\n\n"
+        + ("\n".join(confirmed) if confirmed else "Aucune."),
         "## Signaux émergents\n\n" + ("\n".join(emerging) if emerging else "Aucun."),
     ]
     if inactive:
@@ -238,9 +250,14 @@ def _occurrence_line(occurrence: ChessInsightOccurrence) -> str:
     details.append(f"perte {insight.loss_cp} cp")
     if insight.best_move_san:
         details.append(f"meilleur coup `{insight.best_move_san}`")
+    if insight.played_move_uci:
+        details.append(f"UCI `{insight.played_move_uci}`")
     if insight.eco:
         details.append(f"ECO {insight.eco}")
-    return "- " + " · ".join(details)
+    line = "- " + " · ".join(details)
+    if insight.fen_before:
+        line += f"\n  - FEN avant : `{insight.fen_before}`"
+    return line
 
 
 def _examples(group: ChessInsightGroup) -> str:
@@ -270,8 +287,52 @@ def _examples(group: ChessInsightGroup) -> str:
         sections.append(f"### {heading}")
         if metadata:
             sections.append("\n" + " · ".join(metadata))
-        sections.append("\n" + "\n".join(_occurrence_line(item) for item in occurrences))
+        sections.append(
+            "\n" + "\n".join(_occurrence_line(item) for item in occurrences)
+        )
     return "\n\n".join(sections) if sections else "Aucune occurrence actuelle."
+
+
+def position_identity(fen: str | None) -> str | None:
+    """Identité FEN sans horloges, en conservant trait, roques et prise en passant."""
+
+    if not fen:
+        return None
+    try:
+        chess.Board(fen)
+    except ValueError:
+        return None
+    fields = fen.split()
+    return " ".join(fields[:4]) if len(fields) == 6 else None
+
+
+def _position_recurrences(group: ChessInsightGroup) -> str:
+    grouped: dict[str, list[ChessInsightOccurrence]] = {}
+    for occurrence in group.occurrences:
+        key = position_identity(occurrence.insight.fen_before)
+        if key is not None:
+            grouped.setdefault(key, []).append(occurrence)
+    recurrent = [
+        (key, occurrences)
+        for key, occurrences in grouped.items()
+        if len({item.game_id for item in occurrences}) >= 2
+    ]
+    recurrent.sort(key=lambda item: (-len(item[1]), item[0]))
+    if not recurrent:
+        return (
+            "> Aucune position FEN ne revient dans au moins deux parties. "
+            "Les positions unitaires restent visibles dans les occurrences."
+        )
+    blocks = []
+    for _, occurrences in recurrent:
+        fen = occurrences[0].insight.fen_before
+        links = " · ".join(dict.fromkeys(item.note_link for item in occurrences))
+        blocks.append(
+            f"> [!example] Position récurrente · {len(occurrences)} occurrences\n"
+            f"> `{fen}`  \n"
+            f"> Parties : {links}"
+        )
+    return "\n\n".join(blocks)
 
 
 def _summary_generated(
@@ -280,7 +341,9 @@ def _summary_generated(
     status: str,
 ) -> str:
     dates = [
-        occurrence.game_date for occurrence in group.occurrences if occurrence.game_date is not None
+        occurrence.game_date
+        for occurrence in group.occurrences
+        if occurrence.game_date is not None
     ]
     first_date = min(dates) if dates else "indisponible"
     last_date = max(dates) if dates else "indisponible"
@@ -302,6 +365,10 @@ def _summary_generated(
 ## Parties concernées
 
 {_examples(group)}
+
+## Positions récurrentes
+
+{_position_recurrences(group)}
 {GENERATED_END}"""
 
 
@@ -402,10 +469,13 @@ def plan_chess_insight_views_report(
     )
     thematic_written = 0
     for category in categories:
-        definitions = [item for item in INSIGHT_VIEW_DEFINITIONS if item.category == category]
+        definitions = [
+            item for item in INSIGHT_VIEW_DEFINITIONS if item.category == category
+        ]
         representative = definitions[0]
         category_groups = [
-            groups.get((item.category, item.subtype), _empty_group(item)) for item in definitions
+            groups.get((item.category, item.subtype), _empty_group(item))
+            for item in definitions
         ]
         generated = _thematic_index_generated(
             representative,
