@@ -286,12 +286,12 @@ n'affirme pas une intention que GitHub ne permet pas d'établir.
 | `commit_ids` | Ensemble ordonné de `repository_id + SHA` |
 | `branches` | Ensemble des branches observées ; une branche primaire en V1 |
 | `status` | `open`, `closed` ou `manually_adjusted` |
-| `computed_title` | Titre déterministe dérivé de la branche ou du premier commit |
+| `computed_title` | Titre déterministe dérivé de la branche et des thèmes dominants de la session |
 | `editorial_title` | Titre Notion facultatif, jamais utilisé comme identité |
 | `generated_summary` | Résumé déterministe des sujets de commits |
 | `github_links` | Branche, comparaison et commits utiles |
 | `related_pr`, `related_release`, `milestone` | Facultatifs ; hors alimentation V1 |
-| `grouping_version` | Version de la règle ; `2` pour la Phase 1 révisée |
+| `grouping_version` | Version de la règle ; `3` pour la Phase 1 révisée |
 
 Une session est une unité de mémoire, pas une branche permanente : plusieurs
 sessions peuvent se succéder sur la même branche. Son résumé V1 liste de façon
@@ -342,9 +342,16 @@ ne doivent pas être copiés dans Notion.
 
 ### 7.2 Stratégie V1
 
-Paramètre recommandé : `session_inactivity_window = 24 h`, configurable par
-Flux et figé dans chaque Run. La fenêtre compare les dates de commits, pas
-l'heure de réception tardive d'un webhook.
+Paramètres recommandés, configurables par Flux et figés dans chaque Run :
+
+- `session_inactivity_window = 24 h` mesure l'absence de travail entre deux
+  commits consécutifs ;
+- `session_max_duration = 12 h` borne la lisibilité d'une session continue
+  entre son premier commit et un commit candidat.
+
+Ces deux paramètres sont indépendants et comparent les dates de commits, pas
+l'heure de réception tardive d'un webhook. Aucun nombre maximal de commits ne
+sert de règle de découpage.
 
 Pour chaque commit d'un push, dans l'ordre d'ascendance :
 
@@ -352,8 +359,9 @@ Pour chaque commit d'un push, dans l'ordre d'ascendance :
    session_id` ; si elle existe, l'appliquer ;
 2. sinon rechercher une session `open` du même dépôt et de la même ref
    primaire ;
-3. exiger que le commit courant soit au plus à 24 heures du
-   `last_activity_at` de cette session ;
+3. exiger que le commit courant respecte la fenêtre d'inactivité depuis le
+   `last_activity_at` et la durée maximale depuis le `started_at` de la
+   session ;
 4. qualifier la continuité Git en `confirmed`, `unknown` ou `broken` :
    une ascendance prouvée confirme la continuité, des données insuffisantes
    restent inconnues, et seule une incompatibilité explicitement démontrée
@@ -361,34 +369,42 @@ Pour chaque commit d'un push, dans l'ordre d'ascendance :
 5. rattacher le commit si la continuité est `confirmed` ou `unknown` ; dans ce
    dernier cas, produire un avertissement non bloquant ;
 6. ouvrir une nouvelle session si la continuité est `broken`, si la fenêtre
-   est dépassée, ou si le dépôt ou la ref primaire diffèrent.
+   est dépassée, si la durée maximale serait dépassée, ou si le dépôt ou la
+   ref primaire diffèrent. La fenêtre et une rupture explicite sont évaluées
+   avant la durée maximale.
 
 Le `grouping_key` d'ouverture est une empreinte de
-`grouping_version + repository_id + full_ref + first_commit_sha`. Il permet de
-retrouver la même ouverture lors d'une réexécution, sans faire du titre une
-identité. Une table de correspondance Hanuman conserve `commit_id →
+`grouping_version + repository_id + full_ref + first_commit_sha +
+session_window_hours + session_max_duration_hours`. Il permet de retrouver la
+même ouverture et distingue deux configurations temporelles, sans faire du
+titre une identité. Une table de correspondance Hanuman conserve `commit_id →
 session_id`; cette association vérifiée prévaut lors des retries.
 
-La Phase 1 révisée utilise `grouping_version = 2`, car les mêmes commits peuvent
-être regroupés différemment lorsque leur continuité est inconnue. La version
-entre dans le `grouping_key` : une version donnée reste idempotente, mais la
-migration ne conserve pas artificiellement les anciens `session_id`.
+La Phase 1 révisée utilise `grouping_version = 3`, car la durée maximale peut
+modifier le regroupement des mêmes commits. La version entre dans le
+`grouping_key` : une version donnée reste idempotente, mais la migration ne
+conserve pas artificiellement les anciens `session_id`.
 
 ### 7.3 Ouverture, mise à jour et clôture
 
 - **Ouverture :** premier commit non associé ne rejoignant aucune session
-  admissible. Le titre calculé préfixe le nom lisible de branche au premier
-  sujet non vide, après retrait d'un éventuel préfixe Conventional Commit et
-  avec une longueur bornée. À défaut de sujet utile, il revient à la branche.
+  admissible. Le titre calculé préfixe le nom lisible de branche à au plus deux
+  catégories ou scopes Conventional Commit dominants, à partir de tous les
+  commits de la session et avec une longueur bornée. Sans thème déterministe,
+  il utilise `branche — Session du YYYY-MM-DD`.
 - **Retrouver :** priorité à l'association persistée, puis au
   `grouping_key`, puis à l'unique session ouverte satisfaisant continuité,
-  branche et fenêtre.
+  branche, fenêtre et durée maximale.
 - **Mise à jour :** ajout ensembliste des commits, extension des dates,
   recalcul du titre technique seulement s'il n'a jamais été stabilisé, puis
   recalcul du résumé généré.
 - **Clôture temporelle :** lorsqu'un nouveau commit arrive plus de 24 heures
   après la dernière activité, l'ancienne session est clôturée à son
   `last_activity_at` et une nouvelle est ouverte.
+- **Clôture de lisibilité :** lorsqu'un commit candidat dépasserait la durée
+  maximale depuis `started_at`, l'ancienne session est clôturée à son
+  `last_activity_at` et une nouvelle est ouverte avec le commit candidat,
+  même si la continuité Git est confirmée.
 - **Clôture par merge :** si un merge vers la branche par défaut identifie
   sans ambiguïté une session de branche déjà connue, celle-ci est clôturée à la
   date du merge. Cette règle est facultative en V1 si la relation ne peut pas
@@ -648,7 +664,8 @@ Session avec son identité, sa clé abrégée, son état, ses dates, ses
 avertissements et ses commits. Les effets sont regroupés par Repository,
 sessions, fermetures et absence de changement. La sortie terminal par défaut
 reste synthétique ; les associations complètes restent disponibles dans le
-JSON structuré, dont le schéma de plan vaut `2`.
+JSON structuré, dont le schéma de plan reste `2` : les paramètres, causes
+d'ouverture et métriques de séparation sont des ajouts compatibles.
 
 La preview doit expirer ou être invalidée si l'empreinte GitHub, la cible ou
 l'état Notion pertinent change avant l'application.

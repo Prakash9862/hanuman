@@ -8,6 +8,14 @@ StepStatus = Literal["succeeded", "failed", "skipped"]
 RunStatus = Literal["succeeded", "failed", "skipped"]
 SessionStatus = Literal["open", "closed"]
 ContinuityStatus = Literal["confirmed", "unknown", "broken"]
+SessionOpeningReason = Literal[
+    "initial",
+    "inactivity_window",
+    "max_duration",
+    "continuity_broken",
+    "branch_change",
+    "repository_change",
+]
 
 
 @dataclass(frozen=True)
@@ -18,6 +26,7 @@ class GitHubProjectMemoryInput:
     end_ref: str | None = None
     max_commits: int = 50
     session_window_hours: int = 24
+    session_max_duration_hours: int = 12
     allowed_repositories: tuple[str, ...] = ()
 
 
@@ -68,6 +77,7 @@ class DevelopmentSession:
     generated_summary: str
     github_links: list[str]
     primary_ref: str
+    opening_reason: SessionOpeningReason
     warnings: list[str] = field(default_factory=list)
 
 

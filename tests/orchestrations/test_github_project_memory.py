@@ -98,6 +98,7 @@ def flow_input(**overrides: Any) -> GitHubProjectMemoryInput:
         "branch": "main",
         "max_commits": 50,
         "session_window_hours": 24,
+        "session_max_duration_hours": 12,
         "allowed_repositories": (REPOSITORY,),
     }
     values.update(overrides)
@@ -201,6 +202,7 @@ def test_explicitly_broken_continuity_inside_window_opens_session() -> None:
     assert [session.status for session in sessions] == ["closed", "open"]
     assert warnings == []
     assert metrics["continuity_broken"] == 1
+    assert metrics["sessions_split_by_broken_continuity"] == 1
 
 
 def test_commits_after_window_create_two_sessions_and_close_first() -> None:
@@ -216,6 +218,73 @@ def test_commits_after_window_create_two_sessions_and_close_first() -> None:
     assert run.result.plan is not None
     assert [session.status for session in run.result.plan.sessions] == ["closed", "open"]
     assert run.result.plan.sessions_closed == 1
+    assert run.metrics["sessions_split_by_inactivity"] == 1
+
+
+def test_confirmed_continuity_does_not_bypass_max_duration() -> None:
+    first = datetime(2026, 7, 1, 9, tzinfo=UTC)
+    commits = [
+        normalized_commit(REPOSITORY_ID, SHA_1, committed_at=first),
+        normalized_commit(
+            REPOSITORY_ID,
+            SHA_2,
+            parent=SHA_1,
+            committed_at=first + timedelta(hours=12, seconds=1),
+        ),
+    ]
+
+    sessions, _, _, metrics = group_development_sessions(
+        commits,
+        session_window_hours=24,
+        session_max_duration_hours=12,
+    )
+
+    assert [session.opening_reason for session in sessions] == ["initial", "max_duration"]
+    assert [session.status for session in sessions] == ["closed", "open"]
+    assert metrics["sessions_split_by_max_duration"] == 1
+
+
+def test_session_is_not_split_at_max_duration_limit() -> None:
+    first = datetime(2026, 7, 1, 9, tzinfo=UTC)
+    commits = [
+        normalized_commit(REPOSITORY_ID, SHA_1, committed_at=first),
+        normalized_commit(
+            REPOSITORY_ID,
+            SHA_2,
+            parent=SHA_1,
+            committed_at=first + timedelta(hours=12),
+        ),
+    ]
+
+    sessions, _, _, metrics = group_development_sessions(
+        commits,
+        session_window_hours=24,
+        session_max_duration_hours=12,
+    )
+
+    assert len(sessions) == 1
+    assert metrics["sessions_split_by_max_duration"] == 0
+
+
+def test_unknown_continuity_is_kept_before_max_duration() -> None:
+    first = datetime(2026, 7, 1, 9, tzinfo=UTC)
+    commits = [
+        normalized_commit(REPOSITORY_ID, SHA_1, committed_at=first),
+        normalized_commit(
+            REPOSITORY_ID,
+            SHA_2,
+            committed_at=first + timedelta(hours=11),
+        ),
+    ]
+
+    sessions, _, warnings, _ = group_development_sessions(
+        commits,
+        session_window_hours=24,
+        session_max_duration_hours=12,
+    )
+
+    assert len(sessions) == 1
+    assert len(warnings) == 1
 
 
 def test_two_branches_create_distinct_sessions() -> None:
@@ -255,8 +324,8 @@ def test_title_is_not_an_identity_and_identical_run_is_stable() -> None:
     first_session = first.result.plan.sessions[0]
     second_session = second.result.plan.sessions[0]
 
-    assert first_session.computed_title == "main — Title A"
-    assert first_session.grouping_version == GROUPING_VERSION == 2
+    assert first_session.computed_title == "main — Session du 2026-07-01"
+    assert first_session.grouping_version == GROUPING_VERSION == 3
     assert first_session.session_id == second_session.session_id
     assert first_session.grouping_key == second_session.grouping_key
     assert first.result.plan.fingerprint == second.result.plan.fingerprint
@@ -290,6 +359,23 @@ def test_invalid_input_is_rejected_before_github_collection() -> None:
     assert run.errors[0].code == "repository_not_allowed"
     assert service.requests == []
     assert [step.step_id for step in run.step_results] == ["trigger"]
+
+
+def test_invalid_temporal_parameters_are_rejected_before_collection() -> None:
+    service = FakeGithubService([raw_commit(SHA_1)])
+
+    invalid_window = plan_github_project_memory(
+        flow_input(session_window_hours=0),
+        github_factory=lambda: service,
+    )
+    invalid_duration = plan_github_project_memory(
+        flow_input(session_max_duration_hours=0),
+        github_factory=lambda: service,
+    )
+
+    assert invalid_window.errors[0].code == "invalid_session_window"
+    assert invalid_duration.errors[0].code == "invalid_session_max_duration"
+    assert service.requests == []
 
 
 def test_empty_history_is_an_honest_skipped_plan() -> None:
@@ -378,16 +464,45 @@ def test_sensitive_commit_data_is_not_exposed() -> None:
     assert "Visible subject" in serialized
 
 
-def test_computed_title_removes_conventional_prefix_and_is_bounded() -> None:
-    subject = "refactor(ui): improve navigation and project data " + "x" * 100
-    service = FakeGithubService([raw_commit(SHA_1, message=subject)])
+def test_computed_title_uses_multiple_commits_and_is_bounded() -> None:
+    first = datetime(2026, 7, 1, 9, tzinfo=UTC)
+    service = FakeGithubService(
+        [
+            raw_commit(SHA_1, committed_at=first, message="docs: architecture"),
+            raw_commit(
+                SHA_2,
+                parent=SHA_1,
+                committed_at=first + timedelta(minutes=1),
+                message="test: orchestrations",
+            ),
+            raw_commit(
+                SHA_3,
+                parent=SHA_2,
+                committed_at=first + timedelta(minutes=2),
+                message="docs: migration",
+            ),
+        ]
+    )
     run = plan_github_project_memory(flow_input(), github_factory=lambda: service)
 
     assert run.result.plan is not None
     title = run.result.plan.sessions[0].computed_title
-    assert title.startswith("main — Improve navigation and project data")
-    assert "refactor(ui)" not in title
+    assert title == "main — Documentation et Tests"
     assert len(title) <= 80
+
+
+def test_title_fallback_by_date_is_deterministic() -> None:
+    service = FakeGithubService([raw_commit(SHA_1, message="Merge branch feature/example")])
+    first = plan_github_project_memory(flow_input(), github_factory=lambda: service)
+    second = plan_github_project_memory(flow_input(), github_factory=lambda: service)
+
+    assert first.result.plan is not None
+    assert second.result.plan is not None
+    assert first.result.plan.sessions[0].computed_title == "main — Session du 2026-07-01"
+    assert (
+        first.result.plan.sessions[0].computed_title
+        == second.result.plan.sessions[0].computed_title
+    )
 
 
 def test_grouping_version_is_part_of_grouping_key(
@@ -404,6 +519,30 @@ def test_grouping_version_is_part_of_grouping_key(
     assert current[0].session_id != next_version[0].session_id
 
 
+def test_temporal_configuration_is_part_of_grouping_identity() -> None:
+    commits = [normalized_commit(REPOSITORY_ID, SHA_1)]
+    short, _, _, _ = group_development_sessions(
+        commits,
+        session_window_hours=24,
+        session_max_duration_hours=12,
+    )
+    long, _, _, _ = group_development_sessions(
+        commits,
+        session_window_hours=24,
+        session_max_duration_hours=24,
+    )
+    narrow_window, _, _, _ = group_development_sessions(
+        commits,
+        session_window_hours=12,
+        session_max_duration_hours=12,
+    )
+
+    assert short[0].grouping_key != long[0].grouping_key
+    assert short[0].session_id != long[0].session_id
+    assert short[0].grouping_key != narrow_window[0].grouping_key
+    assert short[0].session_id != narrow_window[0].session_id
+
+
 def test_real_unknown_continuity_pattern_no_longer_creates_unit_sessions() -> None:
     start = datetime(2026, 7, 1, 8, tzinfo=UTC)
     commits: list[NormalizedCommit] = []
@@ -416,7 +555,7 @@ def test_real_unknown_continuity_pattern_no_longer_creates_unit_sessions() -> No
                 REPOSITORY_ID,
                 sha,
                 parent=parent,
-                committed_at=start + timedelta(minutes=index * 10),
+                committed_at=start + timedelta(minutes=index * 30),
                 subject=f"docs: change {index + 1}",
             )
         )
@@ -424,10 +563,14 @@ def test_real_unknown_continuity_pattern_no_longer_creates_unit_sessions() -> No
 
     sessions, _, warnings, metrics = group_development_sessions(commits, session_window_hours=24)
 
-    assert [len(session.commit_ids) for session in sessions] == [50]
+    distribution = [len(session.commit_ids) for session in sessions]
+    assert 1 < len(sessions) < 7
+    assert min(distribution) > 1
+    assert max(session.last_activity_at - session.started_at for session in sessions) <= timedelta(
+        hours=12
+    )
     assert len(warnings) == 5
-    assert metrics == {
-        "continuity_confirmed": 44,
-        "continuity_unknown": 5,
-        "continuity_broken": 0,
-    }
+    assert metrics["continuity_confirmed"] == 44
+    assert metrics["continuity_unknown"] == 5
+    assert metrics["continuity_broken"] == 0
+    assert metrics["sessions_split_by_max_duration"] == len(sessions) - 1

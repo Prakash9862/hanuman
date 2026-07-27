@@ -19,6 +19,7 @@ from hanuman.models.github_project_memory import (
     NormalizedCommit,
     NormalizedRepository,
     PlannedEffect,
+    SessionOpeningReason,
     StepResult,
     StructuredError,
 )
@@ -32,15 +33,31 @@ from hanuman.services.core.github_service import (
 
 FLOW_ID = "github-activity-notion-project-memory"
 FLOW_VERSION = "1.0"
-GROUPING_VERSION = 2
+GROUPING_VERSION = 3
 SESSION_NAMESPACE = uuid.UUID("b942def8-2247-59be-94bb-63d7b4def622")
 SHA_PATTERN = re.compile(r"^[0-9a-fA-F]{40}$")
-CONVENTIONAL_PREFIX = re.compile(
-    r"^(?:feat|fix|docs|test|tests|refactor|build|ci|chore|perf|style|revert)"
-    r"(?:\([^)]*\))?!?:\s*",
+CONVENTIONAL_SUBJECT = re.compile(
+    r"^(?P<category>feat|fix|docs|test|tests|refactor|chore|style)"
+    r"(?:\((?P<scope>[^)]+)\))?!?:\s*",
     re.IGNORECASE,
 )
 MAX_TITLE_LENGTH = 80
+CATEGORY_LABELS = {
+    "feat": "Fonctionnalités",
+    "fix": "Corrections",
+    "docs": "Documentation",
+    "test": "Tests",
+    "refactor": "Refactorisation",
+    "chore": "Maintenance",
+    "style": "Formatage",
+}
+SCOPE_LABELS = {
+    "ui": "Interface",
+    "flows": "Flux",
+    "flow": "Flux",
+    "cli": "CLI",
+    "chess": "Échecs",
+}
 
 GithubServiceFactory = Callable[[], GithubService]
 
@@ -138,13 +155,20 @@ def normalize_commit(
     )
 
 
-def _grouping_key(commit: NormalizedCommit) -> str:
+def _grouping_key(
+    commit: NormalizedCommit,
+    *,
+    session_window_hours: int,
+    session_max_duration_hours: int,
+) -> str:
     return _digest(
         {
             "grouping_version": GROUPING_VERSION,
             "repository_id": commit.repository_id,
             "full_ref": commit.full_ref,
             "first_commit_sha": commit.sha,
+            "session_window_hours": session_window_hours,
+            "session_max_duration_hours": session_max_duration_hours,
         }
     )
 
@@ -153,24 +177,43 @@ def _session_id(grouping_key: str) -> str:
     return str(uuid.uuid5(SESSION_NAMESPACE, grouping_key))
 
 
-def _clean_subject(subject: str) -> str:
-    cleaned = CONVENTIONAL_PREFIX.sub("", " ".join(subject.split())).strip(" -–—:")
-    if not cleaned:
-        return ""
-    return cleaned[0].upper() + cleaned[1:]
+def _ranked_themes(commits: list[NormalizedCommit]) -> list[str]:
+    counts: dict[str, int] = {}
+    first_seen: dict[str, int] = {}
+    for index, commit in enumerate(commits):
+        match = CONVENTIONAL_SUBJECT.match(commit.message_subject)
+        if match is None:
+            continue
+        category = match.group("category").lower()
+        if category == "tests":
+            category = "test"
+        category_label = CATEGORY_LABELS[category]
+        counts[category_label] = counts.get(category_label, 0) + 1
+        first_seen.setdefault(category_label, index)
+        scope = (match.group("scope") or "").lower()
+        scope_label = SCOPE_LABELS.get(scope)
+        if scope_label is not None:
+            counts[scope_label] = counts.get(scope_label, 0) + 1
+            first_seen.setdefault(scope_label, index)
+    return sorted(counts, key=lambda label: (-counts[label], first_seen[label], label))[:2]
 
 
-def _computed_title(commit: NormalizedCommit) -> str:
-    branch = commit.full_ref.removeprefix("refs/heads/")
-    subject = _clean_subject(commit.message_subject)
-    if not subject:
-        return branch[:MAX_TITLE_LENGTH]
-    available = MAX_TITLE_LENGTH - len(branch) - 3
-    if available < 1:
-        return branch[:MAX_TITLE_LENGTH]
-    if len(subject) > available:
-        subject = subject[: max(1, available - 1)].rstrip() + "…"
-    return f"{branch} — {subject}"
+def _computed_title(
+    session: DevelopmentSession,
+    commits: list[NormalizedCommit],
+) -> str:
+    branch = session.primary_ref.removeprefix("refs/heads/")
+    session_ids = set(session.commit_ids)
+    session_commits = [commit for commit in commits if commit.commit_id in session_ids]
+    themes = _ranked_themes(session_commits)
+    if themes:
+        description = " et ".join(themes)
+    else:
+        description = f"Session du {session.started_at.date().isoformat()}"
+    title = f"{branch} — {description}"
+    if len(title) <= MAX_TITLE_LENGTH:
+        return title
+    return title[: MAX_TITLE_LENGTH - 1].rstrip() + "…"
 
 
 def _summary(session: DevelopmentSession, commits: list[NormalizedCommit]) -> str:
@@ -202,11 +245,14 @@ def group_development_sessions(
     commits: list[NormalizedCommit],
     *,
     session_window_hours: int,
+    session_max_duration_hours: int = 12,
 ) -> tuple[list[DevelopmentSession], dict[str, str], list[str], dict[str, int]]:
     """Regroupe des commits sans état persistant ni déduction probabiliste."""
 
     if session_window_hours < 1:
         raise ValueError("session_window_hours doit être supérieur ou égal à 1.")
+    if session_max_duration_hours < 1:
+        raise ValueError("session_max_duration_hours doit être supérieur ou égal à 1.")
 
     ordered = sorted(
         commits,
@@ -225,12 +271,21 @@ def group_development_sessions(
         "continuity_confirmed": 0,
         "continuity_unknown": 0,
         "continuity_broken": 0,
+        "sessions_split_by_inactivity": 0,
+        "sessions_split_by_max_duration": 0,
+        "sessions_split_by_broken_continuity": 0,
+        "sessions_split_by_branch_change": 0,
+        "sessions_split_by_repository_change": 0,
     }
     window = timedelta(hours=session_window_hours)
+    max_duration = timedelta(hours=session_max_duration_hours)
+    seen_repositories: set[int] = set()
+    seen_contexts: set[tuple[int, str]] = set()
 
     for commit in ordered:
         context = (commit.repository_id, commit.full_ref)
         current = active.get(context)
+        opening_reason: SessionOpeningReason | None = None
         if current is not None:
             previous_sha = current.commit_ids[-1].split(":", maxsplit=1)[1]
             gap = commit.committed_at - current.last_activity_at
@@ -239,10 +294,20 @@ def group_development_sessions(
             if gap > window:
                 current.status = "closed"
                 current.ended_at = current.last_activity_at
+                continuity_metrics["sessions_split_by_inactivity"] += 1
+                opening_reason = "inactivity_window"
                 current = None
             elif continuity == "broken":
                 current.status = "closed"
                 current.ended_at = current.last_activity_at
+                continuity_metrics["sessions_split_by_broken_continuity"] += 1
+                opening_reason = "continuity_broken"
+                current = None
+            elif commit.committed_at - current.started_at > max_duration:
+                current.status = "closed"
+                current.ended_at = current.last_activity_at
+                continuity_metrics["sessions_split_by_max_duration"] += 1
+                opening_reason = "max_duration"
                 current = None
             elif continuity == "unknown":
                 warning = (
@@ -253,7 +318,20 @@ def group_development_sessions(
                 current.warnings.append(warning)
 
         if current is None:
-            grouping_key = _grouping_key(commit)
+            if opening_reason is None:
+                if commit.repository_id not in seen_repositories and seen_repositories:
+                    opening_reason = "repository_change"
+                    continuity_metrics["sessions_split_by_repository_change"] += 1
+                elif context not in seen_contexts and seen_contexts:
+                    opening_reason = "branch_change"
+                    continuity_metrics["sessions_split_by_branch_change"] += 1
+                else:
+                    opening_reason = "initial"
+            grouping_key = _grouping_key(
+                commit,
+                session_window_hours=session_window_hours,
+                session_max_duration_hours=session_max_duration_hours,
+            )
             current = DevelopmentSession(
                 session_id=_session_id(grouping_key),
                 repository_id=commit.repository_id,
@@ -265,13 +343,16 @@ def group_development_sessions(
                 commit_ids=[],
                 branches=[commit.full_ref],
                 status="open",
-                computed_title=_computed_title(commit),
+                computed_title="",
                 generated_summary="",
                 github_links=[],
                 primary_ref=commit.full_ref,
+                opening_reason=opening_reason,
             )
             sessions.append(current)
             active[context] = current
+            seen_repositories.add(commit.repository_id)
+            seen_contexts.add(context)
 
         current.commit_ids.append(commit.commit_id)
         current.last_activity_at = commit.committed_at
@@ -280,6 +361,7 @@ def group_development_sessions(
         associations[commit.commit_id] = current.session_id
 
     for session in sessions:
+        session.computed_title = _computed_title(session, ordered)
         session.generated_summary = _summary(session, ordered)
     return sessions, associations, warnings, continuity_metrics
 
@@ -301,6 +383,7 @@ def _plan_fingerprint_payload(
         "end_ref": flow_input.end_ref or full_ref,
         "max_commits": flow_input.max_commits,
         "session_window_hours": flow_input.session_window_hours,
+        "session_max_duration_hours": flow_input.session_max_duration_hours,
         "commits": [asdict(commit) for commit in commits],
         "sessions": [asdict(session) for session in sessions],
         "associations": associations,
@@ -352,6 +435,7 @@ def _safe_input(flow_input: GitHubProjectMemoryInput) -> dict[str, Any]:
         "end_ref": flow_input.end_ref,
         "max_commits": flow_input.max_commits,
         "session_window_hours": flow_input.session_window_hours,
+        "session_max_duration_hours": flow_input.session_max_duration_hours,
     }
 
 
@@ -396,6 +480,12 @@ def plan_github_project_memory(
             "invalid_session_window",
             "validation",
             "session_window_hours doit être supérieur ou égal à 1.",
+        )
+    elif flow_input.session_max_duration_hours < 1:
+        input_error = StructuredError(
+            "invalid_session_max_duration",
+            "validation",
+            "session_max_duration_hours doit être supérieur ou égal à 1.",
         )
     if input_error is not None:
         steps.append(_step("trigger", trigger_started, status="failed", errors=[input_error]))
@@ -487,6 +577,7 @@ def plan_github_project_memory(
     sessions, associations, warnings, continuity_metrics = group_development_sessions(
         commits,
         session_window_hours=flow_input.session_window_hours,
+        session_max_duration_hours=flow_input.session_max_duration_hours,
     )
     steps.append(
         _step(
