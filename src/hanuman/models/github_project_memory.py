@@ -134,7 +134,7 @@ class StepResult:
 
 @dataclass
 class FlowResult:
-    status: Literal["planned", "skipped", "failed"]
+    status: Literal["planned", "applied", "verified", "skipped", "failed"]
     summary: str
     resources_read: int
     resources_created: int
@@ -143,8 +143,9 @@ class FlowResult:
     resources_failed: int
     effects: list[PlannedEffect]
     warnings: list[str]
-    verification: Literal["not_applied"]
+    verification: Literal["not_applied", "passed", "failed"]
     plan: GitHubProjectMemoryPlan | None = None
+    verification_details: list[str] = field(default_factory=list)
 
 
 @dataclass
