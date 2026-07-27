@@ -83,6 +83,11 @@ function SidebarHealth() {
   )
 }
 
+function LegacyRedirect({ to }: { to: string }) {
+  const { search } = useLocation()
+  return <Navigate to={{ pathname: to, search }} replace />
+}
+
 function AppShell() {
   const location = useLocation()
 
@@ -115,6 +120,14 @@ function AppShell() {
           <Route path="/data" element={<PlaceholderPage eyebrow="Hanuman / Données" title="Les contenus reliés par Hanuman." description="Cette section accueillera une vue des contenus, artefacts et bibliothèques manipulés par les flux." note="La vue unifiée des données est en préparation." icon={Database} />} />
           <Route path="/agents" element={<PlaceholderPage eyebrow="Hanuman / Agents IA" title="Un espace réservé aux futurs agents." description="Hanuman ne propose actuellement aucun agent autonome. Cette section documentera leurs capacités lorsqu’elles seront disponibles." note="Aucun agent autonome n’est actuellement disponible." icon={Bot} />} />
           <Route path="/settings" element={<PlaceholderPage eyebrow="Hanuman / Paramètres" title="La configuration utilisateur viendra ici." description="Les réglages de l’interface seront regroupés dans cette section. La configuration technique reste pour l’instant locale et documentée, sans exposer de secret." note="La configuration dans l’interface est à venir." icon={Settings} />} />
+          <Route path="/orchestrations" element={<Navigate to="/flows" replace />} />
+          <Route path="/orchestrations/gmail" element={<GmailPage />} />
+          <Route path="/orchestrations/calendar" element={<CalendarPage />} />
+          <Route path="/orchestrations/obsidian-notion" element={<ObsidianNotionPage />} />
+          <Route path="/orchestrations/wikipedia-notion" element={<WikipediaNotionPage />} />
+          <Route path="/orchestrations/chess-obsidian" element={<ChessObsidianPage />} />
+          <Route path="/resources" element={<LegacyRedirect to="/connectors" />} />
+          <Route path="/library" element={<LegacyRedirect to="/connectors" />} />
           <Route path="/health" element={<HealthPage />} />
         </Routes>
       </main>
