@@ -94,9 +94,9 @@ def test_multiple_insights_round_trip_restores_tuples_and_none() -> None:
 
 
 def test_unknown_schema_version_is_rejected() -> None:
-    with pytest.raises(UnsupportedChessInsightSchemaError, match="2"):
+    with pytest.raises(UnsupportedChessInsightSchemaError, match="99"):
         ChessInsightEnvelope.from_json(
-            '{"schema_version": 2, "game_id": null, "eco": null, "insights": []}'
+            '{"schema_version": 99, "game_id": null, "eco": null, "insights": []}'
         )
 
 

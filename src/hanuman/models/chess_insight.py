@@ -11,7 +11,8 @@ PlayerRole = Literal["player", "opponent"]
 ALLOWED_CATEGORIES = frozenset({"blunder", "excellent", "opportunity", "motif"})
 ALLOWED_COLORS = frozenset({"white", "black"})
 ALLOWED_PLAYER_ROLES = frozenset({"player", "opponent"})
-CHESS_INSIGHT_SCHEMA_VERSION = 1
+CHESS_INSIGHT_SCHEMA_VERSION = 2
+SUPPORTED_CHESS_INSIGHT_SCHEMA_VERSIONS = frozenset({1, 2})
 
 
 class ChessInsightEnvelopeError(ValueError):
@@ -43,6 +44,8 @@ class ChessInsight:
     opening_phase: bool
     eco: str | None
     player_role: PlayerRole
+    played_move_uci: str | None = None
+    best_move_uci: str | None = None
 
     def __post_init__(self) -> None:
         if self.category not in ALLOWED_CATEGORIES:
@@ -53,7 +56,7 @@ class ChessInsight:
             raise ValueError(f"Rôle ChessInsight invalide : {self.player_role}")
 
     def to_dict(self) -> dict[str, object]:
-        return {
+        payload: dict[str, object] = {
             "insight_id": self.insight_id,
             "game_id": self.game_id,
             "category": self.category,
@@ -74,6 +77,11 @@ class ChessInsight:
             "eco": self.eco,
             "player_role": self.player_role,
         }
+        if self.played_move_uci is not None:
+            payload["played_move_uci"] = self.played_move_uci
+        if self.best_move_uci is not None:
+            payload["best_move_uci"] = self.best_move_uci
+        return payload
 
     @classmethod
     def from_dict(cls, payload: object) -> ChessInsight:
@@ -102,8 +110,12 @@ class ChessInsight:
         variation = payload.get("principal_variation")
         if not isinstance(opening_phase, bool):
             raise ChessInsightEnvelopeError("Champ insight invalide : opening_phase")
-        if not isinstance(variation, list) or not all(isinstance(move, str) for move in variation):
-            raise ChessInsightEnvelopeError("Champ insight invalide : principal_variation")
+        if not isinstance(variation, list) or not all(
+            isinstance(move, str) for move in variation
+        ):
+            raise ChessInsightEnvelopeError(
+                "Champ insight invalide : principal_variation"
+            )
 
         try:
             return cls(
@@ -122,6 +134,8 @@ class ChessInsight:
                 eval_after_cp=required_int("eval_after_cp"),
                 loss_cp=required_int("loss_cp"),
                 best_move_san=optional_string("best_move_san"),
+                played_move_uci=optional_string("played_move_uci"),
+                best_move_uci=optional_string("best_move_uci"),
                 principal_variation=tuple(variation),
                 opening_phase=opening_phase,
                 eco=optional_string("eco"),
@@ -139,9 +153,11 @@ class ChessInsightEnvelope:
     game_id: str | None
     eco: str | None
     insights: tuple[ChessInsight, ...]
+    analysis_metadata: dict[str, object] | None = None
+    opening_exit: dict[str, object] | None = None
 
     def __post_init__(self) -> None:
-        if self.schema_version != CHESS_INSIGHT_SCHEMA_VERSION:
+        if self.schema_version not in SUPPORTED_CHESS_INSIGHT_SCHEMA_VERSIONS:
             raise UnsupportedChessInsightSchemaError(
                 f"Version ChessInsight non prise en charge : {self.schema_version}"
             )
@@ -152,6 +168,16 @@ class ChessInsightEnvelope:
             "game_id": self.game_id,
             "eco": self.eco,
             "insights": [insight.to_dict() for insight in self.insights],
+            **(
+                {"analysis_metadata": self.analysis_metadata}
+                if self.analysis_metadata is not None
+                else {}
+            ),
+            **(
+                {"opening_exit": self.opening_exit}
+                if self.opening_exit is not None
+                else {}
+            ),
         }
 
     def to_json(self) -> str:
@@ -169,12 +195,14 @@ class ChessInsightEnvelope:
         except json.JSONDecodeError as exc:
             raise ChessInsightEnvelopeError("JSON ChessInsight invalide.") from exc
         if not isinstance(payload, dict):
-            raise ChessInsightEnvelopeError("L'enveloppe ChessInsight doit être un objet JSON.")
+            raise ChessInsightEnvelopeError(
+                "L'enveloppe ChessInsight doit être un objet JSON."
+            )
 
         version = payload.get("schema_version")
         if type(version) is not int:
             raise ChessInsightEnvelopeError("schema_version doit être un entier.")
-        if version != CHESS_INSIGHT_SCHEMA_VERSION:
+        if version not in SUPPORTED_CHESS_INSIGHT_SCHEMA_VERSIONS:
             raise UnsupportedChessInsightSchemaError(
                 f"Version ChessInsight non prise en charge : {version}"
             )
@@ -182,16 +210,28 @@ class ChessInsightEnvelope:
         game_id = payload.get("game_id")
         eco = payload.get("eco")
         raw_insights = payload.get("insights")
+        analysis_metadata = payload.get("analysis_metadata")
+        opening_exit = payload.get("opening_exit")
         if game_id is not None and not isinstance(game_id, str):
             raise ChessInsightEnvelopeError("game_id doit être une chaîne ou null.")
         if eco is not None and not isinstance(eco, str):
             raise ChessInsightEnvelopeError("eco doit être une chaîne ou null.")
         if not isinstance(raw_insights, list):
             raise ChessInsightEnvelopeError("insights doit être une liste.")
+        if analysis_metadata is not None and not isinstance(analysis_metadata, dict):
+            raise ChessInsightEnvelopeError(
+                "analysis_metadata doit être un objet ou être absent."
+            )
+        if opening_exit is not None and not isinstance(opening_exit, dict):
+            raise ChessInsightEnvelopeError(
+                "opening_exit doit être un objet ou être absent."
+            )
 
         return cls(
             schema_version=version,
             game_id=game_id,
             eco=eco,
             insights=tuple(ChessInsight.from_dict(insight) for insight in raw_insights),
+            analysis_metadata=analysis_metadata,
+            opening_exit=opening_exit,
         )

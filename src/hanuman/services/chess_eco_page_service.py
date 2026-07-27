@@ -7,22 +7,26 @@ import subprocess
 from collections import Counter, defaultdict
 from dataclasses import dataclass
 from pathlib import Path
+from statistics import median
 
 import chess
 import chess.pgn
 import yaml
 
 from hanuman.models.chess import ChessGame, chess_game_note_link, chess_game_path
+from hanuman.models.chess_insight import ChessInsight
 from hanuman.services.atomic_write_service import atomic_write_text
 from hanuman.services.chess_analysis_summary_service import read_analysis_summary
+from hanuman.services.chess_insight_storage_service import parse_insight_block
+from hanuman.services.chess_insight_view_service import position_identity
 from hanuman.services.chess_path_safety_service import resolve_safe_destination
 
 PGN_PATTERN = re.compile(r"```pgn\s*(.*?)```", re.DOTALL | re.IGNORECASE)
 ECO_FILENAME = re.compile(r"^[A-E]\d{2}\.md$")
-ANALYSIS_START = "<!-- HANUMAN_CHESS_ANALYSIS_START -->"
-ANALYSIS_END = "<!-- HANUMAN_CHESS_ANALYSIS_END -->"
 GENERATED_START = "<!-- HANUMAN:GENERATED:START -->"
 PROTOTYPES = frozenset({"eco_test.md", "eco_test2.md", "eco_test3.md", "eco_test4.md"})
+OPENING_EXIT_FAVORABLE_CP = 50
+OPENING_EXIT_UNFAVORABLE_CP = -50
 SECTION_HEADINGS = (
     "## 👑 Vue d'ensemble",
     "## 📖 Mon répertoire",
@@ -166,7 +170,9 @@ def _variant_prefixes(games: tuple[EcoGame, ...]) -> tuple[Variant, ...]:
             for prefix, count in prefix_counts.items()
             if count >= 3 and len(prefix) >= 2 and item.san[: len(prefix)] == prefix
         ]
-        prefix = max(candidates, key=lambda value: (len(value), value), default=item.san[:2])
+        prefix = max(
+            candidates, key=lambda value: (len(value), value), default=item.san[:2]
+        )
         grouped[prefix].append(item)
 
     variants = [Variant(san, tuple(items)) for san, items in grouped.items() if san]
@@ -219,7 +225,9 @@ def load_eco_theory(pdf_path: Path) -> dict[str, tuple[EcoTheory, ...]]:
     for eco, entries in choices.items():
         result[eco] = tuple(
             EcoTheory(name, reference, bool(reference))
-            for _, name, reference in sorted(entries, key=lambda item: (item[1], item[2]))
+            for _, name, reference in sorted(
+                entries, key=lambda item: (item[1], item[2])
+            )
         )
     return result
 
@@ -235,7 +243,9 @@ def _matching_theory(
         return next(
             (
                 index
-                for index, (expected, actual) in enumerate(zip(entry.reference_san, played))
+                for index, (expected, actual) in enumerate(
+                    zip(entry.reference_san, played)
+                )
                 if expected != actual
             ),
             min(len(entry.reference_san), len(played)),
@@ -323,13 +333,15 @@ def _svg(board: chess.Board, orientation: str) -> str:
         for column, file in enumerate(files):
             x, y = 28 + column * 48, 28 + row * 48
             fill = "#e8d7b9" if (file + rank) % 2 else "#8b5e3c"
-            lines.append(f'<rect x="{x}" y="{y}" width="48" height="48" fill="{fill}"/>')
+            lines.append(
+                f'<rect x="{x}" y="{y}" width="48" height="48" fill="{fill}"/>'
+            )
             piece = board.piece_at(chess.square(file, rank))
             if piece:
                 lines.append(
                     f'<text x="{x + 24}" y="{y + 36}" text-anchor="middle" '
                     f'font-size="38" font-family="DejaVu Sans, serif">'
-                    f'{symbols[piece.symbol()]}</text>'
+                    f"{symbols[piece.symbol()]}</text>"
                 )
     visible_files = "abcdefgh" if orientation == "white" else "hgfedcba"
     visible_ranks = "87654321" if orientation == "white" else "12345678"
@@ -364,12 +376,120 @@ def _widget_pgn(eco: str, name: str, san: tuple[str, ...]) -> str:
     return game.accept(exporter)
 
 
-def _analysis_counts(markdown: str) -> tuple[int, int]:
-    start, end = markdown.find(ANALYSIS_START), markdown.find(ANALYSIS_END)
-    block = markdown[start:end] if 0 <= start < end else ""
-    blunder = re.search(r"\|\s*`?\?\?`?\s+Gaffes\s*\|\s*(\d+)", block)
-    missed = re.search(r"\|\s*Excellents coups manqués\s*\|\s*(\d+)", block)
-    return int(blunder.group(1)) if blunder else 0, int(missed.group(1)) if missed else 0
+def _persisted_envelope(item: EcoGame):
+    try:
+        return parse_insight_block(item.path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, ValueError):
+        return None
+
+
+def _opening_exit(item: EcoGame) -> dict[str, object] | None:
+    envelope = _persisted_envelope(item)
+    return envelope.opening_exit if envelope is not None else None
+
+
+def _opening_exit_cp(item: EcoGame) -> int | None:
+    exit_data = _opening_exit(item)
+    value = exit_data.get("evaluation_value") if exit_data is not None else None
+    if (
+        exit_data is None
+        or exit_data.get("evaluation_type") != "centipawn"
+        or exit_data.get("evaluation_perspective") != "hanuman-player"
+        or type(value) is not int
+    ):
+        return None
+    return value
+
+
+def _opening_exit_evaluation(item: EcoGame) -> tuple[str, int] | None:
+    exit_data = _opening_exit(item)
+    value = exit_data.get("evaluation_value") if exit_data is not None else None
+    evaluation_type = (
+        exit_data.get("evaluation_type") if exit_data is not None else None
+    )
+    if (
+        not isinstance(evaluation_type, str)
+        or evaluation_type not in {"centipawn", "mate"}
+        or exit_data is None
+        or exit_data.get("evaluation_perspective") != "hanuman-player"
+        or type(value) is not int
+    ):
+        return None
+    return evaluation_type, value
+
+
+def _representative_exit(
+    games: tuple[EcoGame, ...],
+) -> tuple[EcoGame, dict[str, object], int] | None:
+    positions: dict[str, list[tuple[EcoGame, dict[str, object]]]] = defaultdict(list)
+    for item in games:
+        exit_data = _opening_exit(item)
+        fen = exit_data.get("fen") if exit_data is not None else None
+        key = position_identity(fen if isinstance(fen, str) else None)
+        if key is not None and exit_data is not None:
+            positions[key].append((item, exit_data))
+    if not positions:
+        return None
+    key, occurrences = sorted(
+        positions.items(),
+        key=lambda entry: (-len(entry[1]), entry[0]),
+    )[0]
+    del key
+    representative = sorted(
+        occurrences,
+        key=lambda pair: (pair[0].game.end_time, pair[0].game.game_id),
+        reverse=True,
+    )[0]
+    return representative[0], representative[1], len(occurrences)
+
+
+def _eco_position_recurrences(games: tuple[EcoGame, ...], category: str) -> str:
+    grouped: dict[str, list[tuple[EcoGame, ChessInsight]]] = defaultdict(list)
+    total = 0
+    for item in games:
+        envelope = _persisted_envelope(item)
+        if envelope is None:
+            continue
+        for insight in envelope.insights:
+            if insight.category != category or insight.player_role != "player":
+                continue
+            total += 1
+            key = position_identity(insight.fen_before)
+            if key is not None:
+                grouped[key].append((item, insight))
+    recurrent = [
+        occurrences
+        for occurrences in grouped.values()
+        if len({item.game.game_id for item, _ in occurrences}) >= 2
+    ]
+    recurrent.sort(
+        key=lambda occurrences: (
+            -len(occurrences),
+            str(occurrences[0][1].fen_before),
+        )
+    )
+    if not recurrent:
+        return (
+            f"> **{total} événement(s) V2 positionné(s)**. "
+            "Aucune même position FEN dans au moins deux parties. "
+            "Aucune récurrence ni aucun échiquier n’est fabriqué."
+        )
+    occurrences = recurrent[0]
+    insight = occurrences[0][1]
+    links = " · ".join(
+        dict.fromkeys(chess_game_note_link(item.game) for item, _ in occurrences)
+    )
+    return (
+        f"> [!example] Position réellement récurrente · {len(occurrences)} occurrences\n"
+        f"> FEN avant le coup : `{insight.fen_before}`  \n"
+        f"> Coup joué : `{insight.san}`"
+        + (
+            f" · meilleur coup : `{insight.best_move_san}`"
+            if insight.best_move_san
+            else ""
+        )
+        + f"  \n> Parties : {links}"
+    )
 
 
 def _monthly(games: tuple[EcoGame, ...]) -> list[tuple[str, int, int, int, int, float]]:
@@ -379,7 +499,9 @@ def _monthly(games: tuple[EcoGame, ...]) -> list[tuple[str, int, int, int, int, 
     rows = []
     for month, items in sorted(grouped.items()):
         wins, draws, losses = _result_counts(tuple(items))
-        rows.append((month, len(items), wins, draws, losses, _success(wins, draws, losses)))
+        rows.append(
+            (month, len(items), wins, draws, losses, _success(wins, draws, losses))
+        )
     return rows
 
 
@@ -402,10 +524,16 @@ def build_eco_page(
         if len(item.games) >= 5 or (len(item.games) >= 3 and item.success_rate >= 80)
     )
     displayed = (main, *secondaries)
-    health_variants = (main,) + tuple(item for item in secondaries if item.success_rate >= 80)
-    health_ids = {item.game.game_id for variant in health_variants for item in variant.games}
+    health_variants = (main,) + tuple(
+        item for item in secondaries if item.success_rate >= 80
+    )
+    health_ids = {
+        item.game.game_id for variant in health_variants for item in variant.games
+    }
     health_games = tuple(item for item in games if item.game.game_id in health_ids)
-    analysed = tuple(item for item in games if read_analysis_summary(item.path).analysed)
+    analysed = tuple(
+        item for item in games if read_analysis_summary(item.path).analysed
+    )
     health_analysed = tuple(
         item for item in health_games if read_analysis_summary(item.path).analysed
     )
@@ -413,52 +541,106 @@ def build_eco_page(
     hw, hd, hl = _result_counts(health_games)
     colors = Counter(item.game.color for item in games)
     players = Counter(
-        item.game.white if item.game.color == "white" else item.game.black for item in games
+        item.game.white if item.game.color == "white" else item.game.black
+        for item in games
     )
     player = sorted(players, key=lambda value: (-players[value], value))[0]
     official_name = theory.official_name if theory else games[0].game.opening_name
     theory_line = theory.reference_san if theory else ()
-    board = _board_after(main.san)
+    persisted_exit = _representative_exit(main.games)
+    exit_item = persisted_exit[0] if persisted_exit else None
+    exit_data = persisted_exit[1] if persisted_exit else None
+    exit_frequency = persisted_exit[2] if persisted_exit else 0
+    exit_fen = exit_data.get("fen") if exit_data else None
+    board = (
+        chess.Board(exit_fen) if isinstance(exit_fen, str) else _board_after(main.san)
+    )
     orientation = main.color
     fen = board.fen() if board else ""
-    digest = hashlib.sha256(f"{eco}|{' '.join(main.san)}|{fen}".encode()).hexdigest()[:12]
+    digest = hashlib.sha256(f"{eco}|{' '.join(main.san)}|{fen}".encode()).hexdigest()[
+        :12
+    ]
     board_id = f"hanuman-board-{eco.lower()}-main-{digest}-v1"
-    pgn = _widget_pgn(eco, official_name, main.san) if board else ""
-    representative = sorted(
-        main.games, key=lambda item: (item.game.end_time, item.game.game_id), reverse=True
-    )[0]
-    all_game_ids = sorted(item.game.game_id for item in main.games)
-    analysed_losses: list[float] = []
-    for item in health_analysed:
-        loss = read_analysis_summary(item.path).average_loss_cp
-        if loss is not None:
-            analysed_losses.append(loss)
-    average_loss = (
-        round(sum(analysed_losses) / len(analysed_losses), 1) if analysed_losses else None
+    pgn = (
+        exit_item.pgn
+        if exit_item is not None
+        else (_widget_pgn(eco, official_name, main.san) if board else "")
     )
-    blunders = missed = 0
-    for item in analysed:
-        counts = _analysis_counts(item.path.read_text(encoding="utf-8"))
-        blunders += counts[0]
-        missed += counts[1]
+    representative = (
+        exit_item
+        or sorted(
+            main.games,
+            key=lambda item: (item.game.end_time, item.game.game_id),
+            reverse=True,
+        )[0]
+    )
+    all_game_ids = sorted(item.game.game_id for item in main.games)
+    exit_cp_evaluations = [
+        value for item in health_games if (value := _opening_exit_cp(item)) is not None
+    ]
+    exit_evaluations = [
+        evaluation
+        for item in health_games
+        if (evaluation := _opening_exit_evaluation(item)) is not None
+    ]
+    exit_average = (
+        round(sum(exit_cp_evaluations) / len(exit_cp_evaluations), 1)
+        if exit_cp_evaluations
+        else None
+    )
+    exit_median = (
+        round(float(median(exit_cp_evaluations)), 1)
+        if exit_cp_evaluations
+        else None
+    )
+    exit_favorable = sum(
+        (evaluation_type == "mate" and value > 0)
+        or (evaluation_type == "centipawn" and value > OPENING_EXIT_FAVORABLE_CP)
+        for evaluation_type, value in exit_evaluations
+    )
+    exit_unfavorable = sum(
+        (evaluation_type == "mate" and value < 0)
+        or (evaluation_type == "centipawn" and value < OPENING_EXIT_UNFAVORABLE_CP)
+        for evaluation_type, value in exit_evaluations
+    )
+    exit_balanced = len(exit_evaluations) - exit_favorable - exit_unfavorable
+    exit_mate_favorable = sum(
+        evaluation_type == "mate" and value > 0
+        for evaluation_type, value in exit_evaluations
+    )
+    exit_mate_unfavorable = sum(
+        evaluation_type == "mate" and value < 0
+        for evaluation_type, value in exit_evaluations
+    )
     months = _monthly(games)
     displayed_count = sum(len(item.games) for item in displayed)
     other_count = len(games) - displayed_count
     main_share = round(len(main.games) / len(games) * 100, 1)
     coverage = round(len(analysed) / len(games) * 100, 1)
     health_rate = _success(hw, hd, hl)
+    health_exit_coverage = (
+        round(len(exit_evaluations) / len(health_games) * 100, 1)
+        if health_games
+        else 0.0
+    )
+    raw_position_ply = exit_data.get("ply") if exit_data else None
+    position_ply = raw_position_ply if type(raw_position_ply) is int else len(main.san)
     date_first = min(item.game.end_time for item in games).strftime("%Y-%m-%d")
     date_last = max(item.game.end_time for item in games).strftime("%Y-%m-%d")
     note_links = "\n".join(
         f"> - {chess_game_note_link(item.game)}"
         for item in sorted(
-            games, key=lambda item: (item.game.end_time, item.game.game_id), reverse=True
+            games,
+            key=lambda item: (item.game.end_time, item.game.game_id),
+            reverse=True,
         )
     )
     widget_links = "\n".join(
         f"> - {chess_game_note_link(item.game)}"
         for item in sorted(
-            main.games, key=lambda item: (item.game.end_time, item.game.game_id), reverse=True
+            main.games,
+            key=lambda item: (item.game.end_time, item.game.game_id),
+            reverse=True,
         )
     )
 
@@ -472,7 +654,9 @@ def build_eco_page(
         "eco": eco,
         "opening_name": official_name,
         "opening_name_source": "ECOMast Codes ECO",
-        "aliases": sorted({eco, official_name, *(item.game.opening_name for item in games)}),
+        "aliases": sorted(
+            {eco, official_name, *(item.game.opening_name for item in games)}
+        ),
         "colors_played": {"white": colors["white"], "black": colors["black"]},
         "games": {
             "total": len(games),
@@ -501,6 +685,19 @@ def build_eco_page(
             "losses": hl,
             "success_rate": health_rate,
             "analysed_games": len(health_analysed),
+            "opening_exit_evaluable_games": len(exit_evaluations),
+            "opening_exit_coverage_percent": health_exit_coverage,
+            "opening_exit_average_cp": exit_average,
+            "opening_exit_median_cp": exit_median,
+            "opening_exit_mate_positions": {
+                "favorable": exit_mate_favorable,
+                "unfavorable": exit_mate_unfavorable,
+            },
+            "opening_exit_distribution": {
+                "favorable": exit_favorable,
+                "balanced": exit_balanced,
+                "unfavorable": exit_unfavorable,
+            },
         },
         "theory": {
             "source": "docs/chess/File_ECOMast-Codes_ECO.pdf",
@@ -518,16 +715,26 @@ def build_eco_page(
             {
                 "id": board_id,
                 "kind": "opening-position-widget",
-                "position_role": "repertoire-reference",
-                "recurrent_position": False,
+                "position_role": (
+                    "persisted-opening-exit"
+                    if persisted_exit
+                    else "repertoire-reference"
+                ),
+                "recurrent_position": exit_frequency >= 2,
                 "eco": eco,
                 "variant": "main-line",
                 "variant_san": _line(main.san),
-                "exit_move": main.san[-1] if main.san else "",
-                "position_after_ply": len(main.san),
+                "exit_move": (
+                    str(exit_data.get("last_move_san", ""))
+                    if exit_data
+                    else main.san[-1]
+                )
+                if main.san
+                else "",
+                "position_after_ply": position_ply,
                 "fen": fen,
                 "pgn": pgn,
-                "games_count": len(main.games),
+                "games_count": exit_frequency if persisted_exit else len(main.games),
                 "player_color": main.color,
                 "orientation": orientation,
                 "game_ids": all_game_ids,
@@ -535,7 +742,13 @@ def build_eco_page(
                 "uri": f"hanuman://chess/boards/{board_id}",
                 "interaction_protocol": "hanuman-v1",
                 "interaction_status": "active",
-                "actions": ["open-scid", "open-games", "copy-fen", "copy-pgn", "open-note"],
+                "actions": [
+                    "open-scid",
+                    "open-games",
+                    "copy-fen",
+                    "copy-pgn",
+                    "open-note",
+                ],
             }
         ],
     }
@@ -546,7 +759,11 @@ def build_eco_page(
     secondary_blocks = []
     for variant in secondaries:
         icon = "⚪" if variant.color == "white" else "⚫"
-        reason = "volume ≥ 5" if len(variant.games) >= 5 else "≥ 3 parties et ≥ 80 % de réussite"
+        reason = (
+            "volume ≥ 5"
+            if len(variant.games) >= 5
+            else "≥ 3 parties et ≥ 80 % de réussite"
+        )
         secondary_blocks.append(
             f"> [!abstract]- {icon} {variant.color.title()} · {len(variant.games)} parties "
             f"· {variant.success_rate:.1f} % de réussite\n"
@@ -556,7 +773,9 @@ def build_eco_page(
     secondary = "\n\n".join(secondary_blocks) or (
         "> [!info] Aucune variante secondaire ne franchit les seuils validés."
     )
-    theory_display = _numbered_line(theory_line) if theory_line else "Indisponible dans le PDF"
+    theory_display = (
+        _numbered_line(theory_line) if theory_line else "Indisponible dans le PDF"
+    )
     theory_limit = (
         "> [!info] Limite de la source\n"
         "> Le PDF ne fournit pas de ligne exploitable pour cette ECO ; aucun contenu n’est inventé."
@@ -564,15 +783,67 @@ def build_eco_page(
         else "> [!info] Limite de la source\n"
         "> La comparaison est limitée à la portion explicitement documentée dans le PDF ECOMast."
     )
-    quality = (
-        f"> **{len(health_analysed)} parties analysées** dans ce périmètre · "
-        f"**perte moyenne : {average_loss:.1f} cp**.  \n"
-        "> L’évaluation de sortie et la répartition favorable / équilibrée / défavorable "
-        "ne sont pas persistées et ne peuvent pas être calculées."
-        if health_analysed and average_loss is not None
-        else "> La qualité de sortie ne peut pas encore être évaluée : les analyses persistées "
-        "du périmètre sont absentes ou ne contiennent pas la mesure nécessaire."
+    if exit_evaluations:
+        if health_exit_coverage < 50:
+            exit_finding = (
+                "Couverture trop faible pour conclure sur la qualité habituelle."
+            )
+        elif exit_favorable > max(exit_balanced, exit_unfavorable):
+            exit_finding = (
+                "La sortie est généralement favorable dans les parties évaluables."
+            )
+        elif exit_unfavorable > max(exit_balanced, exit_favorable):
+            exit_finding = "L’ouverture est souvent quittée en position défavorable."
+        else:
+            exit_finding = (
+                "La sortie est généralement équilibrée dans les parties évaluables."
+            )
+        cp_summary = (
+            f"> Évaluation joueur moyenne : **{exit_average / 100:+.2f}** · "
+            f"médiane : **{exit_median / 100:+.2f}** "
+            f"sur **{len(exit_cp_evaluations)} évaluation(s) en centipions**.  \n"
+            if exit_average is not None and exit_median is not None
+            else "> Aucune évaluation en centipions pour calculer moyenne ou médiane.  \n"
+        )
+        mate_summary = (
+            f"> Mats : **{exit_mate_favorable} favorable(s)** · "
+            f"**{exit_mate_unfavorable} défavorable(s)** "
+            "(distance de mat exclue des statistiques CP).  \n"
+        )
+        quality = (
+            f"> **{len(exit_evaluations)} parties évaluables sur {len(health_games)}** "
+            f"dans le périmètre de santé ({health_exit_coverage:.1f} %).  \n"
+            f"{cp_summary}"
+            f"{mate_summary}"
+            f"> Favorables : **{exit_favorable}** · équilibrées : **{exit_balanced}** · "
+            f"défavorables : **{exit_unfavorable}** "
+            f"(seuils : ±{OPENING_EXIT_FAVORABLE_CP} cp).  \n"
+            f"> **Constat :** {exit_finding}"
+        )
+    else:
+        quality = (
+            f"> **0 partie évaluable sur {len(health_games)}** dans le périmètre de santé.  \n"
+            "> Les analyses V1 restent lisibles, mais ne contiennent pas d’évaluation "
+            "persistée de sortie ; aucune conclusion n’est produite."
+        )
+    position_move = (
+        str(exit_data.get("last_move_san", "—"))
+        if exit_data
+        else (main.san[-1] if main.san else "—")
     )
+    position_explanation = (
+        f"FEN V2 réelle choisie parmi les sorties de la variante principale : "
+        f"elle apparaît dans **{exit_frequency} partie(s)**. "
+        + (
+            "Cette position est récurrente."
+            if exit_frequency >= 2
+            else "Elle est représentative par départage déterministe, sans récurrence affirmée."
+        )
+        if persisted_exit
+        else "Aucune sortie V2 disponible : repli V1 sur la ligne principale du répertoire."
+    )
+    blunder_positions = _eco_position_recurrences(games, "blunder")
+    opportunity_positions = _eco_position_recurrences(games, "opportunity")
     chart_months = ", ".join(f'"{row[0]}"' for row in months)
     chart_rates = ", ".join(f"{row[5]:.1f}" for row in months)
     month_rows = "\n".join(
@@ -615,7 +886,7 @@ def build_eco_page(
 
 > [!summary] {eco} en un regard
 > **{len(games)} parties** · 🟢 **{wins} V** · 🟡 **{draws} N** · 🔴 **{losses} D**  
-> ⚪ **{colors['white']} Blancs** · ⚫ **{colors['black']} Noirs** · **{_success(wins, draws, losses):.1f} % de réussite** `(V + ½N)`  
+> ⚪ **{colors["white"]} Blancs** · ⚫ **{colors["black"]} Noirs** · **{_success(wins, draws, losses):.1f} % de réussite** `(V + ½N)`{"  "}
 > **{date_first} → {date_last}** · 🔬 **{len(analysed)}/{len(games)} analysées ({coverage:.1f} %)**
 
 ---
@@ -624,7 +895,7 @@ def build_eco_page(
 
 ### ⭐ Variante principale
 
-> [!tip] {'⚪' if main.color == 'white' else '⚫'} Ligne la plus fréquente
+> [!tip] {"⚪" if main.color == "white" else "⚫"} Ligne la plus fréquente
 > **`{_line(main.san)}`**  
 > **{len(main.games)} parties** · {main.wins} V · {main.draws} N · {main.losses} D · **{main.success_rate:.1f} % de réussite**
 
@@ -663,12 +934,12 @@ La ligne la plus fréquente représente **{main_share:.1f} %** des parties {eco}
 ### Position de référence de sortie d'ouverture
 
 > [!info] Position de référence du répertoire
-> Le widget représente uniquement la position atteinte par la variante principale après **{len(main.san)} demi-coups**. Aucune récurrence de « position type » n’est affirmée.
+> {position_explanation}
 
 <div class="hanuman-board-widget" data-hanuman-board-id="{board_id}" data-eco="{eco}" data-variant="main-line">
-  <strong>♟️ Position de référence · {eco} · après {main.san[-1] if main.san else '—'}</strong>
+  <strong>♟️ Position de référence · {eco} · après {position_move} (ply {position_ply})</strong>
   <a href="hanuman://chess/boards/{board_id}?action=open-scid">
-{_svg(board, orientation) if board else '> SVG indisponible : PGN principal illisible.'}
+{_svg(board, orientation) if board else "> SVG indisponible : PGN principal illisible."}
   </a>
   <div>{action_links}</div>
   <div><strong>ID :</strong> <code>{board_id}</code><br/><strong>FEN :</strong> <code>{fen}</code></div>
@@ -700,15 +971,13 @@ xychart-beta
 
 ## ❌ Gaffes récurrentes
 
-> [!warning] Récurrence non démontrable
-> Les **{len(analysed)} analyses {eco}** contiennent **{blunders} gaffes**, mais aucune identité de position FEN n’est persistée avec ces événements. Aucune récurrence ni aucun échiquier n’est fabriqué.
+{blunder_positions}
 
 ---
 
 ## 💡 Opportunités manquées
 
-> [!question] Récurrence non démontrable
-> **{missed} opportunités manquées** sont présentes dans les **{len(analysed)} analyses {eco}**. Sans identité de position persistée, aucune récurrence fiable n’est affichée.
+{opportunity_positions}
 
 ---
 
@@ -792,7 +1061,9 @@ def write_eco_pages(
                 raise ValueError(f"Page ECO humaine protégée : {path}")
         planned.append((path, content))
         widgets += 1
-        analysed_total += sum(read_analysis_summary(item.path).analysed for item in items)
+        analysed_total += sum(
+            read_analysis_summary(item.path).analysed for item in items
+        )
         if selected_theory and selected_theory.reference_san:
             available += 1
         else:

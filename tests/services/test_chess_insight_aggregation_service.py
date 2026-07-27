@@ -189,7 +189,9 @@ def test_many_occurrences_in_one_game_do_not_cross_threshold(
     _write_note(
         root,
         game,
-        tuple(_insight(f"g1:{index}", "g1", ply=index * 2 - 1) for index in range(1, 7)),
+        tuple(
+            _insight(f"g1:{index}", "g1", ply=index * 2 - 1) for index in range(1, 7)
+        ),
     )
 
     group = aggregate_persisted_chess_insights(root, [game]).groups[0]
@@ -221,11 +223,13 @@ def test_aggregation_reports_absent_and_invalid_analysis_blocks(
         encoding="utf-8",
     )
 
-    result = aggregate_persisted_chess_insights(root, [valid, absent, invalid, old_chess_insight])
+    result = aggregate_persisted_chess_insights(
+        root, [valid, absent, invalid, old_chess_insight]
+    )
 
     assert result.groups == ()
-    assert result.diagnostics.blocks_valid == 1
-    assert result.diagnostics.blocks_absent == 2
+    assert result.diagnostics.blocks_valid == 2
+    assert result.diagnostics.blocks_absent == 1
     assert result.diagnostics.blocks_invalid == 1
     assert result.diagnostics.versions_unknown == 0
     assert result.diagnostics.unsupported_insights_ignored == 0

@@ -7,6 +7,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from hanuman.config.env import chess_player_name
 from hanuman.orchestrations.chess_analysis import (
     END_MARKER,
     START_MARKER,
@@ -110,7 +111,9 @@ def count_analysis_queue() -> dict[str, int]:
     return {"total": len(paths), "analysed": analysed, "pending": len(paths) - analysed}
 
 
-def _run_queue(paths: list[Path], root: Path, depth: int, batch_limit: int | None) -> None:
+def _run_queue(
+    paths: list[Path], root: Path, depth: int, batch_limit: int | None
+) -> None:
     global _WORKER
     state = _default_state()
     state.update(
@@ -126,7 +129,11 @@ def _run_queue(paths: list[Path], root: Path, depth: int, batch_limit: int | Non
     )
     _write_state(state, root)
 
-    config = AnalysisConfig(engine_path=os.environ.get("STOCKFISH_PATH"), depth=depth)
+    config = AnalysisConfig(
+        engine_path=os.environ.get("STOCKFISH_PATH"),
+        depth=depth,
+        player_name=chess_player_name(),
+    )
     try:
         with StockfishAnalyzer(config) as analyzer:
             for index, path in enumerate(paths, start=1):
@@ -153,7 +160,10 @@ def _run_queue(paths: list[Path], root: Path, depth: int, batch_limit: int | Non
             state["status"] = "done"
     except Exception as exc:  # noqa: BLE001 - état persistant pour diagnostic UI
         state["status"] = "failed"
-        state["errors"] = [*state.get("errors", [])[-9:], {"path": "engine", "error": str(exc)}]
+        state["errors"] = [
+            *state.get("errors", [])[-9:],
+            {"path": "engine", "error": str(exc)},
+        ]
     finally:
         state["current"] = None
         state["finished_at"] = _now()
@@ -180,7 +190,11 @@ def start_analysis_queue(depth: int = 12, limit: int | None = 25) -> dict[str, A
             state = _default_state()
             state.update({"status": "done", "finished_at": _now()})
             _write_state(state, root)
-            return {"ok": True, "message": "Toutes les parties sont déjà analysées", "state": state}
+            return {
+                "ok": True,
+                "message": "Toutes les parties sont déjà analysées",
+                "state": state,
+            }
 
         _STOP_EVENT.clear()
         _WORKER = threading.Thread(
@@ -208,4 +222,8 @@ def stop_analysis_queue() -> dict[str, Any]:
     state = get_analysis_queue_status()
     state["status"] = "stopping"
     _write_state(state, _validated_chess_root())
-    return {"ok": True, "message": "Arrêt demandé après la position en cours", "state": state}
+    return {
+        "ok": True,
+        "message": "Arrêt demandé après la position en cours",
+        "state": state,
+    }
