@@ -1,5 +1,7 @@
 # Registre de preuves
 
+> Archive non normative — revue stratégique de juillet 2026.
+
 ## Mode d’emploi
 
 [FAIT] Ce document distingue ce qui est observé de ce qui est interprété.

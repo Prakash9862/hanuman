@@ -1,5 +1,7 @@
 # Registre de dette technique
 
+> Archive non normative — revue stratégique de juillet 2026.
+
 Échelle : priorité P0 immédiate, P1 prochain cycle, P2 planifiée, P3 opportuniste. Les coûts sont relatifs : XS < 2 h, S < 1 j, M 2–5 j, L > 1 sem.
 
 ## Critique

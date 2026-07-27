@@ -1,5 +1,7 @@
 # Quick wins (< 2 heures chacun)
 
+> Archive non normative — revue stratégique de juillet 2026.
+
 Ce sont des propositions, pas des modifications réalisées. ROI combine valeur et faible coût. Scores : U/D/L/C/R/O/H selon `FEATURE_PIPELINE.md`.
 
 | Rang | Action | Pourquoi maintenant | Scores | ROI |

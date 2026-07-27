@@ -1,5 +1,7 @@
 # Contradictions et décisions implicites
 
+> Archive non normative — revue stratégique de juillet 2026.
+
 ## Contradictions structurantes
 
 ### 1. Hub d’orchestration contre système cognitif central

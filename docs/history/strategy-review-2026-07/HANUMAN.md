@@ -1,6 +1,8 @@
 # Constitution de Hanuman
 
-**Statut : canonique.** Toute décision future doit expliciter sa conformité à ce document. Une modification de ses règles immuables exige une décision architecturale documentée dans `docs/adr/`.
+> Archive non normative — revue stratégique de juillet 2026.
+
+Statut : proposition fondatrice. Toute décision future devrait expliciter sa conformité à ce document.
 
 ## Vision
 
@@ -134,13 +136,3 @@ Une fonctionnalité n’entre en roadmap que si toutes les réponses bloquantes 
 10. Quel coût permanent d’exploitation crée-t-elle ?
 
 Un « non » aux questions 2, 3, 4 ou 6 impose le rejet ou la reformulation.
-
-## Gouvernance du document
-
-- `HANUMAN.md` définit le cap et les limites.
-- `ROADMAP.md` définit l’ordre de réalisation, sans modifier la constitution.
-- `FEATURE_PIPELINE.md` évalue les idées avant leur promotion dans la roadmap.
-- `docs/adr/` conserve les décisions structurantes et leurs compromis.
-- Les audits datés sont archivés après intégration de leurs décisions utiles.
-
-Aucun rapport, prototype ou choix d’implémentation ne peut contredire silencieusement cette constitution.

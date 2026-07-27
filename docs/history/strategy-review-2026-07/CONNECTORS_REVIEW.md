@@ -1,5 +1,7 @@
 # Revue des connecteurs
 
+> Archive non normative — revue stratégique de juillet 2026.
+
 ## Méthode
 
 Maturité évalue l’usage réel, pas la présence dans le registre. Couverture reprend la mesure locale disponible quand connue; sinon elle est qualitative. Un connecteur mature doit isoler auth, transport, pagination, quotas, erreurs et modèles.

@@ -1,5 +1,7 @@
 # Audit stratégique de sécurité
 
+> Archive non normative — revue stratégique de juillet 2026.
+
 ## Modèle actuel
 
 Usage personnel local, mono-utilisateur, secrets locaux, APIs externes et données potentiellement intimes. Ce modèle réduit l’attaquant distant mais augmente l’importance des permissions locales, des erreurs d’orchestration et des contenus non fiables. Toute écoute réseau ou hébergement change le modèle et exige une nouvelle revue.

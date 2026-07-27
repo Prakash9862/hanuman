@@ -1,5 +1,7 @@
 # Revue CTO — synthèse décisionnelle
 
+> Archive non normative — revue stratégique de juillet 2026.
+
 ## Découvertes majeures
 
 1. Hanuman possède déjà une vraie séparation routes/orchestrations/services, mais la documentation surestime la couche adapter et l’uniformité des contrats.

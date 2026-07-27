@@ -1,5 +1,7 @@
 # Revue de performance
 
+> Archive non normative — revue stratégique de juillet 2026.
+
 ## Diagnostic
 
 Hanuman est aujourd’hui un service personnel dominé par la latence réseau et le parsing, non par le CPU. Il n’existe aucune preuve qu’une optimisation générale soit nécessaire. Le risque principal est opérationnel : appels séquentiels, pagination incomplète, processus détachés et absence de budgets.

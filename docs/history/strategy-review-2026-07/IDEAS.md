@@ -1,5 +1,7 @@
 # Idées argumentées
 
+> Archive non normative — revue stratégique de juillet 2026.
+
 Les scores et priorités sont centralisés dans `FEATURE_PIPELINE.md` afin d’éviter des évaluations divergentes.
 
 ## 1. Le journal de causalité, pas seulement de logs — F02/F05

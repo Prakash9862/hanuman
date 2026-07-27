@@ -1,5 +1,7 @@
 # Stratégie d’observabilité
 
+> Archive non normative — revue stratégique de juillet 2026.
+
 ## État observé
 
 Structlog produit console et fichiers JSON rotatifs par niveau. Un middleware journalise requête/réponse. Un décorateur ajoute source et durée. Un journal d’orchestration JSONL alimente le dashboard. Ces briques sont utiles mais ne forment pas encore une histoire causale unique.

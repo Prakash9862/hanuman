@@ -1,5 +1,7 @@
 # Vision UX
 
+> Archive non normative — revue stratégique de juillet 2026.
+
 ## Principe directeur
 
 L’interface ne doit pas montrer « tout Hanuman ». Elle doit rendre les intentions, effets et décisions compréhensibles. L’écran principal n’est ni un chat ni un dashboard de vanity metrics : c’est un cockpit d’orchestrations.

@@ -1,5 +1,7 @@
 # Revue de la documentation
 
+> Archive non normative — revue stratégique de juillet 2026.
+
 ## Excellent
 
 - Le README exprime avec force le rôle de pont et contient une connaissance architecturale riche.

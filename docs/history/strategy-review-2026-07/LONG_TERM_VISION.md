@@ -1,5 +1,7 @@
 # Vision réaliste à dix ans
 
+> Archive non normative — revue stratégique de juillet 2026.
+
 ## 2036 : ce qui doit rester vrai
 
 Les outils auront changé; la fragmentation restera. Hanuman ne gagnera pas en possédant les données, mais en conservant quatre propriétés indépendantes des fournisseurs :

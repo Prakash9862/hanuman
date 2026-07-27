@@ -1,5 +1,7 @@
 # Revue des orchestrations
 
+> Archive non normative — revue stratégique de juillet 2026.
+
 ## Portefeuille observé
 
 | Orchestration | Maturité / qualité | Robustesse / couverture | Documentation / évolutivité | Risque / décision |

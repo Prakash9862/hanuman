@@ -1,5 +1,7 @@
 # Hanuman et les agents à cinq ans
 
+> Archive non normative — revue stratégique de juillet 2026.
+
 ## Position
 
 Un agent n’est pas une personnalité dans l’interface. C’est un décideur probabiliste limité à un rôle, des outils, un budget et une politique. Hanuman doit coordonner des agents, jamais leur abandonner sa gouvernance.

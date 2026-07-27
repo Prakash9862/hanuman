@@ -1,5 +1,7 @@
 # Revue d’architecture
 
+> Archive non normative — revue stratégique de juillet 2026.
+
 ## Périmètre et niveau de preuve
 
 Cette revue décrit le dépôt observé en juillet 2026. Elle distingue le code actif des intentions du README. Le code contient un point d’entrée principal `hanuman.main:app`, des routes sous `api/core` et `api/routers`, des services de plateforme, des orchestrations, un registre de connecteurs et trois interfaces (React, API, TUI). Les dossiers `services/adapters/*` sont présents mais vides : l’architecture « adapter » documentée est donc une intention, pas une réalité.

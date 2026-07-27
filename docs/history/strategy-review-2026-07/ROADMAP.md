@@ -1,5 +1,7 @@
 # Roadmap pluriannuelle
 
+> Archive non normative — revue stratégique de juillet 2026.
+
 Les versions sont des seuils de capacité, pas des promesses calendaires. Une version ne commence que lorsque les critères de sortie de la précédente sont observés. Les scores détaillés des fonctionnalités sont dans `FEATURE_PIPELINE.md`.
 
 ## V1 — Hanuman fiable (0–6 mois)

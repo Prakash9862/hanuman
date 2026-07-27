@@ -1,5 +1,7 @@
 # Pipeline de fonctionnalités
 
+> Archive non normative — revue stratégique de juillet 2026.
+
 ## Méthode
 
 Scores sur 10. `U` impact utilisateur, `D` impact développeur, `L` valeur long terme, `C` complexité, `R` risque, `O` originalité, `H` cohérence avec Hanuman. Priorité : P0 verrou, P1 prochain, P2 ensuite, P3 exploratoire, Rejet.

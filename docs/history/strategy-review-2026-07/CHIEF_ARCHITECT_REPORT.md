@@ -1,5 +1,7 @@
 # Les dix premières décisions du CTO
 
+> Archive non normative — revue stratégique de juillet 2026.
+
 ## Cadre
 
 [FAIT] Cette revue repose sur le tree `HEAD`, les tests et documents suivis, les références Git locales, les commits récents et le working tree observé.
