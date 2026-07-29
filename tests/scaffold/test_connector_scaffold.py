@@ -151,3 +151,71 @@ def test_render_registry_descriptor_adds_optional_flags() -> None:
     assert "kind=ConnectorKind.LOCAL_PROGRAM" in rendered
     assert "requires_auth=True" in rendered
     assert "writable=True" in rendered
+
+
+def test_update_registry_inserts_descriptor_without_touching_manual_entries(
+    tmp_path,
+) -> None:
+    from hanuman.scaffold.connector import update_registry
+
+    registry = tmp_path / "src/hanuman/services/connectors_registry.py"
+    registry.parent.mkdir(parents=True)
+    registry.write_text(
+        """_CONNECTORS = (
+    ConnectorDescriptor(id="manual"),
+    # scaffold:connectors:start
+
+    # scaffold:connectors:end
+)
+""",
+        encoding="utf-8",
+    )
+
+    manifest = ConnectorManifest(
+        id="example",
+        label="Example",
+        description="Connecteur de test.",
+        kind="remote_api",
+        capabilities=("example.read",),
+    )
+
+    changed = update_registry(tmp_path, manifest)
+    rendered = registry.read_text(encoding="utf-8")
+
+    assert changed is True
+    assert 'ConnectorDescriptor(id="manual")' in rendered
+    assert 'id="example"' in rendered
+    assert 'status_endpoint="/resources/example/status"' in rendered
+
+
+def test_update_registry_is_idempotent(tmp_path) -> None:
+    from hanuman.scaffold.connector import update_registry
+
+    registry = tmp_path / "src/hanuman/services/connectors_registry.py"
+    registry.parent.mkdir(parents=True)
+    registry.write_text(
+        """_CONNECTORS = (
+    # scaffold:connectors:start
+
+    # scaffold:connectors:end
+)
+""",
+        encoding="utf-8",
+    )
+
+    manifest = ConnectorManifest(
+        id="example",
+        label="Example",
+        description="Connecteur de test.",
+        kind="remote_api",
+        capabilities=("example.read",),
+    )
+
+    assert update_registry(tmp_path, manifest) is True
+    first = registry.read_text(encoding="utf-8")
+
+    assert update_registry(tmp_path, manifest) is False
+    second = registry.read_text(encoding="utf-8")
+
+    assert second == first
+    assert second.count('id="example"') == 1

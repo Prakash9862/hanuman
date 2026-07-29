@@ -185,3 +185,37 @@ def render_registry_descriptor(manifest: ConnectorManifest) -> str:
         ],{optional_block}
         status_endpoint="/resources/{manifest.id}/status",
     ),'''
+
+
+_REGISTRY_PATH = Path("src/hanuman/services/connectors_registry.py")
+_REGISTRY_START = "# scaffold:connectors:start"
+_REGISTRY_END = "# scaffold:connectors:end"
+
+
+def update_registry(
+    project_root: Path,
+    manifest: ConnectorManifest,
+) -> bool:
+    """Ajoute le connecteur à la zone générée du registre.
+
+    Retourne True si le fichier a été modifié, False si le connecteur était
+    déjà présent.
+    """
+
+    from hanuman.scaffold.markers import append_between_markers
+
+    registry_path = project_root.resolve() / _REGISTRY_PATH
+    source = registry_path.read_text(encoding="utf-8")
+
+    updated = append_between_markers(
+        source,
+        start_marker=_REGISTRY_START,
+        end_marker=_REGISTRY_END,
+        content=render_registry_descriptor(manifest),
+    )
+
+    if updated == source:
+        return False
+
+    registry_path.write_text(updated, encoding="utf-8")
+    return True

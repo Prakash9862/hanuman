@@ -53,3 +53,50 @@ def _validate_marker(text: str, marker: str) -> None:
 
     if count > 1:
         raise MarkerError(f"Marqueur dupliqué : {marker!r}.")
+
+
+def append_between_markers(
+    text: str,
+    *,
+    start_marker: str,
+    end_marker: str,
+    content: str,
+) -> str:
+    """Ajoute un bloc dans une zone balisée sans le dupliquer."""
+
+    _validate_marker(text, start_marker)
+    _validate_marker(text, end_marker)
+
+    start_index = text.index(start_marker)
+    end_index = text.index(end_marker)
+
+    if start_index >= end_index:
+        raise MarkerError(
+            f"Le marqueur de début {start_marker!r} doit précéder "
+            f"le marqueur de fin {end_marker!r}."
+        )
+
+    start_line_end = text.find("\n", start_index)
+    if start_line_end == -1:
+        raise MarkerError(f"Le marqueur de début {start_marker!r} doit occuper une ligne complète.")
+
+    end_line_start = text.rfind("\n", 0, end_index)
+    if end_line_start == -1:
+        end_line_start = end_index
+
+    existing = text[start_line_end + 1 : end_line_start].strip("\n")
+    generated = content.strip("\n")
+
+    if generated in existing:
+        return text
+
+    combined = generated
+    if existing:
+        combined = f"{existing}\n\n{generated}"
+
+    return replace_between_markers(
+        text,
+        start_marker=start_marker,
+        end_marker=end_marker,
+        content=combined,
+    )

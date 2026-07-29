@@ -119,3 +119,44 @@ def test_replace_between_markers_rejects_reversed_markers() -> None:
             end_marker=END,
             content="generated",
         )
+
+
+def test_append_between_markers_preserves_existing_content() -> None:
+    from hanuman.scaffold.markers import append_between_markers
+
+    source = f"""before
+{START}
+first block
+{END}
+after
+"""
+
+    result = append_between_markers(
+        source,
+        start_marker=START,
+        end_marker=END,
+        content="second block",
+    )
+
+    assert "first block" in result
+    assert "second block" in result
+
+
+def test_append_between_markers_does_not_duplicate_content() -> None:
+    from hanuman.scaffold.markers import append_between_markers
+
+    source = f"""before
+{START}
+generated block
+{END}
+after
+"""
+
+    result = append_between_markers(
+        source,
+        start_marker=START,
+        end_marker=END,
+        content="generated block",
+    )
+
+    assert result == source
