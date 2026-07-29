@@ -198,6 +198,11 @@ def clock_timezones(
     }
 
 
+# scaffold:connector-routes:start
+
+# scaffold:connector-routes:end
+
+
 @router.get("/programs/{program_id}/status")
 def program_status(program_id: str) -> dict[str, object]:
     try:

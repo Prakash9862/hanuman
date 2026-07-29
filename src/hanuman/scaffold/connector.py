@@ -242,3 +242,50 @@ def update_registry(
 
     registry_path.write_text(updated, encoding="utf-8")
     return True
+
+
+_API_PATH = Path("src/hanuman/api/routers/resources.py")
+_API_START = "# scaffold:connector-routes:start"
+_API_END = "# scaffold:connector-routes:end"
+
+
+def render_api_status_route(manifest: ConnectorManifest) -> str:
+    """Rend la route de statut FastAPI du connecteur."""
+
+    python_name = manifest.id.replace("-", "_")
+
+    return f'''@router.get("/{manifest.id}/status")
+def {python_name}_status() -> dict[str, object]:
+    from hanuman.services.core.{python_name}_service import ping_{python_name}
+
+    status = ping_{python_name}()
+    return {{
+        "ok": status.ok,
+        "configured": status.configured,
+        "message": status.message,
+    }}'''
+
+
+def update_api(
+    project_root: Path,
+    manifest: ConnectorManifest,
+) -> bool:
+    """Ajoute la route de statut dans le routeur Resources."""
+
+    from hanuman.scaffold.markers import append_between_markers
+
+    api_path = project_root.resolve() / _API_PATH
+    source = api_path.read_text(encoding="utf-8")
+
+    updated = append_between_markers(
+        source,
+        start_marker=_API_START,
+        end_marker=_API_END,
+        content=render_api_status_route(manifest),
+    )
+
+    if updated == source:
+        return False
+
+    api_path.write_text(updated, encoding="utf-8")
+    return True

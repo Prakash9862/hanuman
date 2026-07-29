@@ -235,3 +235,69 @@ def test_update_registry_is_idempotent(tmp_path) -> None:
 
     assert second == first
     assert second.count('id="example"') == 1
+
+
+def test_render_api_status_route_uses_generated_service() -> None:
+    from hanuman.scaffold.connector import render_api_status_route
+
+    rendered = render_api_status_route(_manifest())
+
+    assert '@router.get("/devdocs/status")' in rendered
+    assert "def devdocs_status()" in rendered
+    assert "from hanuman.services.core.devdocs_service import ping_devdocs" in rendered
+    assert "status = ping_devdocs()" in rendered
+    assert '"configured": status.configured' in rendered
+
+
+def test_update_api_inserts_route_and_preserves_manual_routes(tmp_path: Path) -> None:
+    from hanuman.scaffold.connector import update_api
+
+    api = tmp_path / "src/hanuman/api/routers/resources.py"
+    api.parent.mkdir(parents=True)
+    api.write_text(
+        '''router = APIRouter(prefix="/resources")
+
+@router.get("/manual/status")
+def manual_status():
+    return {"ok": True}
+
+
+# scaffold:connector-routes:start
+
+# scaffold:connector-routes:end
+''',
+        encoding="utf-8",
+    )
+
+    changed = update_api(tmp_path, _manifest())
+    rendered = api.read_text(encoding="utf-8")
+
+    assert changed is True
+    assert '@router.get("/manual/status")' in rendered
+    assert '@router.get("/devdocs/status")' in rendered
+    assert "def devdocs_status()" in rendered
+
+
+def test_update_api_is_idempotent(tmp_path: Path) -> None:
+    from hanuman.scaffold.connector import update_api
+
+    api = tmp_path / "src/hanuman/api/routers/resources.py"
+    api.parent.mkdir(parents=True)
+    api.write_text(
+        '''router = APIRouter(prefix="/resources")
+
+# scaffold:connector-routes:start
+
+# scaffold:connector-routes:end
+''',
+        encoding="utf-8",
+    )
+
+    assert update_api(tmp_path, _manifest()) is True
+    first = api.read_text(encoding="utf-8")
+
+    assert update_api(tmp_path, _manifest()) is False
+    second = api.read_text(encoding="utf-8")
+
+    assert second == first
+    assert second.count('@router.get("/devdocs/status")') == 1
