@@ -91,6 +91,23 @@ _CONNECTORS: tuple[ConnectorDescriptor, ...] = (
         status_endpoint="/resources/anki/status",
     ),
     ConnectorDescriptor(
+        id="clock",
+        label="Horloge",
+        description=(
+            "Référentiel temporel local pour les connecteurs, flux, routines "
+            "et événements Hanuman."
+        ),
+        kind=ConnectorKind.LOCAL_PROGRAM,
+        capabilities=[
+            "time.read_current",
+            "time.list_timezones",
+            "time.normalize",
+            "time.measure_duration",
+            "time.classify_period",
+        ],
+        status_endpoint="/resources/clock/status",
+    ),
+    ConnectorDescriptor(
         id="openai",
         label="OpenAI",
         description="Analyse, résumé et génération de texte structurée.",

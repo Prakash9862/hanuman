@@ -15,6 +15,7 @@ def test_registry_contains_existing_connectors() -> None:
         "anki",
         "gmail",
         "calendar",
+        "clock",
         "github",
         "notion",
         "obsidian",
@@ -62,3 +63,24 @@ def test_calendar_exposes_maps_capabilities() -> None:
     assert calendar is not None
     assert "maps.open_location" in calendar.capabilities
     assert "maps.open_directions" in calendar.capabilities
+
+
+def test_clock_exposes_temporal_capabilities() -> None:
+    clock = get_connector("clock")
+
+    assert clock is not None
+    assert clock.label == "Horloge"
+    assert clock.status_endpoint == "/resources/clock/status"
+    assert clock.requires_auth is False
+    assert clock.writable is False
+    assert "time.read_current" in clock.capabilities
+    assert "time.list_timezones" in clock.capabilities
+    assert "time.normalize" in clock.capabilities
+    assert "time.measure_duration" in clock.capabilities
+    assert "time.classify_period" in clock.capabilities
+
+
+def test_clock_is_temporal_capability_provider() -> None:
+    providers = providers_for("time.read_current")
+
+    assert [provider.id for provider in providers] == ["clock"]

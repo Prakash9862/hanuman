@@ -24,14 +24,7 @@ export type ConstellationRelation = {
 const visualMetadata: Record<string, Omit<ConstellationConnector, keyof ConnectorDefinition>> = {
   notion: { x: 72, y: 24, size: 'giant', palette: 'ivory', family: 'terrestrial', healthEndpoint: '/notion/ping' },
   obsidian: { x: 29, y: 32, size: 'large', palette: 'violet', family: 'crystalline', healthEndpoint: '/obsidian/ping' },
-  anki: {
-  x: 44,
-  y: 48,
-  size: 'medium',
-  palette: 'amber',
-  family: 'desert',
-  healthEndpoint: '/resources/anki/status',
-},
+  anki: { x: 44, y: 48, size: 'medium', palette: 'amber', family: 'desert', healthEndpoint: '/resources/anki/status', },
   github: { x: 48, y: 11, size: 'small', palette: 'graphite', family: 'metallic', healthEndpoint: '/github/ping' },
   gmail: { x: 8, y: 20, size: 'medium', palette: 'coral', family: 'gas', healthEndpoint: '/gmail/status' },
   calendar: { x: 86, y: 45, size: 'large', palette: 'azure', family: 'ice', healthEndpoint: '/calendar/status' },
@@ -44,7 +37,9 @@ const visualMetadata: Record<string, Omit<ConstellationConnector, keyof Connecto
   imslp: { x: 56, y: 93, size: 'dwarf', palette: 'rose', family: 'ice', healthEndpoint: '/resources/imslp/status' },
   maps: { x: 96, y: 61, size: 'dwarf', palette: 'green', family: 'forest', healthEndpoint: '/resources/maps/status' },
   scid: { x: 17, y: 73, size: 'small', palette: 'blue', family: 'oceanic', healthEndpoint: '/resources/programs/scid/status' },
+  clock: { x: 62, y: 58, size: 'small', palette: 'rose', family: 'ice', healthEndpoint: '/resources/clock/status', },
 }
+
 
 export const constellationConnectors: readonly ConstellationConnector[] = connectorDefinitions
   .filter(({ id }) => visualMetadata[id])

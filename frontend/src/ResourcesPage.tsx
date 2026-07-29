@@ -42,6 +42,20 @@ type ProgramStatus = {
   message?: string
 }
 
+type ClockSnapshot = {
+  ok: boolean
+  timezone: string
+  local_datetime: string
+  utc_datetime: string
+  unix_timestamp: number
+  date: string
+  time: string
+  weekday: number
+  weekday_name: string
+  iso_week: number
+  period: 'night' | 'morning' | 'afternoon' | 'evening'
+}
+
 type SearchPayload = {
   ok?: boolean
   detail?: string
@@ -98,6 +112,10 @@ export default function ResourcesPage() {
   const [lastQuery, setLastQuery] = useState('')
   const [results, setResults] = useState<SearchResult[]>([])
   const [programs, setPrograms] = useState<ProgramStatus[]>([])
+  const [clockSnapshot, setClockSnapshot] = useState<ClockSnapshot | null>(null)
+  const [clockTimezone, setClockTimezone] = useState('Europe/Paris')
+  const [clockTimezones, setClockTimezones] = useState<string[]>([])
+  const [clockLoading, setClockLoading] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
   const [fallbackUrl, setFallbackUrl] = useState<string | null>(null)
   const [nextPageToken, setNextPageToken] = useState<string | null>(null)
@@ -141,6 +159,58 @@ export default function ResourcesPage() {
     }
   }, [initialSource])
 
+  async function refreshClock(timezone = clockTimezone) {
+    setClockLoading(true)
+    setMessage(null)
+
+    try {
+      const response = await fetch(
+        `${API_BASE}/resources/clock/now?timezone=${encodeURIComponent(timezone)}`,
+      )
+      const payload = await response.json() as ClockSnapshot & { detail?: string }
+
+      if (!response.ok) {
+        throw new Error(payload.detail ?? 'Horloge indisponible')
+      }
+
+      setClockSnapshot(payload)
+    } catch (error) {
+      setMessage(
+        error instanceof Error
+          ? error.message
+          : 'Impossible de lire le référentiel temporel',
+      )
+    } finally {
+      setClockLoading(false)
+    }
+  }
+
+  async function loadClockTimezones() {
+    try {
+      const response = await fetch(
+        `${API_BASE}/resources/clock/timezones?limit=500`,
+      )
+      const payload = await response.json() as {
+        timezones?: string[]
+      }
+
+      if (response.ok) {
+        setClockTimezones(payload.timezones ?? [])
+      }
+    } catch {
+      setClockTimezones([])
+    }
+  }
+
+  async function copyClockValue(value: string | number, label: string) {
+    try {
+      await navigator.clipboard.writeText(String(value))
+      setMessage(`${label} copié`)
+    } catch {
+      setMessage(`Impossible de copier ${label.toLocaleLowerCase('fr')}`)
+    }
+  }
+
   async function refreshChessStatus() {
     try {
       const [programResponse, analysisResponse] = await Promise.all([
@@ -156,6 +226,20 @@ export default function ResourcesPage() {
       setMessage('Impossible de lire l’état de l’environnement d’analyse')
     }
   }
+
+  useEffect(() => {
+    if (active !== 'clock') return
+
+    void refreshClock(clockTimezone)
+    void loadClockTimezones()
+
+    const timer = window.setInterval(
+      () => void refreshClock(clockTimezone),
+      30_000,
+    )
+
+    return () => window.clearInterval(timer)
+  }, [active, clockTimezone])
 
   useEffect(() => {
     if (active !== 'chess') return
@@ -189,7 +273,7 @@ export default function ResourcesPage() {
   async function handleSubmit(event: FormEvent) {
     event.preventDefault()
     const normalized = query.trim()
-    if (!normalized || active === 'chess') return
+    if (!normalized || active === 'chess' || active === 'clock') return
     setMessage(null)
     setFallbackUrl(null)
     setResults([])
@@ -351,7 +435,7 @@ const payload = await fetchSearch(active, normalized)
             <Link className="resources-console__close" to="/connectors">Retour au catalogue</Link>
           </div>
 
-          {active !== 'chess' && (
+          {active !== 'chess' && active !== 'clock' && (
             <form className="resources-search" onSubmit={handleSubmit}>
               <Search size={19} />
               <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={current.placeholder} autoFocus />
@@ -360,6 +444,281 @@ const payload = await fetchSearch(active, normalized)
           )}
 
           {message && <div className="resources-message"><span>{message}</span>{fallbackUrl && <a href={fallbackUrl} target="_blank" rel="noreferrer">Ouvrir la recherche dans Gallica <ExternalLink size={14} /></a>}</div>}
+
+          {active === 'clock' && (
+            <section
+              style={{
+                display: 'grid',
+                gap: 20,
+                marginTop: 22,
+              }}
+            >
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  gap: 16,
+                  flexWrap: 'wrap',
+                }}
+              >
+                <div>
+                  <p className="eyebrow">Temps de référence</p>
+                  <h3 style={{ margin: 0 }}>
+                    {clockSnapshot?.time ?? '—'}
+                  </h3>
+                  <p style={{ marginBottom: 0, opacity: 0.72 }}>
+                    {clockSnapshot?.date ?? 'Chargement…'}
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => void refreshClock()}
+                  disabled={clockLoading}
+                  style={{
+                    display: 'inline-flex',
+                    gap: 8,
+                    alignItems: 'center',
+                  }}
+                >
+                  <RefreshCw
+                    size={15}
+                    className={clockLoading ? 'spin' : ''}
+                  />
+                  {clockLoading ? 'Actualisation…' : 'Actualiser'}
+                </button>
+              </div>
+
+              <label
+                style={{
+                  display: 'grid',
+                  gap: 8,
+                  maxWidth: 440,
+                }}
+              >
+                <span>Fuseau horaire actif</span>
+                <select
+                  value={clockTimezone}
+                  onChange={(event) => setClockTimezone(event.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '11px 13px',
+                    borderRadius: 10,
+                  }}
+                >
+                  {!clockTimezones.includes(clockTimezone) && (
+                    <option value={clockTimezone}>{clockTimezone}</option>
+                  )}
+                  {clockTimezones.map((timezone) => (
+                    <option key={timezone} value={timezone}>
+                      {timezone}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              {clockSnapshot && (
+                <>
+                  <div
+                    style={{
+                      display: 'grid',
+                      gridTemplateColumns:
+                        'repeat(auto-fit, minmax(180px, 1fr))',
+                      gap: 12,
+                    }}
+                  >
+                    <article>
+                      <small>Heure locale</small>
+                      <strong
+                        style={{
+                          display: 'block',
+                          marginTop: 7,
+                          fontSize: 24,
+                        }}
+                      >
+                        {clockSnapshot.time}
+                      </strong>
+                    </article>
+
+                    <article>
+                      <small>Date locale</small>
+                      <strong
+                        style={{
+                          display: 'block',
+                          marginTop: 7,
+                          fontSize: 19,
+                        }}
+                      >
+                        {clockSnapshot.date}
+                      </strong>
+                    </article>
+
+                    <article>
+                      <small>Fuseau</small>
+                      <strong
+                        style={{
+                          display: 'block',
+                          marginTop: 7,
+                          fontSize: 17,
+                        }}
+                      >
+                        {clockSnapshot.timezone}
+                      </strong>
+                    </article>
+
+                    <article>
+                      <small>Semaine ISO</small>
+                      <strong
+                        style={{
+                          display: 'block',
+                          marginTop: 7,
+                          fontSize: 24,
+                        }}
+                      >
+                        {clockSnapshot.iso_week}
+                      </strong>
+                    </article>
+
+                    <article>
+                      <small>Jour ISO</small>
+                      <strong
+                        style={{
+                          display: 'block',
+                          marginTop: 7,
+                          fontSize: 24,
+                        }}
+                      >
+                        {clockSnapshot.weekday}
+                      </strong>
+                    </article>
+
+                    <article>
+                      <small>Période</small>
+                      <strong
+                        style={{
+                          display: 'block',
+                          marginTop: 7,
+                          fontSize: 19,
+                        }}
+                      >
+                        {{
+                          night: 'Nuit',
+                          morning: 'Matin',
+                          afternoon: 'Après-midi',
+                          evening: 'Soirée',
+                        }[clockSnapshot.period]}
+                      </strong>
+                    </article>
+                  </div>
+
+                  <div
+                    style={{
+                      display: 'grid',
+                      gap: 12,
+                      padding: 18,
+                      border:
+                        '1px solid var(--border, #d7d1c5)',
+                      borderRadius: 16,
+                    }}
+                  >
+                    <div>
+                      <small>Date et heure ISO 8601</small>
+                      <code
+                        style={{
+                          display: 'block',
+                          marginTop: 7,
+                          overflowWrap: 'anywhere',
+                        }}
+                      >
+                        {clockSnapshot.local_datetime}
+                      </code>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() =>
+                        void copyClockValue(
+                          clockSnapshot.local_datetime,
+                          'Date ISO 8601',
+                        )
+                      }
+                    >
+                      Copier ISO 8601
+                    </button>
+
+                    <div>
+                      <small>UTC</small>
+                      <code
+                        style={{
+                          display: 'block',
+                          marginTop: 7,
+                          overflowWrap: 'anywhere',
+                        }}
+                      >
+                        {clockSnapshot.utc_datetime}
+                      </code>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() =>
+                        void copyClockValue(
+                          clockSnapshot.utc_datetime,
+                          'Date UTC',
+                        )
+                      }
+                    >
+                      Copier UTC
+                    </button>
+
+                    <div>
+                      <small>Timestamp Unix</small>
+                      <code
+                        style={{
+                          display: 'block',
+                          marginTop: 7,
+                        }}
+                      >
+                        {clockSnapshot.unix_timestamp}
+                      </code>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() =>
+                        void copyClockValue(
+                          clockSnapshot.unix_timestamp,
+                          'Timestamp Unix',
+                        )
+                      }
+                    >
+                      Copier le timestamp
+                    </button>
+                  </div>
+
+                  <div
+                    style={{
+                      padding: 18,
+                      border:
+                        '1px solid var(--border, #d7d1c5)',
+                      borderRadius: 16,
+                    }}
+                  >
+                    <p className="eyebrow">Suivi temporel Hanuman</p>
+                    <h3 style={{ marginTop: 0 }}>
+                      Référentiel transversal
+                    </h3>
+                    <p style={{ marginBottom: 0, opacity: 0.75 }}>
+                      Cette horloge servira à horodater les connecteurs,
+                      les exécutions de flux, les routines et les événements
+                      du Journal de Vie.
+                    </p>
+                  </div>
+                </>
+              )}
+            </section>
+          )}
 
           {active === 'chess' && (
             <>
@@ -422,7 +781,7 @@ const payload = await fetchSearch(active, normalized)
             </>
           )}
 
-          {active !== 'chess' && !message && !loading && results.length === 0 && (
+          {active !== 'chess' && active !== 'clock' && !message && !loading && results.length === 0 && (
             <div className="resources-empty"><ActiveIcon size={28} /><b>{active === 'maps' ? 'Prépare un trajet' : `Recherche dans ${current.label}`}</b><span>{current.placeholder}</span></div>
           )}
 

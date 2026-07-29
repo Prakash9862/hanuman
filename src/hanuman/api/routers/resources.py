@@ -11,6 +11,12 @@ from hanuman.services.chess_analysis_queue_service import (
 )
 from hanuman.services.chess_view_rebuild_service import refresh_chess_knowledge
 from hanuman.services.core.anki_service import list_anki_decks
+from hanuman.services.core.clock_service import (
+    DEFAULT_TIMEZONE,
+    get_clock_snapshot,
+    list_timezones,
+    ping_clock,
+)
 from hanuman.services.local_programs_service import inspect_program, inspect_programs
 from hanuman.services.resources_service import (
     build_gallica_search_url,
@@ -148,6 +154,47 @@ def anki_decks() -> dict[str, object]:
         "ok": True,
         "count": len(decks),
         "decks": decks,
+    }
+
+
+@router.get("/clock/status")
+def clock_status() -> dict[str, object]:
+    """Retourne l'état de la capacité temporelle locale."""
+
+    result = ping_clock()
+    return result.model_dump()
+
+
+@router.get("/clock/now")
+def clock_now(
+    timezone: str = Query(default=DEFAULT_TIMEZONE, min_length=1),
+) -> dict[str, object]:
+    """Retourne l'instant courant enrichi dans le fuseau demandé."""
+
+    try:
+        snapshot = get_clock_snapshot(timezone)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    return {
+        "ok": True,
+        **snapshot.to_dict(),
+    }
+
+
+@router.get("/clock/timezones")
+def clock_timezones(
+    q: str | None = Query(default=None),
+    limit: int = Query(default=100, ge=1, le=500),
+) -> dict[str, object]:
+    """Liste les fuseaux IANA disponibles."""
+
+    timezones = list_timezones(query=q, limit=limit)
+
+    return {
+        "ok": True,
+        "count": len(timezones),
+        "timezones": timezones,
     }
 
 

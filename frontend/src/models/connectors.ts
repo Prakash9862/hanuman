@@ -13,6 +13,7 @@ import {
   NotebookPen,
   Swords,
   Youtube,
+  Clock3,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 
@@ -32,15 +33,7 @@ export type ConnectorDefinition = {
 export const connectorDefinitions: readonly ConnectorDefinition[] = [
   { id: 'notion', label: 'Notion', description: 'Organisation et destination de contenus.', kind: 'external', status: 'available', route: '/flows/obsidian-notion', icon: Network },
   { id: 'obsidian', label: 'Obsidian', description: 'Mémoire et bibliothèques locales.', kind: 'local', status: 'available', route: '/flows/obsidian-notion', icon: NotebookPen },
-    {
-    id: 'anki',
-    label: 'Anki',
-    description: 'Paquets, notes et cartes de révision.',
-    kind: 'local',
-    status: 'available',
-    route: '/connectors?source=anki',
-    icon: Layers3,
-  },
+  { id: 'anki', label: 'Anki', description: 'Paquets, notes et cartes de révision.', kind: 'local', status: 'available', route: '/connectors?source=anki', icon: Layers3, },
   { id: 'github', label: 'GitHub', description: 'Projets et activité technique.', kind: 'external', status: 'partial', route: '/flows', icon: Github },
   { id: 'gmail', label: 'Gmail', description: 'Consultation de la messagerie.', kind: 'external', status: 'partial', route: '/flows/gmail', icon: Mail },
   { id: 'calendar', label: 'Google Calendar', description: 'Consultation des calendriers.', kind: 'external', status: 'available', route: '/flows/calendar', icon: CalendarDays },
@@ -53,9 +46,12 @@ export const connectorDefinitions: readonly ConnectorDefinition[] = [
   { id: 'imslp', label: 'IMSLP', description: 'Recherche de partitions.', kind: 'external', status: 'available', route: '/connectors?source=imslp', icon: Music2 },
   { id: 'maps', label: 'Google Maps', description: 'Trajets et rendez-vous.', kind: 'external', status: 'available', route: '/connectors?source=maps', icon: MapPin },
   { id: 'scid', label: 'SCID', description: 'Base locale de parties.', kind: 'local', status: 'available', route: '/connectors?source=chess', icon: Database },
-]
+  { id: 'clock', label: 'Horloge', description: 'Référentiel temporel d’Hanuman.', kind: 'local', status: 'available',
+    route: '/connectors?source=clock', icon: Clock3, }
+] 
 
-export type ConnectorWorkspaceId = 'youtube' | 'gallica' | 'imslp' | 'maps' | 'chess'| 'anki'
+
+export type ConnectorWorkspaceId = 'youtube' | 'gallica' | 'imslp' | 'maps' | 'chess' | 'anki' | 'clock'
 
 export type ConnectorWorkspace = {
   id: ConnectorWorkspaceId
@@ -72,6 +68,13 @@ export const connectorWorkspaces: readonly ConnectorWorkspace[] = [
   { id: 'maps', label: 'Google Maps', eyebrow: 'Trajets et rendez-vous', placeholder: 'Saisir une adresse ou un lieu…', icon: MapPin },
   { id: 'chess', label: 'Échecs', eyebrow: 'Moteurs et bases', placeholder: '', icon: Swords },
     {
+    id: 'clock',
+    label: 'Horloge',
+    eyebrow: 'Référentiel temporel',
+    placeholder: '',
+    icon: Clock3,
+  },
+  {
     id: 'anki',
     label: 'Anki',
     eyebrow: 'Mémorisation et révision',
