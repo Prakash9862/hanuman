@@ -41,10 +41,13 @@ jobs:
         run: poetry install --only main --no-interaction
 
       - name: Synchronize and verify Project Memory
+        env:
+          REPOSITORY: ${{ github.repository }}
+          BRANCH: ${{ github.ref_name }}
         run: >-
           poetry run hanuman flows github-project-memory apply
-          --repository "${{ github.repository }}"
-          --branch "${{ github.ref_name }}"
+          --repository "$REPOSITORY"
+          --branch "$BRANCH"
           --max-commits 100
           --session-window-hours 24
           --session-max-duration-hours 12
