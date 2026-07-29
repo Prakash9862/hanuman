@@ -89,6 +89,34 @@ def _parser() -> argparse.ArgumentParser:
     )
     _add_project_memory_arguments(plan)
     _add_project_memory_arguments(apply)
+
+    scaffold = commands.add_parser(
+        "scaffold",
+        help="Générer la structure d'un composant Hanuman.",
+    )
+    scaffold_commands = scaffold.add_subparsers(
+        dest="scaffold_resource",
+        required=True,
+    )
+    connector = scaffold_commands.add_parser(
+        "connector",
+        help="Générer la structure d'un connecteur depuis un manifeste.",
+    )
+    connector.add_argument(
+        "manifest",
+        help="Chemin du manifeste YAML du connecteur.",
+    )
+    connector.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Afficher le plan sans écrire de fichier.",
+    )
+    connector.add_argument(
+        "--force",
+        action="store_true",
+        help="Autoriser explicitement l'écrasement des fichiers générés.",
+    )
+
     return parser
 
 
