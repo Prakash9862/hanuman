@@ -23,6 +23,20 @@ def ping_anki() -> PingResult:
         },
         timeout=5,
     )
+    response.raise_for_status()
+
+    payload = response.json()
+
+    if payload.get("error"):
+        raise RuntimeError(payload["error"])
+
+    return PingResult(
+        ok=True,
+        source="anki",
+        detail={
+            "version": payload.get("result"),
+        },
+    )
 
 
 def list_anki_decks() -> list[str]:

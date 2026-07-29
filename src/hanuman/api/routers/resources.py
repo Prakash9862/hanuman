@@ -10,6 +10,7 @@ from hanuman.services.chess_analysis_queue_service import (
     stop_analysis_queue,
 )
 from hanuman.services.chess_view_rebuild_service import refresh_chess_knowledge
+from hanuman.services.core.anki_service import list_anki_decks
 from hanuman.services.local_programs_service import inspect_program, inspect_programs
 from hanuman.services.resources_service import (
     build_gallica_search_url,
@@ -18,9 +19,8 @@ from hanuman.services.resources_service import (
     search_gallica,
     search_imslp,
     search_youtube,
-    youtube_configured,)
-from hanuman.services.core.anki_service import list_anki_decks, ping_anki
-
+    youtube_configured,
+)
 
 router = APIRouter(prefix="/resources", tags=["resources"])
 
@@ -133,6 +133,7 @@ def programs_status() -> dict[str, object]:
         "programs": programs,
     }
 
+
 @router.get("/anki/decks")
 def anki_decks() -> dict[str, object]:
     try:
@@ -148,6 +149,7 @@ def anki_decks() -> dict[str, object]:
         "count": len(decks),
         "decks": decks,
     }
+
 
 @router.get("/programs/{program_id}/status")
 def program_status(program_id: str) -> dict[str, object]:

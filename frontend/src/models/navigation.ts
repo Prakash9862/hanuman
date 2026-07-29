@@ -1,9 +1,8 @@
 import {
   Bot,
-  Database,
   GitFork,
-  HeartPulse,
   House,
+  NotebookTabs,
   Plug,
   Settings,
 } from 'lucide-react'
@@ -20,8 +19,7 @@ export const navigationItems: readonly NavigationItem[] = [
   { label: 'Accueil', path: '/', end: true, icon: House },
   { label: 'Flux', path: '/flows', icon: GitFork },
   { label: 'Connecteurs', path: '/connectors', icon: Plug },
-  { label: 'Données', path: '/data', icon: Database },
-  { label: 'Santé', path: '/health', icon: HeartPulse },
+  { label: 'Journal de Vie', path: '/journal', icon: NotebookTabs },
   { label: 'Agents IA', path: '/agents', icon: Bot },
   { label: 'Paramètres', path: '/settings', icon: Settings },
 ]

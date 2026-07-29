@@ -251,8 +251,8 @@ export default function HealthPage() {
     <div className="health-page">
       <header className="health-hero">
         <div>
-          <p className="eyebrow">Hanuman / Santé du système</p>
-          <h1>Le centre d’observation.</h1>
+          <p className="eyebrow">Hanuman / Paramètres / Diagnostic</p>
+          <h1>État d’Hanuman</h1>
           <p>État des connecteurs, performance, activité récente, journaux techniques et trajectoire de maintenance.</p>
         </div>
         <button className="health-refresh" onClick={() => void runChecks()} disabled={loading}><RefreshCw size={17} className={loading ? 'spin' : ''} /> Contrôler maintenant</button>

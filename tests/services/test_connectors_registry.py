@@ -12,6 +12,7 @@ def test_registry_contains_existing_connectors() -> None:
     connector_ids = {connector.id for connector in list_connectors()}
 
     assert connector_ids == {
+        "anki",
         "gmail",
         "calendar",
         "github",

@@ -1,9 +1,8 @@
 import {
   Bot,
   ChevronRight,
-  Database,
   HeartPulse,
-  Settings,
+  NotebookTabs,
   Sparkles,
 } from 'lucide-react'
 import { useEffect, useState } from 'react'
@@ -119,9 +118,20 @@ function AppShell() {
           <Route path="/flows/wikipedia-notion" element={<WikipediaNotionPage />} />
           <Route path="/flows/chess-obsidian" element={<ChessObsidianPage />} />
           <Route path="/connectors" element={<ResourcesPage />} />
-          <Route path="/data" element={<PlaceholderPage eyebrow="Hanuman / Données" title="Les contenus reliés par Hanuman." description="Cette section accueillera une vue des contenus, artefacts et bibliothèques manipulés par les flux." note="La vue unifiée des données est en préparation." icon={Database} />} />
+          <Route
+  path="/journal"
+  element={
+    <PlaceholderPage
+      eyebrow="Hanuman / Journal de Vie"
+      title="Tes routines personnelles réunies en un seul espace."
+      description="Le Journal de Vie accueillera les routines Quotidien, Cuisine, Typing, Sport et les analyses produites par Hanuman."
+      note="La première routine, le bilan quotidien, sera construite prochainement."
+      icon={NotebookTabs}
+    />
+  }
+/>
           <Route path="/agents" element={<PlaceholderPage eyebrow="Hanuman / Agents IA" title="Un espace réservé aux futurs agents." description="Hanuman ne propose actuellement aucun agent autonome. Cette section documentera leurs capacités lorsqu’elles seront disponibles." note="Aucun agent autonome n’est actuellement disponible." icon={Bot} />} />
-          <Route path="/settings" element={<PlaceholderPage eyebrow="Hanuman / Paramètres" title="La configuration utilisateur viendra ici." description="Les réglages de l’interface seront regroupés dans cette section. La configuration technique reste pour l’instant locale et documentée, sans exposer de secret." note="La configuration dans l’interface est à venir." icon={Settings} />} />
+          <Route path="/settings" element={<HealthPage />} />
           <Route path="/orchestrations" element={<Navigate to="/flows" replace />} />
           <Route path="/orchestrations/gmail" element={<GmailPage />} />
           <Route path="/orchestrations/calendar" element={<CalendarPage />} />
@@ -130,7 +140,8 @@ function AppShell() {
           <Route path="/orchestrations/chess-obsidian" element={<ChessObsidianPage />} />
           <Route path="/resources" element={<LegacyRedirect to="/connectors" />} />
           <Route path="/library" element={<LegacyRedirect to="/connectors" />} />
-          <Route path="/health" element={<HealthPage />} />
+          <Route path="/health" element={<Navigate to="/settings" replace />} />
+          <Route path="/data" element={<Navigate to="/journal" replace />} />
         </Routes>
       </main>
     </div>
