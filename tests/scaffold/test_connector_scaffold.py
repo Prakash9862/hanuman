@@ -1,0 +1,105 @@
+from __future__ import annotations
+
+from pathlib import Path
+
+import pytest
+
+from hanuman.scaffold.connector import ConnectorScaffold
+from hanuman.scaffold.manifest import ConnectorManifest, load_connector_manifest
+
+
+def _manifest() -> ConnectorManifest:
+    return ConnectorManifest.from_mapping(
+        {
+            "id": "devdocs",
+            "label": "DevDocs",
+            "description": "Documentation technique.",
+            "kind": "remote_api",
+            "capabilities": ["documentation.search", "documentation.open"],
+            "workspace": "search",
+        }
+    )
+
+
+def test_manifest_normalizes_values() -> None:
+    manifest = ConnectorManifest.from_mapping(
+        {
+            "id": " DevDocs ",
+            "label": "DevDocs",
+            "description": "Documentation technique.",
+            "kind": "REMOTE_API",
+            "capabilities": ["Documentation.Search"],
+        }
+    )
+
+    assert manifest.id == "devdocs"
+    assert manifest.kind == "remote_api"
+    assert manifest.capabilities == ("documentation.search",)
+    assert manifest.workspace == "catalog-only"
+
+
+def test_manifest_rejects_invalid_connector_id() -> None:
+    with pytest.raises(ValueError, match="identifiant"):
+        ConnectorManifest.from_mapping(
+            {
+                "id": "Dev Docs",
+                "label": "DevDocs",
+                "description": "Documentation technique.",
+                "kind": "remote_api",
+                "capabilities": ["documentation.search"],
+            }
+        )
+
+
+def test_load_connector_manifest(tmp_path: Path) -> None:
+    path = tmp_path / "devdocs.yaml"
+    path.write_text(
+        """id: devdocs
+label: DevDocs
+description: Documentation technique.
+kind: remote_api
+capabilities:
+  - documentation.search
+""",
+        encoding="utf-8",
+    )
+
+    assert load_connector_manifest(path).id == "devdocs"
+
+
+def test_plan_is_deterministic(tmp_path: Path) -> None:
+    scaffold = ConnectorScaffold(tmp_path)
+
+    first = scaffold.plan(_manifest())
+    second = scaffold.plan(_manifest())
+
+    assert first == second
+    assert first.paths == (
+        Path("src/hanuman/services/core/devdocs_service.py"),
+        Path("tests/services/test_devdocs_service.py"),
+        Path("docs/connectors/devdocs.md"),
+    )
+
+
+def test_apply_creates_planned_files(tmp_path: Path) -> None:
+    scaffold = ConnectorScaffold(tmp_path)
+    plan = scaffold.plan(_manifest())
+
+    written = scaffold.apply(plan)
+
+    assert len(written) == 3
+    assert all(path.exists() for path in written)
+    assert "ping_devdocs" in written[0].read_text(encoding="utf-8")
+
+
+def test_apply_refuses_existing_files(tmp_path: Path) -> None:
+    scaffold = ConnectorScaffold(tmp_path)
+    plan = scaffold.plan(_manifest())
+    target = tmp_path / plan.files[0].path
+    target.parent.mkdir(parents=True)
+    target.write_text("existing", encoding="utf-8")
+
+    with pytest.raises(FileExistsError, match="--force"):
+        scaffold.apply(plan)
+
+    assert target.read_text(encoding="utf-8") == "existing"
