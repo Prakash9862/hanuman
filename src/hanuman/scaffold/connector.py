@@ -45,11 +45,7 @@ class ConnectorScaffold:
         return ScaffoldPlan(connector_id=manifest.id, files=files)
 
     def validate(self, plan: ScaffoldPlan, *, force: bool = False) -> None:
-        collisions = [
-            item.path
-            for item in plan.files
-            if (self.project_root / item.path).exists()
-        ]
+        collisions = [item.path for item in plan.files if (self.project_root / item.path).exists()]
         if collisions and not force:
             rendered = ", ".join(str(path) for path in collisions)
             raise FileExistsError(

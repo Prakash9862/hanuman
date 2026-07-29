@@ -57,7 +57,9 @@ class ConnectorManifest:
                 raise ValueError("Chaque capacité doit être une chaîne non vide.")
             normalized = value.strip().lower()
             if "." not in normalized:
-                raise ValueError(f"Capacité invalide : {normalized}. Format attendu : domaine.action.")
+                raise ValueError(
+                    f"Capacité invalide : {normalized}. Format attendu : domaine.action."
+                )
             capabilities.append(normalized)
 
         if len(set(capabilities)) != len(capabilities):
