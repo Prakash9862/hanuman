@@ -279,23 +279,36 @@ def _print_run(run: FlowRun, *, detailed: bool, console: Console) -> None:
     console.print(f"  idempotency_key : {run.idempotency_key}")
 
 
-def _run_connector_scaffold_dry_run(
+def _run_connector_scaffold(
     manifest_path: str,
     *,
+    dry_run: bool,
+    force: bool,
     console: Console,
 ) -> int:
+    scaffold = ConnectorScaffold(Path.cwd())
+
     try:
         manifest = load_connector_manifest(Path(manifest_path))
-        plan = ConnectorScaffold(Path.cwd()).plan(manifest)
-    except ValueError as exc:
-        console.print(f"[red]Manifeste invalide :[/red] {exc}")
+        plan = scaffold.plan(manifest)
+
+        if dry_run:
+            console.print(f"[bold]Scaffold du connecteur {manifest.label}[/bold]")
+            console.print("[yellow]Dry-run — aucun fichier ne sera écrit.[/yellow]\n")
+            console.print("[bold]Fichiers prévus[/bold]")
+            for item in plan.files:
+                console.print(f"  + {item.path}")
+            return 0
+
+        written = scaffold.apply(plan, force=force)
+    except (ValueError, FileExistsError, OSError) as exc:
+        console.print(f"[red]Échec du scaffold :[/red] {exc}")
         return 2
 
-    console.print(f"[bold]Scaffold du connecteur {manifest.label}[/bold]")
-    console.print("[yellow]Dry-run — aucun fichier ne sera écrit.[/yellow]\n")
-    console.print("[bold]Fichiers prévus[/bold]")
-    for item in plan.files:
-        console.print(f"  + {item.path}")
+    console.print(f"[bold green]Connecteur {manifest.label} généré.[/bold green]\n")
+    console.print("[bold]Fichiers créés[/bold]")
+    for destination in written:
+        console.print(f"  + {destination.relative_to(scaffold.project_root)}")
 
     return 0
 
@@ -309,14 +322,10 @@ def run_cli(
     output = console or Console()
 
     if args.command == "scaffold":
-        if not args.dry_run:
-            output.print(
-                "[yellow]L'écriture du scaffold n'est pas encore activée. "
-                "Utilise --dry-run.[/yellow]"
-            )
-            return 2
-        return _run_connector_scaffold_dry_run(
+        return _run_connector_scaffold(
             args.manifest,
+            dry_run=args.dry_run,
+            force=args.force,
             console=output,
         )
 
