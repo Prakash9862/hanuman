@@ -4,6 +4,7 @@ import argparse
 import json
 from dataclasses import asdict
 from datetime import datetime
+from pathlib import Path
 from typing import Any, Sequence
 
 from rich.console import Console
@@ -15,6 +16,8 @@ from hanuman.orchestrations.github_project_memory import plan_github_project_mem
 from hanuman.orchestrations.github_project_memory_notion import (
     apply_github_project_memory,
 )
+from hanuman.scaffold.connector import ConnectorScaffold
+from hanuman.scaffold.manifest import load_connector_manifest
 from hanuman.services.github_project_memory_service import (
     GitHubProjectMemoryConfig,
     execute_github_project_memory,
@@ -276,6 +279,27 @@ def _print_run(run: FlowRun, *, detailed: bool, console: Console) -> None:
     console.print(f"  idempotency_key : {run.idempotency_key}")
 
 
+def _run_connector_scaffold_dry_run(
+    manifest_path: str,
+    *,
+    console: Console,
+) -> int:
+    try:
+        manifest = load_connector_manifest(Path(manifest_path))
+        plan = ConnectorScaffold(Path.cwd()).plan(manifest)
+    except ValueError as exc:
+        console.print(f"[red]Manifeste invalide :[/red] {exc}")
+        return 2
+
+    console.print(f"[bold]Scaffold du connecteur {manifest.label}[/bold]")
+    console.print("[yellow]Dry-run — aucun fichier ne sera écrit.[/yellow]\n")
+    console.print("[bold]Fichiers prévus[/bold]")
+    for item in plan.files:
+        console.print(f"  + {item.path}")
+
+    return 0
+
+
 def run_cli(
     argv: Sequence[str] | None = None,
     *,
@@ -283,6 +307,19 @@ def run_cli(
 ) -> int:
     args = _parser().parse_args(argv)
     output = console or Console()
+
+    if args.command == "scaffold":
+        if not args.dry_run:
+            output.print(
+                "[yellow]L'écriture du scaffold n'est pas encore activée. "
+                "Utilise --dry-run.[/yellow]"
+            )
+            return 2
+        return _run_connector_scaffold_dry_run(
+            args.manifest,
+            console=output,
+        )
+
     flow_input = GitHubProjectMemoryInput(
         repository=args.repository,
         branch=args.branch,
