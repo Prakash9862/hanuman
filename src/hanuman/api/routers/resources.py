@@ -18,8 +18,9 @@ from hanuman.services.resources_service import (
     search_gallica,
     search_imslp,
     search_youtube,
-    youtube_configured,
-)
+    youtube_configured,)
+from hanuman.services.core.anki_service import list_anki_decks, ping_anki
+
 
 router = APIRouter(prefix="/resources", tags=["resources"])
 
@@ -132,6 +133,21 @@ def programs_status() -> dict[str, object]:
         "programs": programs,
     }
 
+@router.get("/anki/decks")
+def anki_decks() -> dict[str, object]:
+    try:
+        decks = list_anki_decks()
+    except Exception as exc:
+        raise HTTPException(
+            status_code=502,
+            detail=f"Impossible de lire les paquets Anki : {exc}",
+        ) from exc
+
+    return {
+        "ok": True,
+        "count": len(decks),
+        "decks": decks,
+    }
 
 @router.get("/programs/{program_id}/status")
 def program_status(program_id: str) -> dict[str, object]:

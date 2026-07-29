@@ -5,6 +5,7 @@ import {
   Cpu,
   Database,
   Github,
+  Layers3,
   Mail,
   MapPin,
   Music2,
@@ -31,6 +32,15 @@ export type ConnectorDefinition = {
 export const connectorDefinitions: readonly ConnectorDefinition[] = [
   { id: 'notion', label: 'Notion', description: 'Organisation et destination de contenus.', kind: 'external', status: 'available', route: '/flows/obsidian-notion', icon: Network },
   { id: 'obsidian', label: 'Obsidian', description: 'Mémoire et bibliothèques locales.', kind: 'local', status: 'available', route: '/flows/obsidian-notion', icon: NotebookPen },
+    {
+    id: 'anki',
+    label: 'Anki',
+    description: 'Paquets, notes et cartes de révision.',
+    kind: 'local',
+    status: 'available',
+    route: '/connectors?source=anki',
+    icon: Layers3,
+  },
   { id: 'github', label: 'GitHub', description: 'Projets et activité technique.', kind: 'external', status: 'partial', route: '/flows', icon: Github },
   { id: 'gmail', label: 'Gmail', description: 'Consultation de la messagerie.', kind: 'external', status: 'partial', route: '/flows/gmail', icon: Mail },
   { id: 'calendar', label: 'Google Calendar', description: 'Consultation des calendriers.', kind: 'external', status: 'available', route: '/flows/calendar', icon: CalendarDays },
@@ -45,7 +55,7 @@ export const connectorDefinitions: readonly ConnectorDefinition[] = [
   { id: 'scid', label: 'SCID', description: 'Base locale de parties.', kind: 'local', status: 'available', route: '/connectors?source=chess', icon: Database },
 ]
 
-export type ConnectorWorkspaceId = 'youtube' | 'gallica' | 'imslp' | 'maps' | 'chess'
+export type ConnectorWorkspaceId = 'youtube' | 'gallica' | 'imslp' | 'maps' | 'chess'| 'anki'
 
 export type ConnectorWorkspace = {
   id: ConnectorWorkspaceId
@@ -61,4 +71,11 @@ export const connectorWorkspaces: readonly ConnectorWorkspace[] = [
   { id: 'imslp', label: 'IMSLP', eyebrow: 'Partitions', placeholder: 'Rechercher une œuvre ou un compositeur…', icon: Music2 },
   { id: 'maps', label: 'Google Maps', eyebrow: 'Trajets et rendez-vous', placeholder: 'Saisir une adresse ou un lieu…', icon: MapPin },
   { id: 'chess', label: 'Échecs', eyebrow: 'Moteurs et bases', placeholder: '', icon: Swords },
+    {
+    id: 'anki',
+    label: 'Anki',
+    eyebrow: 'Mémorisation et révision',
+    placeholder: 'Rechercher un paquet ou une carte…',
+    icon: Layers3,
+  },
 ]

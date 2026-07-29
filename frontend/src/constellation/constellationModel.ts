@@ -24,6 +24,14 @@ export type ConstellationRelation = {
 const visualMetadata: Record<string, Omit<ConstellationConnector, keyof ConnectorDefinition>> = {
   notion: { x: 72, y: 24, size: 'giant', palette: 'ivory', family: 'terrestrial', healthEndpoint: '/notion/ping' },
   obsidian: { x: 29, y: 32, size: 'large', palette: 'violet', family: 'crystalline', healthEndpoint: '/obsidian/ping' },
+  anki: {
+  x: 44,
+  y: 48,
+  size: 'medium',
+  palette: 'amber',
+  family: 'desert',
+  healthEndpoint: '/resources/anki/status',
+},
   github: { x: 48, y: 11, size: 'small', palette: 'graphite', family: 'metallic', healthEndpoint: '/github/ping' },
   gmail: { x: 8, y: 20, size: 'medium', palette: 'coral', family: 'gas', healthEndpoint: '/gmail/status' },
   calendar: { x: 86, y: 45, size: 'large', palette: 'azure', family: 'ice', healthEndpoint: '/calendar/status' },

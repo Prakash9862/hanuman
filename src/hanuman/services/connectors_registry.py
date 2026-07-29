@@ -77,6 +77,20 @@ _CONNECTORS: tuple[ConnectorDescriptor, ...] = (
         status_endpoint="/obsidian/ping",
     ),
     ConnectorDescriptor(
+    id="anki",
+    label="Anki",
+    description="Accès local aux paquets, notes et cartes via AnkiConnect.",
+    kind=ConnectorKind.LOCAL_PROGRAM,
+    capabilities=[
+        "flashcards.list_decks",
+        "flashcards.read_notes",
+        "flashcards.create_notes",
+        "flashcards.update_notes",
+    ],
+    writable=True,
+    status_endpoint="/resources/anki/status",
+    ),
+    ConnectorDescriptor(
         id="openai",
         label="OpenAI",
         description="Analyse, résumé et génération de texte structurée.",

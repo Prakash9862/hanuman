@@ -164,8 +164,18 @@ export default function ResourcesPage() {
     return () => window.clearInterval(timer)
   }, [active, analysisRunning])
 
-  async function fetchSearch(source: 'youtube' | 'gallica' | 'imslp', normalized: string, pageToken?: string): Promise<SearchPayload> {
-    const params = new URLSearchParams({
+  async function fetchSearch(
+  source: 'youtube' | 'gallica' | 'imslp' | 'anki',
+  normalized: string,
+  pageToken?: string,
+): Promise<SearchPayload> {
+
+  if (source === 'anki') {
+    const response = await fetch(`${API_BASE}/resources/anki/status`)
+    return (await response.json()) as SearchPayload
+  }
+
+  const params = new URLSearchParams({
       q: normalized,
       max_results: source === 'youtube' ? '25' : source === 'imslp' ? '20' : '12',
     })
@@ -195,7 +205,30 @@ export default function ResourcesPage() {
         return
       }
       setLoading(true)
-      const payload = await fetchSearch(active, normalized)
+      if (active === 'anki') {
+        const response = await fetch(`${API_BASE}/resources/anki/decks`)
+        const payload = await response.json()
+
+        if (!response.ok) {
+          throw new Error(payload.detail ?? 'Anki indisponible')
+        }
+
+        setResults(
+          (payload.decks ?? []).map((deck: string) => ({
+            title: deck,
+            description: 'Paquet Anki',
+          })),
+        )
+
+        setMessage(
+          payload.count
+            ? `${payload.count} paquet(s) trouvé(s)`
+            : 'Aucun paquet',
+        )
+
+        return
+      }
+const payload = await fetchSearch(active, normalized)
       const nextResults = payload.results ?? []
       setResults(nextResults)
       setNextPageToken(payload.next_page_token ?? null)
