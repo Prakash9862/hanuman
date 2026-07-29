@@ -15,6 +15,7 @@ class PlannedFile:
 @dataclass(frozen=True, slots=True)
 class ScaffoldPlan:
     connector_id: str
+    manifest: ConnectorManifest
     files: tuple[PlannedFile, ...]
 
     @property
@@ -42,7 +43,11 @@ class ConnectorScaffold:
                 _documentation_template(manifest),
             ),
         )
-        return ScaffoldPlan(connector_id=manifest.id, files=files)
+        return ScaffoldPlan(
+            connector_id=manifest.id,
+            manifest=manifest,
+            files=files,
+        )
 
     def validate(self, plan: ScaffoldPlan, *, force: bool = False) -> None:
         collisions = [item.path for item in plan.files if (self.project_root / item.path).exists()]
@@ -55,17 +60,35 @@ class ConnectorScaffold:
 
     def apply(self, plan: ScaffoldPlan, *, force: bool = False) -> tuple[Path, ...]:
         self.validate(plan, force=force)
+
+        registry_path = self.project_root / _REGISTRY_PATH
+        registry_before = registry_path.read_text(encoding="utf-8")
+
         written: list[Path] = []
+        previous_contents: dict[Path, bytes | None] = {}
+
         try:
             for item in plan.files:
                 destination = self.project_root / item.path
+                previous_contents[destination] = (
+                    destination.read_bytes() if destination.exists() else None
+                )
                 destination.parent.mkdir(parents=True, exist_ok=True)
                 destination.write_text(item.content, encoding="utf-8")
                 written.append(destination)
-        except OSError:
+
+            update_registry(self.project_root, plan.manifest)
+        except (OSError, ValueError):
+            registry_path.write_text(registry_before, encoding="utf-8")
+
             for destination in reversed(written):
-                destination.unlink(missing_ok=True)
+                previous = previous_contents[destination]
+                if previous is None:
+                    destination.unlink(missing_ok=True)
+                else:
+                    destination.write_bytes(previous)
             raise
+
         return tuple(written)
 
 

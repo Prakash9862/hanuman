@@ -81,7 +81,19 @@ def test_plan_is_deterministic(tmp_path: Path) -> None:
     )
 
 
-def test_apply_creates_planned_files(tmp_path: Path) -> None:
+def test_apply_creates_planned_files_and_updates_registry(tmp_path: Path) -> None:
+    registry = tmp_path / "src/hanuman/services/connectors_registry.py"
+    registry.parent.mkdir(parents=True)
+    registry.write_text(
+        """_CONNECTORS = (
+    # scaffold:connectors:start
+
+    # scaffold:connectors:end
+)
+""",
+        encoding="utf-8",
+    )
+
     scaffold = ConnectorScaffold(tmp_path)
     plan = scaffold.plan(_manifest())
 
@@ -90,6 +102,10 @@ def test_apply_creates_planned_files(tmp_path: Path) -> None:
     assert len(written) == 3
     assert all(path.exists() for path in written)
     assert "ping_devdocs" in written[0].read_text(encoding="utf-8")
+
+    registry_content = registry.read_text(encoding="utf-8")
+    assert 'id="devdocs"' in registry_content
+    assert 'status_endpoint="/resources/devdocs/status"' in registry_content
 
 
 def test_apply_refuses_existing_files(tmp_path: Path) -> None:

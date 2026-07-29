@@ -97,6 +97,18 @@ workspace: catalog-only
         encoding="utf-8",
     )
 
+    registry = tmp_path / "src/hanuman/services/connectors_registry.py"
+    registry.parent.mkdir(parents=True, exist_ok=True)
+    registry.write_text(
+        """_CONNECTORS = (
+    # scaffold:connectors:start
+
+    # scaffold:connectors:end
+)
+""",
+        encoding="utf-8",
+    )
+
 
 def test_connector_scaffold_write_mode_creates_planned_files(
     tmp_path,
