@@ -103,3 +103,51 @@ def test_apply_refuses_existing_files(tmp_path: Path) -> None:
         scaffold.apply(plan)
 
     assert target.read_text(encoding="utf-8") == "existing"
+
+
+def test_render_registry_descriptor_contains_manifest_metadata() -> None:
+    from hanuman.scaffold.connector import render_registry_descriptor
+
+    manifest = ConnectorManifest(
+        id="devdocs",
+        label="DevDocs",
+        description="Recherche de documentation technique.",
+        kind="remote_api",
+        capabilities=(
+            "documentation.search",
+            "documentation.read",
+        ),
+        workspace="search",
+    )
+
+    rendered = render_registry_descriptor(manifest)
+
+    assert 'id="devdocs"' in rendered
+    assert 'label="DevDocs"' in rendered
+    assert 'description="Recherche de documentation technique."' in rendered
+    assert "kind=ConnectorKind.REMOTE_API" in rendered
+    assert '"documentation.search"' in rendered
+    assert '"documentation.read"' in rendered
+    assert 'status_endpoint="/resources/devdocs/status"' in rendered
+    assert "requires_auth=True" not in rendered
+    assert "writable=True" not in rendered
+
+
+def test_render_registry_descriptor_adds_optional_flags() -> None:
+    from hanuman.scaffold.connector import render_registry_descriptor
+
+    manifest = ConnectorManifest(
+        id="example",
+        label="Example",
+        description="Connecteur de test.",
+        kind="local_program",
+        capabilities=("example.read",),
+        requires_auth=True,
+        writable=True,
+    )
+
+    rendered = render_registry_descriptor(manifest)
+
+    assert "kind=ConnectorKind.LOCAL_PROGRAM" in rendered
+    assert "requires_auth=True" in rendered
+    assert "writable=True" in rendered

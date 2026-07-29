@@ -150,3 +150,38 @@ Service
 
 def _pascal_case(value: str) -> str:
     return "".join(part.capitalize() for part in value.replace("_", "-").split("-"))
+
+
+_KIND_TO_PYTHON = {
+    "remote_api": "ConnectorKind.REMOTE_API",
+    "local_program": "ConnectorKind.LOCAL_PROGRAM",
+    "local_filesystem": "ConnectorKind.LOCAL_FILESYSTEM",
+    "ai_provider": "ConnectorKind.AI_PROVIDER",
+}
+
+
+def render_registry_descriptor(manifest: ConnectorManifest) -> str:
+    """Rend la déclaration Python d'un connecteur pour le registre."""
+
+    capabilities = "\n".join(f'            "{capability}",' for capability in manifest.capabilities)
+
+    optional_arguments: list[str] = []
+    if manifest.writable:
+        optional_arguments.append("        writable=True,")
+    if manifest.requires_auth:
+        optional_arguments.append("        requires_auth=True,")
+
+    optional_block = ""
+    if optional_arguments:
+        optional_block = "\n" + "\n".join(optional_arguments)
+
+    return f'''    ConnectorDescriptor(
+        id="{manifest.id}",
+        label="{manifest.label}",
+        description="{manifest.description}",
+        kind={_KIND_TO_PYTHON[manifest.kind]},
+        capabilities=[
+{capabilities}
+        ],{optional_block}
+        status_endpoint="/resources/{manifest.id}/status",
+    ),'''
