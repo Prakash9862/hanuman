@@ -1,0 +1,1 @@
+Avec Anki, vous avez surtout validé le modèle d'intégration : un nouveau connecteur se branche désormais toujours de la même façon (service → API → registre → frontend → workspace → constellation → tests).
