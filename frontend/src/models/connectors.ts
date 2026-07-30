@@ -14,6 +14,7 @@ import {
   Swords,
   Youtube,
   Clock3,
+  ContactRound,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 
@@ -51,6 +52,8 @@ export const connectorDefinitions: readonly ConnectorDefinition[] = [
 
   // scaffold:connector-definitions:start
   { id: 'devdocs', label: 'DevDocs', description: 'Recherche et consultation de documentation technique.', kind: 'external', status: 'planned', route: '/connectors?source=devdocs', icon: BookOpen, },
+
+  { id: 'contacts', label: 'Google Contacts', description: 'Consultation et gestion des contacts Google.', kind: 'external', status: 'planned', route: '/connectors?source=contacts', icon: ContactRound, },
   // scaffold:connector-definitions:end
 ]
 

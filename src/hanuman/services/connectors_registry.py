@@ -192,6 +192,18 @@ _CONNECTORS: tuple[ConnectorDescriptor, ...] = (
         ],
         status_endpoint="/resources/devdocs/status",
     ),
+
+    ConnectorDescriptor(
+        id="contacts",
+        label="Google Contacts",
+        description="Consultation et gestion des contacts Google.",
+        kind=ConnectorKind.REMOTE_API,
+        capabilities=[
+            "contacts.read",
+            "contacts.write",
+        ],
+        status_endpoint="/resources/contacts/status",
+    ),
     # scaffold:connectors:end
 )
 

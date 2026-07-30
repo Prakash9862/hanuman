@@ -41,6 +41,8 @@ const visualMetadata: Record<string, Omit<ConstellationConnector, keyof Connecto
 
   // scaffold:visual-metadata:start
   'devdocs': { x: 41, y: 39, size: 'small', palette: 'jade', family: 'metallic', healthEndpoint: '/resources/devdocs/status', },
+
+  'contacts': { x: 39, y: 86, size: 'large', palette: 'gold', family: 'volcanic', healthEndpoint: '/resources/contacts/status', },
   // scaffold:visual-metadata:end
 }
 
