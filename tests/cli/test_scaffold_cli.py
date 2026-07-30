@@ -109,6 +109,36 @@ workspace: catalog-only
         encoding="utf-8",
     )
 
+    api = tmp_path / "src/hanuman/api/routers/resources.py"
+    api.parent.mkdir(parents=True, exist_ok=True)
+    api.write_text(
+        """# scaffold:connector-routes:start
+
+# scaffold:connector-routes:end
+""",
+        encoding="utf-8",
+    )
+
+    frontend = tmp_path / "frontend/src/models/connectors.ts"
+    frontend.parent.mkdir(parents=True, exist_ok=True)
+    frontend.write_text(
+        """// scaffold:connector-definitions:start
+
+// scaffold:connector-definitions:end
+""",
+        encoding="utf-8",
+    )
+
+    constellation = tmp_path / "frontend/src/constellation/constellationModel.ts"
+    constellation.parent.mkdir(parents=True, exist_ok=True)
+    constellation.write_text(
+        """// scaffold:visual-metadata:start
+
+// scaffold:visual-metadata:end
+""",
+        encoding="utf-8",
+    )
+
 
 def test_connector_scaffold_write_mode_creates_planned_files(
     tmp_path,
@@ -133,6 +163,7 @@ def test_connector_scaffold_write_mode_creates_planned_files(
 
     assert exit_code == 0
     assert (tmp_path / "src/hanuman/services/core/example_service.py").is_file()
+    assert (tmp_path / "src/hanuman/services/connectors/example.py").is_file()
     assert (tmp_path / "tests/services/test_example_service.py").is_file()
     assert (tmp_path / "docs/connectors/example.md").is_file()
 
