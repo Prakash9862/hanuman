@@ -455,7 +455,7 @@ def _update_frontend_icon_import(
     source = target_path.read_text(encoding="utf-8")
 
     import_start = "import {\n"
-    import_end = "} from 'lucide-react'"
+    import_end = "\n} from 'lucide-react'"
 
     if source.count(import_start) != 1 or source.count(import_end) != 1:
         raise ValueError(
@@ -463,7 +463,7 @@ def _update_frontend_icon_import(
         )
 
     body_start = source.index(import_start) + len(import_start)
-    body_end = source.index(import_end, body_start)
+    body_end = source.index(import_end, body_start) + 1
     import_body = source[body_start:body_end]
 
     imported_icons = {

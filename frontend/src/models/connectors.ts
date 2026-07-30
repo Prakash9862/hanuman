@@ -2,9 +2,12 @@ import {
   BookOpen,
   BrainCircuit,
   CalendarDays,
+  Clock3,
+  ContactRound,
   Cpu,
   Database,
   Github,
+  Keyboard,
   Layers3,
   Mail,
   MapPin,
@@ -13,8 +16,6 @@ import {
   NotebookPen,
   Swords,
   Youtube,
-  Clock3,
-  ContactRound,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 
@@ -54,6 +55,8 @@ export const connectorDefinitions: readonly ConnectorDefinition[] = [
   { id: 'devdocs', label: 'DevDocs', description: 'Recherche et consultation de documentation technique.', kind: 'external', status: 'planned', route: '/connectors?source=devdocs', icon: BookOpen, },
 
   { id: 'contacts', label: 'Google Contacts', description: 'Consultation et gestion des contacts Google.', kind: 'external', status: 'planned', route: '/connectors?source=contacts', icon: ContactRound, },
+
+  { id: 'monkeytype', label: 'Monkeytype', description: 'Suivi des performances de frappe et des sessions d’entraînement.', kind: 'external', status: 'planned', route: '/connectors?source=monkeytype', icon: Keyboard, },
   // scaffold:connector-definitions:end
 ]
 

@@ -223,6 +223,18 @@ def contacts_status() -> dict[str, object]:
     }
 
 
+@router.get("/monkeytype/status")
+def monkeytype_status() -> dict[str, object]:
+    from hanuman.services.core.monkeytype_service import ping_monkeytype
+
+    status = ping_monkeytype()
+    return {
+        "ok": status.ok,
+        "configured": status.configured,
+        "message": status.message,
+    }
+
+
 # scaffold:connector-routes:end
 
 

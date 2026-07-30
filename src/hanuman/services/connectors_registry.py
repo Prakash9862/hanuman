@@ -203,6 +203,17 @@ _CONNECTORS: tuple[ConnectorDescriptor, ...] = (
         ],
         status_endpoint="/resources/contacts/status",
     ),
+    ConnectorDescriptor(
+        id="monkeytype",
+        label="Monkeytype",
+        description="Suivi des performances de frappe et des sessions d’entraînement.",
+        kind=ConnectorKind.REMOTE_API,
+        capabilities=[
+            "typing.stats.read",
+            "typing.sessions.read",
+        ],
+        status_endpoint="/resources/monkeytype/status",
+    ),
     # scaffold:connectors:end
 )
 

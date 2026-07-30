@@ -43,6 +43,8 @@ const visualMetadata: Record<string, Omit<ConstellationConnector, keyof Connecto
   'devdocs': { x: 41, y: 39, size: 'small', palette: 'jade', family: 'metallic', healthEndpoint: '/resources/devdocs/status', },
 
   'contacts': { x: 39, y: 86, size: 'large', palette: 'gold', family: 'volcanic', healthEndpoint: '/resources/contacts/status', },
+
+  'monkeytype': { x: 12, y: 30, size: 'small', palette: 'coral', family: 'ice', healthEndpoint: '/resources/monkeytype/status', },
   // scaffold:visual-metadata:end
 }
 
