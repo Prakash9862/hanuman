@@ -56,6 +56,15 @@ type ClockSnapshot = {
   period: 'night' | 'morning' | 'afternoon' | 'evening'
 }
 
+type DevdocsDocumentation = {
+  slug: string
+  name: string
+  version?: string | null
+  release?: string | null
+  updated_at?: string | null
+  icon?: string | null
+}
+
 type SearchPayload = {
   ok?: boolean
   detail?: string
@@ -116,6 +125,10 @@ export default function ResourcesPage() {
   const [clockTimezone, setClockTimezone] = useState('Europe/Paris')
   const [clockTimezones, setClockTimezones] = useState<string[]>([])
   const [clockLoading, setClockLoading] = useState(false)
+  const [devdocsDocumentations, setDevdocsDocumentations] = useState<
+    DevdocsDocumentation[]
+  >([])
+  const [devdocsLoading, setDevdocsLoading] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
   const [fallbackUrl, setFallbackUrl] = useState<string | null>(null)
   const [nextPageToken, setNextPageToken] = useState<string | null>(null)
@@ -158,6 +171,39 @@ export default function ResourcesPage() {
       setTotalResults(null)
     }
   }, [initialSource])
+
+  async function loadDevdocsDocumentations() {
+  setDevdocsLoading(true)
+  setMessage(null)
+
+  try {
+    const response = await fetch(
+      `${API_BASE}/resources/devdocs/documentations`,
+    )
+
+    const payload = (await response.json()) as {
+      detail?: string
+      documentations?: DevdocsDocumentation[]
+    }
+
+    if (!response.ok) {
+      throw new Error(
+        payload.detail ?? 'Impossible de charger les documentations DevDocs',
+      )
+    }
+
+    setDevdocsDocumentations(payload.documentations ?? [])
+  } catch (error) {
+    setDevdocsDocumentations([])
+    setMessage(
+      error instanceof Error
+        ? error.message
+        : 'Impossible de joindre DevDocs',
+    )
+  } finally {
+    setDevdocsLoading(false)
+  }
+}
 
   async function refreshClock(timezone = clockTimezone) {
     setClockLoading(true)
@@ -228,6 +274,12 @@ export default function ResourcesPage() {
   }
 
   useEffect(() => {
+    if (active !== 'devdocs') return
+
+  void loadDevdocsDocumentations()
+  }, [active])
+
+  useEffect(() => {
     if (active !== 'clock') return
 
     void refreshClock(clockTimezone)
@@ -249,7 +301,7 @@ export default function ResourcesPage() {
   }, [active, analysisRunning])
 
   async function fetchSearch(
-  source: 'youtube' | 'gallica' | 'imslp' | 'anki',
+  source: 'youtube' | 'gallica' | 'imslp' | 'anki'| 'devdocs',
   normalized: string,
   pageToken?: string,
 ): Promise<SearchPayload> {
@@ -281,6 +333,26 @@ export default function ResourcesPage() {
     setTotalResults(null)
     setLastQuery(normalized)
     try {
+    if (active === 'devdocs') {
+    setLoading(true)
+
+    const response = await fetch(
+      `${API_BASE}/resources/devdocs/search?q=${encodeURIComponent(normalized)}`,
+    )
+
+    const payload = (await response.json()) as {
+      detail?: string
+      url?: string
+    }
+
+    if (!response.ok || !payload.url) {
+      throw new Error(payload.detail ?? 'Recherche DevDocs indisponible')
+    }
+
+    window.open(payload.url, '_blank', 'noopener,noreferrer')
+    setMessage(`Recherche « ${normalized} » ouverte dans DevDocs`)
+    return
+  }
       if (active === 'maps') {
         const response = await fetch(`${API_BASE}/resources/maps/directions?location=${encodeURIComponent(normalized)}`)
         const payload = await response.json()
@@ -444,6 +516,136 @@ const payload = await fetchSearch(active, normalized)
           )}
 
           {message && <div className="resources-message"><span>{message}</span>{fallbackUrl && <a href={fallbackUrl} target="_blank" rel="noreferrer">Ouvrir la recherche dans Gallica <ExternalLink size={14} /></a>}</div>}
+          
+          {active === 'devdocs' && (
+  <section
+    style={{
+      display: 'grid',
+      gap: 18,
+      marginTop: 22,
+    }}
+  >
+    <div
+      style={{
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        gap: 16,
+        flexWrap: 'wrap',
+        padding: 18,
+        border: '1px solid var(--border, #d7d1c5)',
+        borderRadius: 16,
+      }}
+    >
+      <div>
+        <p className="eyebrow">Documentation technique</p>
+        <h3 style={{ margin: 0 }}>DevDocs connecté</h3>
+        <p style={{ marginBottom: 0, opacity: 0.72 }}>
+          Recherche rapide et accès au catalogue des documentations.
+        </p>
+      </div>
+
+      <a
+        href="https://devdocs.io/"
+        target="_blank"
+        rel="noreferrer"
+        style={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: 8,
+        }}
+      >
+        Ouvrir DevDocs
+        <ExternalLink size={15} />
+      </a>
+    </div>
+
+    <div
+      style={{
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        gap: 12,
+        flexWrap: 'wrap',
+      }}
+    >
+      <div>
+        <p className="eyebrow">Catalogue disponible</p>
+        <h3 style={{ margin: 0 }}>
+          {devdocsLoading
+            ? 'Chargement…'
+            : `${devdocsDocumentations.length} documentations`}
+        </h3>
+      </div>
+
+      <button
+        type="button"
+        onClick={() => void loadDevdocsDocumentations()}
+        disabled={devdocsLoading}
+        style={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: 8,
+        }}
+      >
+        <RefreshCw
+          size={15}
+          className={devdocsLoading ? 'spin' : ''}
+        />
+        Actualiser
+      </button>
+    </div>
+
+    {!devdocsLoading && devdocsDocumentations.length > 0 && (
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+          gap: 10,
+          maxHeight: 420,
+          overflowY: 'auto',
+        }}
+      >
+        {devdocsDocumentations.map((documentation) => (
+          <a
+            key={documentation.slug}
+            href={`https://devdocs.io/${documentation.slug}/`}
+            target="_blank"
+            rel="noreferrer"
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              gap: 10,
+              padding: 14,
+              border: '1px solid var(--border, #d7d1c5)',
+              borderRadius: 12,
+              textDecoration: 'none',
+            }}
+          >
+            <div>
+              <b>{documentation.name}</b>
+
+              {(documentation.version || documentation.release) && (
+                <small
+                  style={{
+                    display: 'block',
+                    marginTop: 4,
+                    opacity: 0.7,
+                  }}
+                >
+                  {documentation.version ?? documentation.release}
+                </small>
+              )}
+            </div>
+
+            <ExternalLink size={14} />
+          </a>
+        ))}
+      </div>
+    )}
+  </section>
+)}          
 
           {active === 'clock' && (
             <section
@@ -781,7 +983,12 @@ const payload = await fetchSearch(active, normalized)
             </>
           )}
 
-          {active !== 'chess' && active !== 'clock' && !message && !loading && results.length === 0 && (
+          {active !== 'chess' &&
+            active !== 'clock' &&
+            active !== 'devdocs' &&
+            !message &&
+            !loading &&
+            results.length === 0 && (
             <div className="resources-empty"><ActiveIcon size={28} /><b>{active === 'maps' ? 'Prépare un trajet' : `Recherche dans ${current.label}`}</b><span>{current.placeholder}</span></div>
           )}
 

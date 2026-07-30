@@ -120,6 +120,56 @@ def maps_status() -> dict[str, object]:
     return {"ok": True, "configured": True, "mode": "universal_urls"}
 
 
+@router.get("/devdocs/status")
+def devdocs_status() -> dict[str, object]:
+    from hanuman.services.core.devdocs_service import ping_devdocs
+
+    status = ping_devdocs()
+    return {
+        "ok": status.ok,
+        "configured": status.configured,
+        "message": status.message,
+        "url": status.url,
+    }
+
+
+@router.get("/devdocs/documentations")
+def devdocs_documentations() -> dict[str, object]:
+    from hanuman.services.connectors.devdocs import DevdocsConnectorError
+    from hanuman.services.core.devdocs_service import list_devdocs_documentations
+
+    try:
+        documentations = list_devdocs_documentations()
+    except DevdocsConnectorError as exc:
+        raise HTTPException(
+            status_code=502,
+            detail=str(exc),
+        ) from exc
+
+    return {
+        "ok": True,
+        "count": len(documentations),
+        "documentations": [documentation.to_dict() for documentation in documentations],
+    }
+
+
+@router.get("/devdocs/search")
+def devdocs_search(
+    q: str = Query(min_length=1),
+) -> dict[str, object]:
+    from hanuman.services.core.devdocs_service import build_devdocs_search
+
+    try:
+        result = build_devdocs_search(q)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    return {
+        "ok": True,
+        **result,
+    }
+
+
 @router.get("/maps/search")
 def maps_search(location: str = Query(min_length=1)) -> dict[str, object]:
     return {"ok": True, "location": location, "url": build_google_maps_search_url(location)}
@@ -199,18 +249,6 @@ def clock_timezones(
 
 
 # scaffold:connector-routes:start
-@router.get("/devdocs/status")
-def devdocs_status() -> dict[str, object]:
-    from hanuman.services.core.devdocs_service import ping_devdocs
-
-    status = ping_devdocs()
-    return {
-        "ok": status.ok,
-        "configured": status.configured,
-        "message": status.message,
-    }
-
-
 @router.get("/contacts/status")
 def contacts_status() -> dict[str, object]:
     from hanuman.services.core.contacts_service import ping_contacts
