@@ -225,23 +225,13 @@ def update_registry(
     déjà présent.
     """
 
-    from hanuman.scaffold.markers import append_between_markers
-
-    registry_path = project_root.resolve() / _REGISTRY_PATH
-    source = registry_path.read_text(encoding="utf-8")
-
-    updated = append_between_markers(
-        source,
+    return _update_between_markers(
+        project_root,
+        relative_path=_REGISTRY_PATH,
         start_marker=_REGISTRY_START,
         end_marker=_REGISTRY_END,
         content=render_registry_descriptor(manifest),
     )
-
-    if updated == source:
-        return False
-
-    registry_path.write_text(updated, encoding="utf-8")
-    return True
 
 
 _API_PATH = Path("src/hanuman/api/routers/resources.py")
@@ -251,6 +241,38 @@ _API_END = "# scaffold:connector-routes:end"
 _FRONTEND_PATH = Path("frontend/src/models/connectors.ts")
 _FRONTEND_START = "// scaffold:connector-definitions:start"
 _FRONTEND_END = "// scaffold:connector-definitions:end"
+
+_CONSTELLATION_PATH = Path("frontend/src/constellation/constellationModel.ts")
+_CONSTELLATION_START = "// scaffold:visual-metadata:start"
+_CONSTELLATION_END = "// scaffold:visual-metadata:end"
+
+
+def _update_between_markers(
+    project_root: Path,
+    relative_path: Path,
+    start_marker: str,
+    end_marker: str,
+    content: str,
+) -> bool:
+    """Insère un contenu généré entre deux marqueurs d'un fichier."""
+
+    from hanuman.scaffold.markers import append_between_markers
+
+    target_path = project_root.resolve() / relative_path
+    source = target_path.read_text(encoding="utf-8")
+
+    updated = append_between_markers(
+        source,
+        start_marker=start_marker,
+        end_marker=end_marker,
+        content=content,
+    )
+
+    if updated == source:
+        return False
+
+    target_path.write_text(updated, encoding="utf-8")
+    return True
 
 
 def render_api_status_route(manifest: ConnectorManifest) -> str:
@@ -276,23 +298,13 @@ def update_api(
 ) -> bool:
     """Ajoute la route de statut dans le routeur Resources."""
 
-    from hanuman.scaffold.markers import append_between_markers
-
-    api_path = project_root.resolve() / _API_PATH
-    source = api_path.read_text(encoding="utf-8")
-
-    updated = append_between_markers(
-        source,
+    return _update_between_markers(
+        project_root,
+        relative_path=_API_PATH,
         start_marker=_API_START,
         end_marker=_API_END,
         content=render_api_status_route(manifest),
     )
-
-    if updated == source:
-        return False
-
-    api_path.write_text(updated, encoding="utf-8")
-    return True
 
 
 def update_frontend(
@@ -301,23 +313,28 @@ def update_frontend(
 ) -> bool:
     """Ajoute le connecteur à la zone générée du catalogue frontend."""
 
-    from hanuman.scaffold.markers import append_between_markers
-
-    frontend_path = project_root.resolve() / _FRONTEND_PATH
-    source = frontend_path.read_text(encoding="utf-8")
-
-    updated = append_between_markers(
-        source,
+    return _update_between_markers(
+        project_root,
+        relative_path=_FRONTEND_PATH,
         start_marker=_FRONTEND_START,
         end_marker=_FRONTEND_END,
         content=render_frontend_connector(manifest),
     )
 
-    if updated == source:
-        return False
 
-    frontend_path.write_text(updated, encoding="utf-8")
-    return True
+def update_constellation(
+    project_root: Path,
+    manifest: ConnectorManifest,
+) -> bool:
+    """Ajoute les métadonnées du connecteur à la constellation frontend."""
+
+    return _update_between_markers(
+        project_root,
+        relative_path=_CONSTELLATION_PATH,
+        start_marker=_CONSTELLATION_START,
+        end_marker=_CONSTELLATION_END,
+        content=render_constellation_metadata(manifest),
+    )
 
 
 _FRONTEND_KIND = {

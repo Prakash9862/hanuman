@@ -4,7 +4,11 @@ from pathlib import Path
 
 import pytest
 
-from hanuman.scaffold.connector import ConnectorScaffold, update_frontend
+from hanuman.scaffold.connector import (
+    ConnectorScaffold,
+    update_constellation,
+    update_frontend,
+)
 from hanuman.scaffold.manifest import ConnectorManifest, load_connector_manifest
 
 
@@ -560,3 +564,97 @@ const CONNECTORS = [
     assert second_change is False
     assert content_after_second_change == content_after_first_change
     assert content_after_second_change.count("id: 'demo'") == 1
+
+
+def test_update_constellation_adds_visual_metadata(tmp_path: Path) -> None:
+    constellation = tmp_path / "frontend" / "src" / "constellation"
+    constellation.mkdir(parents=True)
+
+    constellation_file = constellation / "constellationModel.ts"
+    constellation_file.write_text(
+        """\
+const VISUAL_METADATA = {
+  existing: {
+    x: 10,
+    y: 20,
+  },
+
+  // scaffold:visual-metadata:start
+  // scaffold:visual-metadata:end
+};
+""",
+        encoding="utf-8",
+    )
+
+    manifest = ConnectorManifest.from_mapping(
+        {
+            "id": "demo",
+            "label": "Demo",
+            "description": "Demo connector",
+            "kind": "remote_api",
+            "capabilities": ["demo.read"],
+            "frontend": {
+                "constellation": {
+                    "x": 61,
+                    "y": 37,
+                    "size": "medium",
+                    "palette": "azure",
+                    "family": "crystalline",
+                }
+            },
+        }
+    )
+
+    changed = update_constellation(tmp_path, manifest)
+
+    assert changed is True
+
+    content = constellation_file.read_text(encoding="utf-8")
+
+    assert "existing:" in content
+    assert "'demo': {" in content
+    assert "x: 61" in content
+    assert "y: 37" in content
+    assert "size: 'medium'" in content
+    assert "palette: 'azure'" in content
+    assert "family: 'crystalline'" in content
+    assert "healthEndpoint: '/resources/demo/status'" in content
+    assert "// scaffold:visual-metadata:start" in content
+    assert "// scaffold:visual-metadata:end" in content
+
+
+def test_update_constellation_is_idempotent(tmp_path: Path) -> None:
+    constellation = tmp_path / "frontend" / "src" / "constellation"
+    constellation.mkdir(parents=True)
+
+    constellation_file = constellation / "constellationModel.ts"
+    constellation_file.write_text(
+        """\
+const VISUAL_METADATA = {
+  // scaffold:visual-metadata:start
+  // scaffold:visual-metadata:end
+};
+""",
+        encoding="utf-8",
+    )
+
+    manifest = ConnectorManifest.from_mapping(
+        {
+            "id": "demo",
+            "label": "Demo",
+            "description": "Demo connector",
+            "kind": "remote_api",
+            "capabilities": ["demo.read"],
+        }
+    )
+
+    first_change = update_constellation(tmp_path, manifest)
+    content_after_first_change = constellation_file.read_text(encoding="utf-8")
+
+    second_change = update_constellation(tmp_path, manifest)
+    content_after_second_change = constellation_file.read_text(encoding="utf-8")
+
+    assert first_change is True
+    assert second_change is False
+    assert content_after_second_change == content_after_first_change
+    assert content_after_second_change.count("'demo': {") == 1
