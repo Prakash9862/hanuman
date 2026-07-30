@@ -301,3 +301,146 @@ def test_update_api_is_idempotent(tmp_path: Path) -> None:
 
     assert second == first
     assert second.count('@router.get("/devdocs/status")') == 1
+
+
+def test_render_frontend_connector_uses_safe_visual_defaults() -> None:
+    from hanuman.scaffold.connector import render_frontend_connector
+
+    rendered = render_frontend_connector(_manifest())
+
+    assert "id: 'devdocs'" in rendered
+    assert "label: 'DevDocs'" in rendered
+    assert "description: 'Documentation technique.'" in rendered
+    assert "kind: 'external'" in rendered
+    assert "status: 'planned'" in rendered
+    assert "route: '/connectors?source=devdocs'" in rendered
+    assert "icon: Layers3" in rendered
+
+
+def test_render_frontend_connector_maps_local_kinds() -> None:
+    from hanuman.scaffold.connector import render_frontend_connector
+
+    manifest = ConnectorManifest(
+        id="local-docs",
+        label="Local Docs",
+        description="Documentation locale.",
+        kind="local_filesystem",
+        capabilities=("documentation.read",),
+    )
+
+    rendered = render_frontend_connector(manifest)
+
+    assert "kind: 'local'" in rendered
+
+
+def test_render_frontend_connector_escapes_typescript_strings() -> None:
+    from hanuman.scaffold.connector import render_frontend_connector
+
+    manifest = ConnectorManifest(
+        id="example",
+        label="L'exemple",
+        description="Documentation d'un outil.",
+        kind="remote_api",
+        capabilities=("example.read",),
+    )
+
+    rendered = render_frontend_connector(manifest)
+
+    assert "label: 'L\\'exemple'" in rendered
+    assert "description: 'Documentation d\\'un outil.'" in rendered
+
+
+def test_render_constellation_metadata_uses_neutral_defaults() -> None:
+    from hanuman.scaffold.connector import render_constellation_metadata
+
+    rendered = render_constellation_metadata(_manifest())
+
+    assert "'devdocs': {" in rendered
+    assert "x: 50" in rendered
+    assert "y: 50" in rendered
+    assert "size: 'small'" in rendered
+    assert "palette: 'graphite'" in rendered
+    assert "family: 'metallic'" in rendered
+    assert "healthEndpoint: '/resources/devdocs/status'" in rendered
+
+
+def test_manifest_parses_frontend_configuration() -> None:
+    manifest = ConnectorManifest.from_mapping(
+        {
+            "id": "devdocs",
+            "label": "DevDocs",
+            "description": "Documentation technique.",
+            "kind": "remote_api",
+            "capabilities": ["documentation.search"],
+            "frontend": {
+                "icon": "BookOpen",
+                "status": "partial",
+                "route": "/connectors?source=devdocs",
+                "constellation": {
+                    "x": 61,
+                    "y": 37,
+                    "size": "medium",
+                    "palette": "azure",
+                    "family": "crystalline",
+                },
+            },
+        }
+    )
+
+    assert manifest.frontend.icon == "BookOpen"
+    assert manifest.frontend.status == "partial"
+    assert manifest.frontend.route == "/connectors?source=devdocs"
+    assert manifest.frontend.constellation.x == 61
+    assert manifest.frontend.constellation.y == 37
+    assert manifest.frontend.constellation.size == "medium"
+    assert manifest.frontend.constellation.palette == "azure"
+    assert manifest.frontend.constellation.family == "crystalline"
+
+
+def test_manifest_adds_safe_frontend_defaults() -> None:
+    manifest = _manifest()
+
+    assert manifest.frontend.icon == "Layers3"
+    assert manifest.frontend.status == "planned"
+    assert manifest.frontend.route == "/connectors?source=devdocs"
+    assert manifest.frontend.constellation.x == 50
+    assert manifest.frontend.constellation.y == 50
+    assert manifest.frontend.constellation.size == "small"
+    assert manifest.frontend.constellation.palette == "graphite"
+    assert manifest.frontend.constellation.family == "metallic"
+
+
+@pytest.mark.parametrize(
+    ("frontend", "message"),
+    [
+        ({"status": "broken"}, "Statut frontend invalide"),
+        ({"route": "connectors/devdocs"}, "doit commencer"),
+        (
+            {"constellation": {"x": 101}},
+            "doit être compris entre 0 et 100",
+        ),
+        (
+            {"constellation": {"size": "enormous"}},
+            "Taille de constellation invalide",
+        ),
+        (
+            {"constellation": {"family": "digital"}},
+            "Famille de constellation invalide",
+        ),
+    ],
+)
+def test_manifest_rejects_invalid_frontend_configuration(
+    frontend: object,
+    message: str,
+) -> None:
+    with pytest.raises(ValueError, match=message):
+        ConnectorManifest.from_mapping(
+            {
+                "id": "devdocs",
+                "label": "DevDocs",
+                "description": "Documentation technique.",
+                "kind": "remote_api",
+                "capabilities": ["documentation.search"],
+                "frontend": frontend,
+            }
+        )
