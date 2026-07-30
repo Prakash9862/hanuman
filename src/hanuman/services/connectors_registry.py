@@ -192,7 +192,6 @@ _CONNECTORS: tuple[ConnectorDescriptor, ...] = (
         ],
         status_endpoint="/resources/devdocs/status",
     ),
-
     ConnectorDescriptor(
         id="contacts",
         label="Google Contacts",

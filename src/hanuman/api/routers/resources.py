@@ -210,6 +210,7 @@ def devdocs_status() -> dict[str, object]:
         "message": status.message,
     }
 
+
 @router.get("/contacts/status")
 def contacts_status() -> dict[str, object]:
     from hanuman.services.core.contacts_service import ping_contacts
@@ -220,6 +221,8 @@ def contacts_status() -> dict[str, object]:
         "configured": status.configured,
         "message": status.message,
     }
+
+
 # scaffold:connector-routes:end
 
 

@@ -109,6 +109,18 @@ workspace: catalog-only
         encoding="utf-8",
     )
 
+    registry_test = tmp_path / "tests/services/test_connectors_registry.py"
+    registry_test.parent.mkdir(parents=True, exist_ok=True)
+    registry_test.write_text(
+        """def test_registry_contains_existing_connectors() -> None:
+    expected = {
+        # scaffold:connector-ids:start
+        # scaffold:connector-ids:end
+    }
+""",
+        encoding="utf-8",
+    )
+
     api = tmp_path / "src/hanuman/api/routers/resources.py"
     api.parent.mkdir(parents=True, exist_ok=True)
     api.write_text(
@@ -122,7 +134,11 @@ workspace: catalog-only
     frontend = tmp_path / "frontend/src/models/connectors.ts"
     frontend.parent.mkdir(parents=True, exist_ok=True)
     frontend.write_text(
-        """// scaffold:connector-definitions:start
+        """import {
+  Layers3,
+} from 'lucide-react'
+
+// scaffold:connector-definitions:start
 
 // scaffold:connector-definitions:end
 """,

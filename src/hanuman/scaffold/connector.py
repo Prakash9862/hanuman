@@ -72,7 +72,7 @@ class ConnectorScaffold:
             self.project_root / _FRONTEND_PATH,
             self.project_root / _CONSTELLATION_PATH,
         )
-    
+
         integration_before = {path: path.read_bytes() for path in integration_paths}
 
         written: list[Path] = []
@@ -331,6 +331,7 @@ _REGISTRY_TEST_PATH = Path("tests/services/test_connectors_registry.py")
 _REGISTRY_TEST_START = "        # scaffold:connector-ids:start"
 _REGISTRY_TEST_END = "        # scaffold:connector-ids:end"
 
+
 def update_registry(
     project_root: Path,
     manifest: ConnectorManifest,
@@ -348,6 +349,7 @@ def update_registry(
         end_marker=_REGISTRY_END,
         content=render_registry_descriptor(manifest),
     )
+
 
 def render_registry_test_id(manifest: ConnectorManifest) -> str:
     """Rend l’identifiant attendu dans le test exhaustif du registre."""
@@ -368,6 +370,7 @@ def update_registry_test(
         end_marker=_REGISTRY_TEST_END,
         content=render_registry_test_id(manifest),
     )
+
 
 _API_PATH = Path("src/hanuman/api/routers/resources.py")
 _API_START = "# scaffold:connector-routes:start"
@@ -456,8 +459,7 @@ def _update_frontend_icon_import(
 
     if source.count(import_start) != 1 or source.count(import_end) != 1:
         raise ValueError(
-            "Le fichier frontend doit contenir exactement un import nommé "
-            "depuis lucide-react."
+            "Le fichier frontend doit contenir exactement un import nommé " "depuis lucide-react."
         )
 
     body_start = source.index(import_start) + len(import_start)
@@ -465,9 +467,7 @@ def _update_frontend_icon_import(
     import_body = source[body_start:body_end]
 
     imported_icons = {
-        line.strip().removesuffix(",")
-        for line in import_body.splitlines()
-        if line.strip()
+        line.strip().removesuffix(",") for line in import_body.splitlines() if line.strip()
     }
 
     icon = manifest.frontend.icon
@@ -478,8 +478,7 @@ def _update_frontend_icon_import(
     imported_icons.add(icon)
 
     sorted_import_body = "".join(
-        f"  {imported_icon},\n"
-        for imported_icon in sorted(imported_icons, key=str.casefold)
+        f"  {imported_icon},\n" for imported_icon in sorted(imported_icons, key=str.casefold)
     )
 
     updated = source[:body_start] + sorted_import_body + source[body_end:]
@@ -505,6 +504,7 @@ def update_frontend(
     )
 
     return icon_changed or definition_changed
+
 
 def update_constellation(
     project_root: Path,

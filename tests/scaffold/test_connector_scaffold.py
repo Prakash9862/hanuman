@@ -112,7 +112,7 @@ def test_apply_creates_planned_files_and_updates_integrations(
 """,
         encoding="utf-8",
     )
-    
+
     api = tmp_path / "src/hanuman/api/routers/resources.py"
     api.parent.mkdir(parents=True)
     api.write_text(
@@ -128,7 +128,11 @@ def test_apply_creates_planned_files_and_updates_integrations(
     frontend = tmp_path / "frontend/src/models/connectors.ts"
     frontend.parent.mkdir(parents=True)
     frontend.write_text(
-        """const CONNECTORS = [
+        """import {
+  BookOpen,
+} from 'lucide-react'
+
+const CONNECTORS = [
   // scaffold:connector-definitions:start
   // scaffold:connector-definitions:end
 ];
@@ -564,6 +568,10 @@ def test_update_frontend_adds_connector(tmp_path: Path) -> None:
     frontend_file = frontend / "connectors.ts"
     frontend_file.write_text(
         """\
+import {
+  Layers3,
+} from 'lucide-react'
+
 const CONNECTORS = [
   // scaffold:connector-definitions:start
   // scaffold:connector-definitions:end
@@ -601,6 +609,10 @@ def test_update_frontend_is_idempotent(tmp_path: Path) -> None:
     frontend_file = frontend / "connectors.ts"
     frontend_file.write_text(
         """\
+import {
+  Layers3,
+} from 'lucide-react'
+
 const CONNECTORS = [
   // scaffold:connector-definitions:start
   // scaffold:connector-definitions:end
@@ -741,6 +753,18 @@ def test_apply_rolls_back_all_integrations_on_failure(
         encoding="utf-8",
     )
 
+    registry_test = tmp_path / "tests/services/test_connectors_registry.py"
+    registry_test.parent.mkdir(parents=True)
+    registry_test.write_text(
+        """def test_registry_contains_existing_connectors() -> None:
+    expected = {
+        # scaffold:connector-ids:start
+        # scaffold:connector-ids:end
+    }
+""",
+        encoding="utf-8",
+    )
+
     api = tmp_path / "src/hanuman/api/routers/resources.py"
     api.parent.mkdir(parents=True)
     api.write_text(
@@ -756,14 +780,17 @@ def test_apply_rolls_back_all_integrations_on_failure(
     frontend = tmp_path / "frontend/src/models/connectors.ts"
     frontend.parent.mkdir(parents=True)
     frontend.write_text(
-        """const CONNECTORS = [
+        """import {
+  Layers3,
+} from 'lucide-react'
+
+const CONNECTORS = [
   // scaffold:connector-definitions:start
   // scaffold:connector-definitions:end
 ];
 """,
         encoding="utf-8",
     )
-
     constellation = tmp_path / "frontend/src/constellation/constellationModel.ts"
     constellation.parent.mkdir(parents=True)
     constellation.write_text(
@@ -777,6 +804,7 @@ def test_apply_rolls_back_all_integrations_on_failure(
 
     integration_files = (
         registry,
+        registry_test,
         api,
         frontend,
         constellation,
@@ -839,6 +867,7 @@ def test_plan_generates_connector_template_for_kind(
     assert expected in connector_file.content
     assert "class ExampleConnector:" in connector_file.content
     assert "def healthcheck(self) -> bool:" in connector_file.content
+
 
 def test_update_frontend_imports_manifest_icon(tmp_path: Path) -> None:
     frontend = tmp_path / "frontend/src/models/connectors.ts"
@@ -912,7 +941,8 @@ const CONNECTORS = [
     assert rendered.count("icon: ContactRound") == 1
     assert rendered.count("id: 'contacts'") == 1
     assert rendered.count("import {\n  ContactRound,") == 1
-    
+
+
 def test_update_frontend_sorts_lucide_icon_imports(tmp_path: Path) -> None:
     frontend = tmp_path / "frontend/src/models/connectors.ts"
     frontend.parent.mkdir(parents=True)
@@ -947,9 +977,12 @@ const CONNECTORS = [
 
     rendered = frontend.read_text(encoding="utf-8")
 
-    assert """import {
+    assert (
+        """import {
   BookOpen,
   ContactRound,
   Network,
 } from 'lucide-react'
-""" in rendered
+"""
+        in rendered
+    )
