@@ -289,3 +289,59 @@ def update_api(
 
     api_path.write_text(updated, encoding="utf-8")
     return True
+
+
+_FRONTEND_KIND = {
+    "remote_api": "external",
+    "local_program": "local",
+    "local_filesystem": "local",
+    "ai_provider": "external",
+}
+
+
+def _typescript_string(value: str) -> str:
+    """Échappe une valeur destinée à une chaîne TypeScript simple."""
+
+    return value.replace("\\", "\\\\").replace("'", "\\'")
+
+
+def render_frontend_connector(manifest: ConnectorManifest) -> str:
+    """Rend la définition visuelle normalisée d'un connecteur."""
+
+    connector_id = _typescript_string(manifest.id)
+    label = _typescript_string(manifest.label)
+    description = _typescript_string(manifest.description)
+    frontend_kind = _FRONTEND_KIND[manifest.kind]
+    status = _typescript_string(manifest.frontend.status)
+    route = _typescript_string(manifest.frontend.route or f"/connectors?source={manifest.id}")
+    icon = manifest.frontend.icon
+
+    return (
+        "  { "
+        f"id: '{connector_id}', "
+        f"label: '{label}', "
+        f"description: '{description}', "
+        f"kind: '{frontend_kind}', "
+        f"status: '{status}', "
+        f"route: '{route}', "
+        f"icon: {icon}, "
+        "},"
+    )
+
+
+def render_constellation_metadata(manifest: ConnectorManifest) -> str:
+    """Rend les métadonnées visuelles de la constellation."""
+
+    connector_id = _typescript_string(manifest.id)
+    constellation = manifest.frontend.constellation
+
+    return (
+        f"  '{connector_id}': {{ "
+        f"x: {constellation.x}, "
+        f"y: {constellation.y}, "
+        f"size: '{constellation.size}', "
+        f"palette: '{constellation.palette}', "
+        f"family: '{constellation.family}', "
+        f"healthEndpoint: '/resources/{connector_id}/status', "
+        "},"
+    )

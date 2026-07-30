@@ -444,3 +444,45 @@ def test_manifest_rejects_invalid_frontend_configuration(
                 "frontend": frontend,
             }
         )
+
+
+def test_renderers_use_frontend_manifest_configuration() -> None:
+    from hanuman.scaffold.connector import (
+        render_constellation_metadata,
+        render_frontend_connector,
+    )
+
+    manifest = ConnectorManifest.from_mapping(
+        {
+            "id": "devdocs",
+            "label": "DevDocs",
+            "description": "Documentation technique.",
+            "kind": "remote_api",
+            "capabilities": ["documentation.search"],
+            "frontend": {
+                "icon": "BookOpen",
+                "status": "partial",
+                "route": "/docs/devdocs",
+                "constellation": {
+                    "x": 61,
+                    "y": 37,
+                    "size": "medium",
+                    "palette": "azure",
+                    "family": "crystalline",
+                },
+            },
+        }
+    )
+
+    frontend = render_frontend_connector(manifest)
+    constellation = render_constellation_metadata(manifest)
+
+    assert "status: 'partial'" in frontend
+    assert "route: '/docs/devdocs'" in frontend
+    assert "icon: BookOpen" in frontend
+
+    assert "x: 61" in constellation
+    assert "y: 37" in constellation
+    assert "size: 'medium'" in constellation
+    assert "palette: 'azure'" in constellation
+    assert "family: 'crystalline'" in constellation
