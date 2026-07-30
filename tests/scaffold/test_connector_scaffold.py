@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from hanuman.scaffold.connector import ConnectorScaffold
+from hanuman.scaffold.connector import ConnectorScaffold, update_frontend
 from hanuman.scaffold.manifest import ConnectorManifest, load_connector_manifest
 
 
@@ -486,3 +486,77 @@ def test_renderers_use_frontend_manifest_configuration() -> None:
     assert "size: 'medium'" in constellation
     assert "palette: 'azure'" in constellation
     assert "family: 'crystalline'" in constellation
+
+
+def test_update_frontend_adds_connector(tmp_path: Path) -> None:
+    frontend = tmp_path / "frontend" / "src" / "models"
+    frontend.mkdir(parents=True)
+
+    frontend_file = frontend / "connectors.ts"
+    frontend_file.write_text(
+        """\
+const CONNECTORS = [
+  // scaffold:connector-definitions:start
+  // scaffold:connector-definitions:end
+];
+""",
+        encoding="utf-8",
+    )
+
+    manifest = ConnectorManifest.from_mapping(
+        {
+            "id": "demo",
+            "label": "Demo",
+            "description": "Demo connector",
+            "kind": "remote_api",
+            "capabilities": ["demo.read"],
+        }
+    )
+
+    changed = update_frontend(tmp_path, manifest)
+
+    assert changed is True
+
+    content = frontend_file.read_text(encoding="utf-8")
+
+    assert "id: 'demo'" in content
+    assert "label: 'Demo'" in content
+    assert "// scaffold:connector-definitions:start" in content
+    assert "// scaffold:connector-definitions:end" in content
+
+
+def test_update_frontend_is_idempotent(tmp_path: Path) -> None:
+    frontend = tmp_path / "frontend" / "src" / "models"
+    frontend.mkdir(parents=True)
+
+    frontend_file = frontend / "connectors.ts"
+    frontend_file.write_text(
+        """\
+const CONNECTORS = [
+  // scaffold:connector-definitions:start
+  // scaffold:connector-definitions:end
+];
+""",
+        encoding="utf-8",
+    )
+
+    manifest = ConnectorManifest.from_mapping(
+        {
+            "id": "demo",
+            "label": "Demo",
+            "description": "Demo connector",
+            "kind": "remote_api",
+            "capabilities": ["demo.read"],
+        }
+    )
+
+    first_change = update_frontend(tmp_path, manifest)
+    content_after_first_change = frontend_file.read_text(encoding="utf-8")
+
+    second_change = update_frontend(tmp_path, manifest)
+    content_after_second_change = frontend_file.read_text(encoding="utf-8")
+
+    assert first_change is True
+    assert second_change is False
+    assert content_after_second_change == content_after_first_change
+    assert content_after_second_change.count("id: 'demo'") == 1

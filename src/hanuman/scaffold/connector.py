@@ -248,6 +248,10 @@ _API_PATH = Path("src/hanuman/api/routers/resources.py")
 _API_START = "# scaffold:connector-routes:start"
 _API_END = "# scaffold:connector-routes:end"
 
+_FRONTEND_PATH = Path("frontend/src/models/connectors.ts")
+_FRONTEND_START = "// scaffold:connector-definitions:start"
+_FRONTEND_END = "// scaffold:connector-definitions:end"
+
 
 def render_api_status_route(manifest: ConnectorManifest) -> str:
     """Rend la route de statut FastAPI du connecteur."""
@@ -288,6 +292,31 @@ def update_api(
         return False
 
     api_path.write_text(updated, encoding="utf-8")
+    return True
+
+
+def update_frontend(
+    project_root: Path,
+    manifest: ConnectorManifest,
+) -> bool:
+    """Ajoute le connecteur à la zone générée du catalogue frontend."""
+
+    from hanuman.scaffold.markers import append_between_markers
+
+    frontend_path = project_root.resolve() / _FRONTEND_PATH
+    source = frontend_path.read_text(encoding="utf-8")
+
+    updated = append_between_markers(
+        source,
+        start_marker=_FRONTEND_START,
+        end_marker=_FRONTEND_END,
+        content=render_frontend_connector(manifest),
+    )
+
+    if updated == source:
+        return False
+
+    frontend_path.write_text(updated, encoding="utf-8")
     return True
 
 
