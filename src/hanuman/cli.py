@@ -17,7 +17,7 @@ from hanuman.orchestrations.github_project_memory_notion import (
     apply_github_project_memory,
 )
 from hanuman.scaffold.connector import ConnectorScaffold
-from hanuman.scaffold.manifest import load_connector_manifest
+from hanuman.scaffold.manifest import ConnectorManifest, load_connector_manifest
 from hanuman.services.github_project_memory_service import (
     GitHubProjectMemoryConfig,
     execute_github_project_memory,
@@ -107,7 +107,68 @@ def _parser() -> argparse.ArgumentParser:
     )
     connector.add_argument(
         "manifest",
+        nargs="?",
         help="Chemin du manifeste YAML du connecteur.",
+    )
+    connector.add_argument(
+        "--id",
+        dest="connector_id",
+        help="Identifiant technique du connecteur, par exemple anki.",
+    )
+    connector.add_argument(
+        "--label",
+        help="Nom affiché du connecteur.",
+    )
+    connector.add_argument(
+        "--description",
+        help="Description courte du connecteur.",
+    )
+    connector.add_argument(
+        "--kind",
+        choices=(
+            "remote_api",
+            "local_program",
+            "local_filesystem",
+            "ai_provider",
+        ),
+        help="Type technique du connecteur.",
+    )
+    connector.add_argument(
+        "--capability",
+        dest="capabilities",
+        action="append",
+        help=("Capacité au format domaine.action. " "L'option peut être répétée plusieurs fois."),
+    )
+    connector.add_argument(
+        "--requires-auth",
+        action="store_true",
+        help="Indiquer que le connecteur nécessite une authentification.",
+    )
+    connector.add_argument(
+        "--writable",
+        action="store_true",
+        help="Indiquer que le connecteur peut effectuer des écritures.",
+    )
+    connector.add_argument(
+        "--workspace",
+        choices=("catalog-only", "search", "dashboard", "custom"),
+        default="catalog-only",
+        help="Profil de workspace généré.",
+    )
+    connector.add_argument(
+        "--icon",
+        default="Layers3",
+        help="Nom de l'icône frontend.",
+    )
+    connector.add_argument(
+        "--status",
+        choices=("available", "partial", "planned"),
+        default="planned",
+        help="Statut affiché dans le catalogue frontend.",
+    )
+    connector.add_argument(
+        "--route",
+        help="Route frontend ; dérivée automatiquement si elle est absente.",
     )
     connector.add_argument(
         "--dry-run",
@@ -279,17 +340,116 @@ def _print_run(run: FlowRun, *, detailed: bool, console: Console) -> None:
     console.print(f"  idempotency_key : {run.idempotency_key}")
 
 
-def _run_connector_scaffold(
-    manifest_path: str,
+def _connector_manifest_from_arguments(
     *,
+    manifest_path: str | None,
+    connector_id: str | None,
+    label: str | None,
+    description: str | None,
+    kind: str | None,
+    capabilities: list[str] | None,
+    requires_auth: bool,
+    writable: bool,
+    workspace: str,
+    icon: str,
+    status: str,
+    route: str | None,
+) -> ConnectorManifest:
+    """Charge un manifeste YAML ou le construit depuis les options CLI."""
+
+    direct_values = (
+        connector_id,
+        label,
+        description,
+        kind,
+        capabilities,
+    )
+    direct_mode_requested = any(value is not None for value in direct_values)
+
+    if manifest_path is not None and direct_mode_requested:
+        raise ValueError(
+            "Utiliser soit un fichier manifeste, soit les options directes, pas les deux."
+        )
+
+    if manifest_path is not None:
+        return load_connector_manifest(Path(manifest_path))
+
+    missing: list[str] = []
+    if connector_id is None:
+        missing.append("--id")
+    if label is None:
+        missing.append("--label")
+    if description is None:
+        missing.append("--description")
+    if kind is None:
+        missing.append("--kind")
+    if not capabilities:
+        missing.append("--capability")
+
+    if missing:
+        rendered = ", ".join(missing)
+        raise ValueError(
+            "Aucun manifeste fourni. Options obligatoires manquantes : " f"{rendered}."
+        )
+
+    frontend: dict[str, object] = {
+        "icon": icon,
+        "status": status,
+    }
+    if route is not None:
+        frontend["route"] = route
+
+    return ConnectorManifest.from_mapping(
+        {
+            "id": connector_id,
+            "label": label,
+            "description": description,
+            "kind": kind,
+            "capabilities": capabilities,
+            "requires_auth": requires_auth,
+            "writable": writable,
+            "workspace": workspace,
+            "frontend": frontend,
+        }
+    )
+
+
+def _run_connector_scaffold(
+    manifest_path: str | None,
+    *,
+    connector_id: str | None,
+    label: str | None,
+    description: str | None,
+    kind: str | None,
+    capabilities: list[str] | None,
+    requires_auth: bool,
+    writable: bool,
+    workspace: str,
+    icon: str,
+    status: str,
+    route: str | None,
     dry_run: bool,
     force: bool,
     console: Console,
 ) -> int:
+
     scaffold = ConnectorScaffold(Path.cwd())
 
     try:
-        manifest = load_connector_manifest(Path(manifest_path))
+        manifest = _connector_manifest_from_arguments(
+            manifest_path=manifest_path,
+            connector_id=connector_id,
+            label=label,
+            description=description,
+            kind=kind,
+            capabilities=capabilities,
+            requires_auth=requires_auth,
+            writable=writable,
+            workspace=workspace,
+            icon=icon,
+            status=status,
+            route=route,
+        )
         plan = scaffold.plan(manifest)
 
         if dry_run:
@@ -324,11 +484,21 @@ def run_cli(
     if args.command == "scaffold":
         return _run_connector_scaffold(
             args.manifest,
+            connector_id=args.connector_id,
+            label=args.label,
+            description=args.description,
+            kind=args.kind,
+            capabilities=args.capabilities,
+            requires_auth=args.requires_auth,
+            writable=args.writable,
+            workspace=args.workspace,
+            icon=args.icon,
+            status=args.status,
+            route=args.route,
             dry_run=args.dry_run,
             force=args.force,
             console=output,
         )
-
     flow_input = GitHubProjectMemoryInput(
         repository=args.repository,
         branch=args.branch,
