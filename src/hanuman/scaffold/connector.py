@@ -67,10 +67,12 @@ class ConnectorScaffold:
 
         integration_paths = (
             self.project_root / _REGISTRY_PATH,
+            self.project_root / _REGISTRY_TEST_PATH,
             self.project_root / _API_PATH,
             self.project_root / _FRONTEND_PATH,
             self.project_root / _CONSTELLATION_PATH,
         )
+    
         integration_before = {path: path.read_bytes() for path in integration_paths}
 
         written: list[Path] = []
@@ -87,6 +89,7 @@ class ConnectorScaffold:
                 written.append(destination)
 
             update_registry(self.project_root, plan.manifest)
+            update_registry_test(self.project_root, plan.manifest)
             update_api(self.project_root, plan.manifest)
             update_frontend(self.project_root, plan.manifest)
             update_constellation(self.project_root, plan.manifest)
@@ -324,7 +327,9 @@ def render_registry_descriptor(manifest: ConnectorManifest) -> str:
 _REGISTRY_PATH = Path("src/hanuman/services/connectors_registry.py")
 _REGISTRY_START = "# scaffold:connectors:start"
 _REGISTRY_END = "# scaffold:connectors:end"
-
+_REGISTRY_TEST_PATH = Path("tests/services/test_connectors_registry.py")
+_REGISTRY_TEST_START = "        # scaffold:connector-ids:start"
+_REGISTRY_TEST_END = "        # scaffold:connector-ids:end"
 
 def update_registry(
     project_root: Path,
@@ -344,6 +349,25 @@ def update_registry(
         content=render_registry_descriptor(manifest),
     )
 
+def render_registry_test_id(manifest: ConnectorManifest) -> str:
+    """Rend l’identifiant attendu dans le test exhaustif du registre."""
+
+    return f'        "{manifest.id}",'
+
+
+def update_registry_test(
+    project_root: Path,
+    manifest: ConnectorManifest,
+) -> bool:
+    """Ajoute l’identifiant du connecteur au test exhaustif du registre."""
+
+    return _update_between_markers(
+        project_root,
+        relative_path=_REGISTRY_TEST_PATH,
+        start_marker=_REGISTRY_TEST_START,
+        end_marker=_REGISTRY_TEST_END,
+        content=render_registry_test_id(manifest),
+    )
 
 _API_PATH = Path("src/hanuman/api/routers/resources.py")
 _API_START = "# scaffold:connector-routes:start"
@@ -418,13 +442,61 @@ def update_api(
     )
 
 
+def _update_frontend_icon_import(
+    project_root: Path,
+    manifest: ConnectorManifest,
+) -> bool:
+    """Ajoute et trie l’icône dans l’import lucide-react."""
+
+    target_path = project_root.resolve() / _FRONTEND_PATH
+    source = target_path.read_text(encoding="utf-8")
+
+    import_start = "import {\n"
+    import_end = "} from 'lucide-react'"
+
+    if source.count(import_start) != 1 or source.count(import_end) != 1:
+        raise ValueError(
+            "Le fichier frontend doit contenir exactement un import nommé "
+            "depuis lucide-react."
+        )
+
+    body_start = source.index(import_start) + len(import_start)
+    body_end = source.index(import_end, body_start)
+    import_body = source[body_start:body_end]
+
+    imported_icons = {
+        line.strip().removesuffix(",")
+        for line in import_body.splitlines()
+        if line.strip()
+    }
+
+    icon = manifest.frontend.icon
+
+    if icon in imported_icons:
+        return False
+
+    imported_icons.add(icon)
+
+    sorted_import_body = "".join(
+        f"  {imported_icon},\n"
+        for imported_icon in sorted(imported_icons, key=str.casefold)
+    )
+
+    updated = source[:body_start] + sorted_import_body + source[body_end:]
+    target_path.write_text(updated, encoding="utf-8")
+
+    return True
+
+
 def update_frontend(
     project_root: Path,
     manifest: ConnectorManifest,
 ) -> bool:
-    """Ajoute le connecteur à la zone générée du catalogue frontend."""
+    """Ajoute l’icône et la définition du connecteur au catalogue frontend."""
 
-    return _update_between_markers(
+    icon_changed = _update_frontend_icon_import(project_root, manifest)
+
+    definition_changed = _update_between_markers(
         project_root,
         relative_path=_FRONTEND_PATH,
         start_marker=_FRONTEND_START,
@@ -432,6 +504,7 @@ def update_frontend(
         content=render_frontend_connector(manifest),
     )
 
+    return icon_changed or definition_changed
 
 def update_constellation(
     project_root: Path,

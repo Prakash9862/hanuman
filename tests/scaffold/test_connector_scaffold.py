@@ -101,6 +101,18 @@ def test_apply_creates_planned_files_and_updates_integrations(
         encoding="utf-8",
     )
 
+    registry_test = tmp_path / "tests/services/test_connectors_registry.py"
+    registry_test.parent.mkdir(parents=True)
+    registry_test.write_text(
+        """def test_registry_contains_existing_connectors() -> None:
+    assert {
+        # scaffold:connector-ids:start
+        # scaffold:connector-ids:end
+    }
+""",
+        encoding="utf-8",
+    )
+    
     api = tmp_path / "src/hanuman/api/routers/resources.py"
     api.parent.mkdir(parents=True)
     api.write_text(
@@ -148,6 +160,9 @@ def test_apply_creates_planned_files_and_updates_integrations(
     registry_content = registry.read_text(encoding="utf-8")
     assert 'id="devdocs"' in registry_content
     assert 'status_endpoint="/resources/devdocs/status"' in registry_content
+
+    registry_test_content = registry_test.read_text(encoding="utf-8")
+    assert '        "devdocs",' in registry_test_content
 
     api_content = api.read_text(encoding="utf-8")
     assert '@router.get("/devdocs/status")' in api_content
@@ -824,3 +839,117 @@ def test_plan_generates_connector_template_for_kind(
     assert expected in connector_file.content
     assert "class ExampleConnector:" in connector_file.content
     assert "def healthcheck(self) -> bool:" in connector_file.content
+
+def test_update_frontend_imports_manifest_icon(tmp_path: Path) -> None:
+    frontend = tmp_path / "frontend/src/models/connectors.ts"
+    frontend.parent.mkdir(parents=True)
+    frontend.write_text(
+        """import {
+  BookOpen,
+} from 'lucide-react'
+
+const CONNECTORS = [
+  // scaffold:connector-definitions:start
+  // scaffold:connector-definitions:end
+]
+""",
+        encoding="utf-8",
+    )
+
+    manifest = ConnectorManifest.from_mapping(
+        {
+            "id": "contacts",
+            "label": "Google Contacts",
+            "description": "Consultation des contacts Google.",
+            "kind": "remote_api",
+            "capabilities": ["contacts.read"],
+            "frontend": {
+                "icon": "ContactRound",
+            },
+        }
+    )
+
+    assert update_frontend(tmp_path, manifest) is True
+
+    rendered = frontend.read_text(encoding="utf-8")
+    assert "  ContactRound,\n} from 'lucide-react'" in rendered
+    assert "icon: ContactRound" in rendered
+
+
+def test_update_frontend_does_not_duplicate_manifest_icon(tmp_path: Path) -> None:
+    frontend = tmp_path / "frontend/src/models/connectors.ts"
+    frontend.parent.mkdir(parents=True)
+    frontend.write_text(
+        """import {
+  ContactRound,
+} from 'lucide-react'
+
+const CONNECTORS = [
+  // scaffold:connector-definitions:start
+  // scaffold:connector-definitions:end
+]
+""",
+        encoding="utf-8",
+    )
+
+    manifest = ConnectorManifest.from_mapping(
+        {
+            "id": "contacts",
+            "label": "Google Contacts",
+            "description": "Consultation des contacts Google.",
+            "kind": "remote_api",
+            "capabilities": ["contacts.read"],
+            "frontend": {
+                "icon": "ContactRound",
+            },
+        }
+    )
+
+    assert update_frontend(tmp_path, manifest) is True
+    assert update_frontend(tmp_path, manifest) is False
+
+    rendered = frontend.read_text(encoding="utf-8")
+    assert rendered.count("icon: ContactRound") == 1
+    assert rendered.count("id: 'contacts'") == 1
+    assert rendered.count("import {\n  ContactRound,") == 1
+    
+def test_update_frontend_sorts_lucide_icon_imports(tmp_path: Path) -> None:
+    frontend = tmp_path / "frontend/src/models/connectors.ts"
+    frontend.parent.mkdir(parents=True)
+    frontend.write_text(
+        """import {
+  Network,
+  BookOpen,
+} from 'lucide-react'
+
+const CONNECTORS = [
+  // scaffold:connector-definitions:start
+  // scaffold:connector-definitions:end
+]
+""",
+        encoding="utf-8",
+    )
+
+    manifest = ConnectorManifest.from_mapping(
+        {
+            "id": "contacts",
+            "label": "Google Contacts",
+            "description": "Consultation des contacts Google.",
+            "kind": "remote_api",
+            "capabilities": ["contacts.read"],
+            "frontend": {
+                "icon": "ContactRound",
+            },
+        }
+    )
+
+    assert update_frontend(tmp_path, manifest) is True
+
+    rendered = frontend.read_text(encoding="utf-8")
+
+    assert """import {
+  BookOpen,
+  ContactRound,
+  Network,
+} from 'lucide-react'
+""" in rendered
