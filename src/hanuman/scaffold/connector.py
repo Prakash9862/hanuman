@@ -61,8 +61,13 @@ class ConnectorScaffold:
     def apply(self, plan: ScaffoldPlan, *, force: bool = False) -> tuple[Path, ...]:
         self.validate(plan, force=force)
 
-        registry_path = self.project_root / _REGISTRY_PATH
-        registry_before = registry_path.read_text(encoding="utf-8")
+        integration_paths = (
+            self.project_root / _REGISTRY_PATH,
+            self.project_root / _API_PATH,
+            self.project_root / _FRONTEND_PATH,
+            self.project_root / _CONSTELLATION_PATH,
+        )
+        integration_before = {path: path.read_bytes() for path in integration_paths}
 
         written: list[Path] = []
         previous_contents: dict[Path, bytes | None] = {}
@@ -78,8 +83,13 @@ class ConnectorScaffold:
                 written.append(destination)
 
             update_registry(self.project_root, plan.manifest)
+            update_api(self.project_root, plan.manifest)
+            update_frontend(self.project_root, plan.manifest)
+            update_constellation(self.project_root, plan.manifest)
+
         except (OSError, ValueError):
-            registry_path.write_text(registry_before, encoding="utf-8")
+            for path, integration_previous in integration_before.items():
+                path.write_bytes(integration_previous)
 
             for destination in reversed(written):
                 previous = previous_contents[destination]

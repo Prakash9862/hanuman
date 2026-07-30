@@ -85,7 +85,9 @@ def test_plan_is_deterministic(tmp_path: Path) -> None:
     )
 
 
-def test_apply_creates_planned_files_and_updates_registry(tmp_path: Path) -> None:
+def test_apply_creates_planned_files_and_updates_integrations(
+    tmp_path: Path,
+) -> None:
     registry = tmp_path / "src/hanuman/services/connectors_registry.py"
     registry.parent.mkdir(parents=True)
     registry.write_text(
@@ -94,6 +96,40 @@ def test_apply_creates_planned_files_and_updates_registry(tmp_path: Path) -> Non
 
     # scaffold:connectors:end
 )
+""",
+        encoding="utf-8",
+    )
+
+    api = tmp_path / "src/hanuman/api/routers/resources.py"
+    api.parent.mkdir(parents=True)
+    api.write_text(
+        '''router = APIRouter(prefix="/resources")
+
+# scaffold:connector-routes:start
+
+# scaffold:connector-routes:end
+''',
+        encoding="utf-8",
+    )
+
+    frontend = tmp_path / "frontend/src/models/connectors.ts"
+    frontend.parent.mkdir(parents=True)
+    frontend.write_text(
+        """const CONNECTORS = [
+  // scaffold:connector-definitions:start
+  // scaffold:connector-definitions:end
+];
+""",
+        encoding="utf-8",
+    )
+
+    constellation = tmp_path / "frontend/src/constellation/constellationModel.ts"
+    constellation.parent.mkdir(parents=True)
+    constellation.write_text(
+        """const VISUAL_METADATA = {
+  // scaffold:visual-metadata:start
+  // scaffold:visual-metadata:end
+};
 """,
         encoding="utf-8",
     )
@@ -110,6 +146,18 @@ def test_apply_creates_planned_files_and_updates_registry(tmp_path: Path) -> Non
     registry_content = registry.read_text(encoding="utf-8")
     assert 'id="devdocs"' in registry_content
     assert 'status_endpoint="/resources/devdocs/status"' in registry_content
+
+    api_content = api.read_text(encoding="utf-8")
+    assert '@router.get("/devdocs/status")' in api_content
+    assert "def devdocs_status()" in api_content
+
+    frontend_content = frontend.read_text(encoding="utf-8")
+    assert "id: 'devdocs'" in frontend_content
+    assert "route: '/connectors?source=devdocs'" in frontend_content
+
+    constellation_content = constellation.read_text(encoding="utf-8")
+    assert "'devdocs': {" in constellation_content
+    assert "healthEndpoint: '/resources/devdocs/status'" in constellation_content
 
 
 def test_apply_refuses_existing_files(tmp_path: Path) -> None:
@@ -658,3 +706,85 @@ const VISUAL_METADATA = {
     assert second_change is False
     assert content_after_second_change == content_after_first_change
     assert content_after_second_change.count("'demo': {") == 1
+
+
+def test_apply_rolls_back_all_integrations_on_failure(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    registry = tmp_path / "src/hanuman/services/connectors_registry.py"
+    registry.parent.mkdir(parents=True)
+    registry.write_text(
+        """_CONNECTORS = (
+    # scaffold:connectors:start
+
+    # scaffold:connectors:end
+)
+""",
+        encoding="utf-8",
+    )
+
+    api = tmp_path / "src/hanuman/api/routers/resources.py"
+    api.parent.mkdir(parents=True)
+    api.write_text(
+        '''router = APIRouter(prefix="/resources")
+
+# scaffold:connector-routes:start
+
+# scaffold:connector-routes:end
+''',
+        encoding="utf-8",
+    )
+
+    frontend = tmp_path / "frontend/src/models/connectors.ts"
+    frontend.parent.mkdir(parents=True)
+    frontend.write_text(
+        """const CONNECTORS = [
+  // scaffold:connector-definitions:start
+  // scaffold:connector-definitions:end
+];
+""",
+        encoding="utf-8",
+    )
+
+    constellation = tmp_path / "frontend/src/constellation/constellationModel.ts"
+    constellation.parent.mkdir(parents=True)
+    constellation.write_text(
+        """const VISUAL_METADATA = {
+  // scaffold:visual-metadata:start
+  // scaffold:visual-metadata:end
+};
+""",
+        encoding="utf-8",
+    )
+
+    integration_files = (
+        registry,
+        api,
+        frontend,
+        constellation,
+    )
+    contents_before = {path: path.read_bytes() for path in integration_files}
+
+    def fail_constellation(
+        project_root: Path,
+        manifest: ConnectorManifest,
+    ) -> bool:
+        raise OSError("constellation failure")
+
+    monkeypatch.setattr(
+        "hanuman.scaffold.connector.update_constellation",
+        fail_constellation,
+    )
+
+    scaffold = ConnectorScaffold(tmp_path)
+    plan = scaffold.plan(_manifest())
+
+    with pytest.raises(OSError, match="constellation failure"):
+        scaffold.apply(plan)
+
+    for path, content_before in contents_before.items():
+        assert path.read_bytes() == content_before
+
+    for planned_file in plan.files:
+        assert not (tmp_path / planned_file.path).exists()
