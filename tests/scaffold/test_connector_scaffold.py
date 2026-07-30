@@ -79,6 +79,7 @@ def test_plan_is_deterministic(tmp_path: Path) -> None:
 
     assert first == second
     assert first.paths == (
+        Path("src/hanuman/services/connectors/devdocs.py"),
         Path("src/hanuman/services/core/devdocs_service.py"),
         Path("tests/services/test_devdocs_service.py"),
         Path("docs/connectors/devdocs.md"),
@@ -139,9 +140,10 @@ def test_apply_creates_planned_files_and_updates_integrations(
 
     written = scaffold.apply(plan)
 
-    assert len(written) == 3
+    assert len(written) == 4
     assert all(path.exists() for path in written)
-    assert "ping_devdocs" in written[0].read_text(encoding="utf-8")
+    assert "class DevdocsConnector:" in written[0].read_text(encoding="utf-8")
+    assert "ping_devdocs" in written[1].read_text(encoding="utf-8")
 
     registry_content = registry.read_text(encoding="utf-8")
     assert 'id="devdocs"' in registry_content
@@ -788,3 +790,37 @@ def test_apply_rolls_back_all_integrations_on_failure(
 
     for planned_file in plan.files:
         assert not (tmp_path / planned_file.path).exists()
+
+
+@pytest.mark.parametrize(
+    ("kind", "expected"),
+    (
+        ("remote_api", "Adaptateur HTTP initial"),
+        ("local_program", "Adaptateur initial du programme local"),
+        ("local_filesystem", "Adaptateur initial du système de fichiers"),
+        ("ai_provider", "Adaptateur initial du fournisseur IA"),
+    ),
+)
+def test_plan_generates_connector_template_for_kind(
+    tmp_path: Path,
+    kind: str,
+    expected: str,
+) -> None:
+    manifest = ConnectorManifest.from_mapping(
+        {
+            "id": "example",
+            "label": "Example",
+            "description": "Connecteur de test.",
+            "kind": kind,
+            "capabilities": ["example.read"],
+        }
+    )
+
+    plan = ConnectorScaffold(tmp_path).plan(manifest)
+
+    connector_file = plan.files[0]
+
+    assert connector_file.path == Path("src/hanuman/services/connectors/example.py")
+    assert expected in connector_file.content
+    assert "class ExampleConnector:" in connector_file.content
+    assert "def healthcheck(self) -> bool:" in connector_file.content

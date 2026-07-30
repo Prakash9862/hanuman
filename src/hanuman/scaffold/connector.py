@@ -31,6 +31,10 @@ class ConnectorScaffold:
         python_name = manifest.id.replace("-", "_")
         files = (
             PlannedFile(
+                Path(f"src/hanuman/services/connectors/{python_name}.py"),
+                _connector_template(manifest),
+            ),
+            PlannedFile(
                 Path(f"src/hanuman/services/core/{python_name}_service.py"),
                 _service_template(manifest),
             ),
@@ -100,6 +104,103 @@ class ConnectorScaffold:
             raise
 
         return tuple(written)
+
+
+def _connector_template(manifest: ConnectorManifest) -> str:
+    """Sélectionne le squelette technique adapté au type de connecteur."""
+
+    renderers = {
+        "remote_api": _remote_api_connector_template,
+        "local_program": _local_program_connector_template,
+        "local_filesystem": _local_filesystem_connector_template,
+        "ai_provider": _ai_provider_connector_template,
+    }
+
+    return renderers[manifest.kind](manifest)
+
+
+def _remote_api_connector_template(manifest: ConnectorManifest) -> str:
+    class_name = f"{_pascal_case(manifest.id)}Connector"
+
+    return f'''from __future__ import annotations
+
+
+class {class_name}:
+    """Adaptateur HTTP initial du connecteur {manifest.label}."""
+
+    def __init__(self, base_url: str, token: str | None = None) -> None:
+        self.base_url = base_url.rstrip("/")
+        self.token = token
+
+    def healthcheck(self) -> bool:
+        """Vérifie minimalement que le connecteur est configuré."""
+
+        return bool(self.base_url)
+'''
+
+
+def _local_program_connector_template(manifest: ConnectorManifest) -> str:
+    class_name = f"{_pascal_case(manifest.id)}Connector"
+
+    return f'''from __future__ import annotations
+
+from pathlib import Path
+
+
+class {class_name}:
+    """Adaptateur initial du programme local {manifest.label}."""
+
+    def __init__(self, executable: Path) -> None:
+        self.executable = executable
+
+    def healthcheck(self) -> bool:
+        """Vérifie que l'exécutable local existe."""
+
+        return self.executable.is_file()
+'''
+
+
+def _local_filesystem_connector_template(
+    manifest: ConnectorManifest,
+) -> str:
+    class_name = f"{_pascal_case(manifest.id)}Connector"
+
+    return f'''from __future__ import annotations
+
+from pathlib import Path
+
+
+class {class_name}:
+    """Adaptateur initial du système de fichiers {manifest.label}."""
+
+    def __init__(self, root: Path) -> None:
+        self.root = root
+
+    def healthcheck(self) -> bool:
+        """Vérifie que la racine locale existe."""
+
+        return self.root.is_dir()
+'''
+
+
+def _ai_provider_connector_template(manifest: ConnectorManifest) -> str:
+    class_name = f"{_pascal_case(manifest.id)}Connector"
+
+    return f'''from __future__ import annotations
+
+
+class {class_name}:
+    """Adaptateur initial du fournisseur IA {manifest.label}."""
+
+    def __init__(self, api_key: str, model: str) -> None:
+        self.api_key = api_key
+        self.model = model
+
+    def healthcheck(self) -> bool:
+        """Vérifie que les paramètres minimaux sont présents."""
+
+        return bool(self.api_key and self.model)
+'''
 
 
 def _service_template(manifest: ConnectorManifest) -> str:
