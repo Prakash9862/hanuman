@@ -181,6 +181,17 @@ _CONNECTORS: tuple[ConnectorDescriptor, ...] = (
         status_endpoint="/resources/imslp/status",
     ),
     # scaffold:connectors:start
+    ConnectorDescriptor(
+        id="devdocs",
+        label="DevDocs",
+        description="Recherche et consultation de documentation technique.",
+        kind=ConnectorKind.REMOTE_API,
+        capabilities=[
+            "documentation.search",
+            "documentation.open",
+        ],
+        status_endpoint="/resources/devdocs/status",
+    ),
     # scaffold:connectors:end
 )
 

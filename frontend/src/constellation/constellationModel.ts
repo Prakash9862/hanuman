@@ -40,7 +40,7 @@ const visualMetadata: Record<string, Omit<ConstellationConnector, keyof Connecto
   clock: { x: 62, y: 58, size: 'small', palette: 'rose', family: 'ice', healthEndpoint: '/resources/clock/status', },
 
   // scaffold:visual-metadata:start
-
+  'devdocs': { x: 41, y: 39, size: 'small', palette: 'jade', family: 'metallic', healthEndpoint: '/resources/devdocs/status', },
   // scaffold:visual-metadata:end
 }
 

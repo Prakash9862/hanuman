@@ -25,6 +25,7 @@ def test_registry_contains_existing_connectors() -> None:
         "youtube",
         "gallica",
         "imslp",
+        "devdocs",
     }
 
 

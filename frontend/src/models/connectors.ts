@@ -50,7 +50,7 @@ export const connectorDefinitions: readonly ConnectorDefinition[] = [
     route: '/connectors?source=clock', icon: Clock3, },
 
   // scaffold:connector-definitions:start
-
+  { id: 'devdocs', label: 'DevDocs', description: 'Recherche et consultation de documentation technique.', kind: 'external', status: 'planned', route: '/connectors?source=devdocs', icon: BookOpen, },
   // scaffold:connector-definitions:end
 ]
 

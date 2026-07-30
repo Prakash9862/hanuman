@@ -199,6 +199,17 @@ def clock_timezones(
 
 
 # scaffold:connector-routes:start
+@router.get("/devdocs/status")
+def devdocs_status() -> dict[str, object]:
+    from hanuman.services.core.devdocs_service import ping_devdocs
+
+    status = ping_devdocs()
+    return {
+        "ok": status.ok,
+        "configured": status.configured,
+        "message": status.message,
+    }
+
 
 # scaffold:connector-routes:end
 
