@@ -180,9 +180,7 @@ _CONNECTORS: tuple[ConnectorDescriptor, ...] = (
         ],
         status_endpoint="/resources/imslp/status",
     ),
-
     # scaffold:connectors:start
-
     # scaffold:connectors:end
 )
 

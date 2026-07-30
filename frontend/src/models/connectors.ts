@@ -47,9 +47,12 @@ export const connectorDefinitions: readonly ConnectorDefinition[] = [
   { id: 'maps', label: 'Google Maps', description: 'Trajets et rendez-vous.', kind: 'external', status: 'available', route: '/connectors?source=maps', icon: MapPin },
   { id: 'scid', label: 'SCID', description: 'Base locale de parties.', kind: 'local', status: 'available', route: '/connectors?source=chess', icon: Database },
   { id: 'clock', label: 'Horloge', description: 'Référentiel temporel d’Hanuman.', kind: 'local', status: 'available',
-    route: '/connectors?source=clock', icon: Clock3, }
-] 
+    route: '/connectors?source=clock', icon: Clock3, },
 
+  // scaffold:connector-definitions:start
+
+  // scaffold:connector-definitions:end
+]
 
 export type ConnectorWorkspaceId = 'youtube' | 'gallica' | 'imslp' | 'maps' | 'chess' | 'anki' | 'clock'
 

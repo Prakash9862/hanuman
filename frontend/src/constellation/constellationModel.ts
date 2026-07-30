@@ -38,6 +38,10 @@ const visualMetadata: Record<string, Omit<ConstellationConnector, keyof Connecto
   maps: { x: 96, y: 61, size: 'dwarf', palette: 'green', family: 'forest', healthEndpoint: '/resources/maps/status' },
   scid: { x: 17, y: 73, size: 'small', palette: 'blue', family: 'oceanic', healthEndpoint: '/resources/programs/scid/status' },
   clock: { x: 62, y: 58, size: 'small', palette: 'rose', family: 'ice', healthEndpoint: '/resources/clock/status', },
+
+  // scaffold:visual-metadata:start
+
+  // scaffold:visual-metadata:end
 }
 
 
