@@ -60,7 +60,7 @@ export const connectorDefinitions: readonly ConnectorDefinition[] = [
   // scaffold:connector-definitions:end
 ]
 
-export type ConnectorWorkspaceId = 'youtube' | 'gallica' | 'imslp' | 'maps' | 'chess' | 'anki' | 'clock' | 'devdocs' | 'contacts'
+export type ConnectorWorkspaceId = 'youtube' | 'gallica' | 'imslp' | 'maps' | 'chess' | 'anki' | 'clock' | 'devdocs' | 'contacts' | 'monkeytype'
 
 export type ConnectorWorkspace = {
   id: ConnectorWorkspaceId
@@ -104,4 +104,11 @@ export const connectorWorkspaces: readonly ConnectorWorkspace[] = [
   placeholder: 'Rechercher un nom, un téléphone, un e-mail…',
   icon: ContactRound,
   },
+  {
+  id: 'monkeytype',
+  label: 'Monkeytype',
+  eyebrow: 'Statistiques de frappe',
+  placeholder: "Nom d'utilisateur Monkeytype",
+  icon: Keyboard,
+}
 ]

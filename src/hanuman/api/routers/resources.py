@@ -17,6 +17,7 @@ from hanuman.services.core.clock_service import (
     list_timezones,
     ping_clock,
 )
+from hanuman.services.core.monkeytype_service import get_monkeytype_profile
 from hanuman.services.local_programs_service import inspect_program, inspect_programs
 from hanuman.services.resources_service import (
     build_gallica_search_url,
@@ -29,6 +30,26 @@ from hanuman.services.resources_service import (
 )
 
 router = APIRouter(prefix="/resources", tags=["resources"])
+
+
+@router.get("/monkeytype/profile")
+def monkeytype_profile(
+    username: str = Query(min_length=1),
+) -> dict[str, object]:
+    try:
+        profile = get_monkeytype_profile(username)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(
+            status_code=502,
+            detail=f"Erreur Monkeytype : {exc}",
+        ) from exc
+
+    return {
+        "ok": True,
+        **profile,
+    }
 
 
 @router.get("/youtube/status")

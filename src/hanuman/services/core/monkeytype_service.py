@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from hanuman.services.connectors.monkeytype import MonkeytypeConnector
+
 
 @dataclass(frozen=True, slots=True)
 class MonkeytypeStatus:
@@ -11,10 +13,20 @@ class MonkeytypeStatus:
 
 
 def ping_monkeytype() -> MonkeytypeStatus:
-    """Retourne l'état minimal du connecteur Monkeytype."""
+    connector = MonkeytypeConnector("https://api.monkeytype.com")
 
     return MonkeytypeStatus(
-        ok=True,
+        ok=connector.healthcheck(),
         configured=True,
         message=None,
     )
+
+
+def get_monkeytype_profile(username: str) -> dict[str, object]:
+    normalized = username.strip()
+
+    if not normalized:
+        raise ValueError("Le nom d'utilisateur Monkeytype est obligatoire.")
+
+    connector = MonkeytypeConnector("https://api.monkeytype.com")
+    return connector.get_profile(normalized)

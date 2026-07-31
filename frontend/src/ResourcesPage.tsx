@@ -124,6 +124,30 @@ type ContactsPayload = {
   message?: string
 }
 
+type MonkeytypeBest = {
+  acc: number
+  consistency: number
+  raw: number
+  wpm: number
+}
+
+type MonkeytypeProfile = {
+  ok?: boolean
+  message?: string
+  detail?: string
+  data?: {
+    name?: string
+    typingStats?: {
+      completedTests?: number
+      startedTests?: number
+      timeTyping?: number
+    }
+    personalBests?: {
+      time?: Record<string, MonkeytypeBest[]>
+    }
+  }
+}
+
 const statusLabels: Record<ConnectorStatus, string> = {
   available: 'Disponible',
   partial: 'À consolider',
@@ -161,6 +185,10 @@ export default function ResourcesPage() {
   const [contactsLoadingMore, setContactsLoadingMore] = useState(false)
   const [contactsNextPageToken, setContactsNextPageToken] = useState<string | null>(null)
   const [contactsTotalItems, setContactsTotalItems] = useState<number | null>(null)
+  const [monkeytypeProfile, setMonkeytypeProfile] =
+  useState<MonkeytypeProfile | null>(null)
+
+  const [monkeytypeLoading, setMonkeytypeLoading] = useState(false)
   const [analysisQueue, setAnalysisQueue] = useState<AnalysisQueue>({ total: 0, analysed: 0, pending: 0 })
   const [analysisState, setAnalysisState] = useState<AnalysisState>({ status: 'idle', total: 0, completed: 0, failed: 0, remaining: 0 })
   const [analysisBusy, setAnalysisBusy] = useState(false)
@@ -408,6 +436,7 @@ export default function ResourcesPage() {
   } finally {
     setContactsLoading(false)
     setContactsLoadingMore(false)
+    setMonkeytypeLoading(false)
   }
 }
 
@@ -422,6 +451,30 @@ export default function ResourcesPage() {
     setTotalResults(null)
     setLastQuery(normalized)
     try {
+
+    if (active === 'monkeytype') {
+  setMonkeytypeLoading(true)
+  setMonkeytypeProfile(null)
+
+  const response = await fetch(
+    `${API_BASE}/resources/monkeytype/profile?username=${encodeURIComponent(normalized)}`,
+  )
+
+  const payload = await response.json() as MonkeytypeProfile
+
+  if (!response.ok) {
+    throw new Error(
+      payload.detail
+      ?? payload.message
+      ?? 'Profil Monkeytype indisponible',
+    )
+  }
+
+  setMonkeytypeProfile(payload)
+  return
+}  
+    
+
     if (active === 'contacts') {
     setContactsLoading(true)
     setContacts([])
@@ -959,6 +1012,136 @@ const payload = await fetchSearch(active, normalized)
   </section>
 )}
 
+          {active === 'monkeytype' && (
+  <section
+    style={{
+      display: 'grid',
+      gap: 20,
+      marginTop: 22,
+    }}
+  >
+    {monkeytypeLoading && (
+      <div className="resources-message">
+        Chargement du profil Monkeytype…
+      </div>
+    )}
+
+    {!monkeytypeLoading && !monkeytypeProfile && !message && (
+      <div className="resources-message">
+        Saisis un nom d’utilisateur Monkeytype.
+      </div>
+    )}
+
+    {monkeytypeProfile?.data && (
+      <div
+        style={{
+          padding: 18,
+          border: '1px solid var(--border, #d7d1c5)',
+          borderRadius: 16,
+        }}
+      >
+        <p className="eyebrow">Profil Monkeytype</p>
+
+        <h3 style={{ marginTop: 0 }}>
+          {monkeytypeProfile.data.name ?? 'Profil Monkeytype'}
+        </h3>
+
+        {monkeytypeProfile.data.typingStats && (
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns:
+                'repeat(auto-fit, minmax(180px, 1fr))',
+              gap: 12,
+            }}
+          >
+            <article>
+              <small>Tests complétés</small>
+              <strong style={{ display: 'block', fontSize: 24 }}>
+                {monkeytypeProfile.data.typingStats.completedTests ?? 0}
+              </strong>
+            </article>
+
+            <article>
+              <small>Tests commencés</small>
+              <strong style={{ display: 'block', fontSize: 24 }}>
+                {monkeytypeProfile.data.typingStats.startedTests ?? 0}
+              </strong>
+            </article>
+
+            <article>
+              <small>Temps de frappe</small>
+              <strong style={{ display: 'block', fontSize: 24 }}>
+                {Math.round(
+                  monkeytypeProfile.data.typingStats.timeTyping ?? 0,
+                )}{' '}
+                s
+              </strong>
+            </article>
+          </div>
+        )}
+
+        {monkeytypeProfile.data.personalBests?.time?.['30']?.[0] && (
+          <div style={{ marginTop: 20 }}>
+            <h4>Meilleur score — 30 secondes</h4>
+
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns:
+                  'repeat(auto-fit, minmax(140px, 1fr))',
+                gap: 12,
+              }}
+            >
+              <article>
+                <small>WPM</small>
+                <strong style={{ display: 'block', fontSize: 24 }}>
+                  {
+                    monkeytypeProfile.data.personalBests.time['30'][0]
+                      .wpm
+                  }
+                </strong>
+              </article>
+
+              <article>
+                <small>Précision</small>
+                <strong style={{ display: 'block', fontSize: 24 }}>
+                  {
+                    monkeytypeProfile.data.personalBests.time['30'][0]
+                      .acc
+                  }
+                  %
+                </strong>
+              </article>
+
+              <article>
+                <small>Régularité</small>
+                <strong style={{ display: 'block', fontSize: 24 }}>
+                  {
+                    monkeytypeProfile.data.personalBests.time['30'][0]
+                      .consistency
+                  }
+                  %
+                </strong>
+              </article>
+
+              <article>
+                <small>Raw</small>
+                <strong style={{ display: 'block', fontSize: 24 }}>
+                  {
+                    monkeytypeProfile.data.personalBests.time['30'][0]
+                      .raw
+                  }
+                </strong>
+              </article>
+            </div>
+          </div>
+        )}
+      </div>
+    )}
+  </section>
+)}
+
           {active === 'clock' && (
             <section
               style={{
@@ -1299,6 +1482,7 @@ const payload = await fetchSearch(active, normalized)
             active !== 'clock' &&
             active !== 'devdocs' &&
             active !== 'contacts' &&
+            active !== 'monkeytype' &&
             !message &&
             !loading &&
             results.length === 0 && (
