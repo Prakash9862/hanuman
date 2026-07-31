@@ -54,13 +54,13 @@ export const connectorDefinitions: readonly ConnectorDefinition[] = [
   // scaffold:connector-definitions:start
   { id: 'devdocs', label: 'DevDocs', description: 'Recherche et consultation de documentation technique.', kind: 'external', status: 'planned', route: '/connectors?source=devdocs', icon: BookOpen, },
 
-  { id: 'contacts', label: 'Google Contacts', description: 'Consultation et gestion des contacts Google.', kind: 'external', status: 'planned', route: '/connectors?source=contacts', icon: ContactRound, },
+  { id: 'contacts', label: 'Google Contacts', description: 'Consultation et recherche dans les contacts Google.', kind: 'external', status: 'available', route: '/connectors?source=contacts', icon: ContactRound, },
 
   { id: 'monkeytype', label: 'Monkeytype', description: 'Suivi des performances de frappe et des sessions d’entraînement.', kind: 'external', status: 'planned', route: '/connectors?source=monkeytype', icon: Keyboard, },
   // scaffold:connector-definitions:end
 ]
 
-export type ConnectorWorkspaceId = 'youtube' | 'gallica' | 'imslp' | 'maps' | 'chess' | 'anki' | 'clock' | 'devdocs'
+export type ConnectorWorkspaceId = 'youtube' | 'gallica' | 'imslp' | 'maps' | 'chess' | 'anki' | 'clock' | 'devdocs' | 'contacts'
 
 export type ConnectorWorkspace = {
   id: ConnectorWorkspaceId
@@ -96,5 +96,12 @@ export const connectorWorkspaces: readonly ConnectorWorkspace[] = [
   eyebrow: 'Documentation technique',
   placeholder: 'Rechercher une API, une classe, une méthode…',
   icon: BookOpen,
+  },
+  {
+  id: 'contacts',
+  label: 'Google Contacts',
+  eyebrow: 'Carnet d’adresses',
+  placeholder: 'Rechercher un nom, un téléphone, un e-mail…',
+  icon: ContactRound,
   },
 ]

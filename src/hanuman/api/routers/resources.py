@@ -254,10 +254,140 @@ def contacts_status() -> dict[str, object]:
     from hanuman.services.core.contacts_service import ping_contacts
 
     status = ping_contacts()
+
     return {
         "ok": status.ok,
         "configured": status.configured,
+        "connected": status.connected,
         "message": status.message,
+    }
+
+
+@router.get("/contacts/auth/url")
+def contacts_auth_url() -> dict[str, object]:
+    from hanuman.services.connectors.contacts import (
+        ContactsConnectorError,
+    )
+    from hanuman.services.core.contacts_service import (
+        get_contacts_authorization_url,
+    )
+
+    try:
+        authorization_url = get_contacts_authorization_url()
+    except ContactsConnectorError as exc:
+        raise HTTPException(
+            status_code=400,
+            detail=str(exc),
+        ) from exc
+
+    return {
+        "ok": True,
+        "authorization_url": authorization_url,
+    }
+
+
+@router.get("/contacts/auth/callback")
+def contacts_auth_callback(
+    code: str = Query(min_length=1),
+    state: str = Query(min_length=1),
+) -> dict[str, object]:
+    from hanuman.services.connectors.contacts import (
+        ContactsConnectorError,
+    )
+    from hanuman.services.core.contacts_service import (
+        connect_contacts,
+    )
+
+    try:
+        connect_contacts(
+            code=code,
+            state=state,
+        )
+    except ContactsConnectorError as exc:
+        raise HTTPException(
+            status_code=400,
+            detail=str(exc),
+        ) from exc
+
+    return {
+        "ok": True,
+        "message": ("Google Contacts est maintenant connecté à Hanuman."),
+    }
+
+
+@router.get("/contacts")
+def contacts_list(
+    page_size: int = Query(
+        default=100,
+        ge=1,
+        le=1000,
+    ),
+    page_token: str | None = Query(
+        default=None,
+    ),
+) -> dict[str, object]:
+    from hanuman.services.connectors.contacts import (
+        ContactsConnectorError,
+    )
+    from hanuman.services.core.contacts_service import (
+        list_google_contacts,
+    )
+
+    try:
+        page = list_google_contacts(
+            page_size=page_size,
+            page_token=page_token,
+        )
+    except ContactsConnectorError as exc:
+        raise HTTPException(
+            status_code=502,
+            detail=str(exc),
+        ) from exc
+
+    return {
+        "ok": True,
+        "count": len(page.contacts),
+        **page.to_dict(),
+    }
+
+
+@router.get("/contacts/search")
+def contacts_search(
+    q: str = Query(min_length=1),
+    limit: int = Query(
+        default=50,
+        ge=1,
+        le=200,
+    ),
+) -> dict[str, object]:
+    from hanuman.services.connectors.contacts import (
+        ContactsConnectorError,
+    )
+    from hanuman.services.core.contacts_service import (
+        search_google_contacts,
+    )
+
+    try:
+        contacts = search_google_contacts(
+            q,
+            limit=limit,
+        )
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=400,
+            detail=str(exc),
+        ) from exc
+    except ContactsConnectorError as exc:
+        raise HTTPException(
+            status_code=502,
+            detail=str(exc),
+        ) from exc
+
+    return {
+        "ok": True,
+        "query": q,
+        "count": len(contacts),
+        "contacts": [contact.to_dict() for contact in contacts],
     }
 
 

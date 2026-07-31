@@ -103,6 +103,27 @@ type AnalysisPayload = {
   state?: AnalysisState
 }
 
+type GoogleContact = {
+  resource_name: string
+  name: string
+  given_name?: string | null
+  family_name?: string | null
+  emails: string[]
+  phones: string[]
+  organizations: string[]
+  photo_url?: string | null
+}
+
+type ContactsPayload = {
+  ok?: boolean
+  count?: number
+  contacts?: GoogleContact[]
+  next_page_token?: string | null
+  total_items?: number | null
+  detail?: string
+  message?: string
+}
+
 const statusLabels: Record<ConnectorStatus, string> = {
   available: 'Disponible',
   partial: 'À consolider',
@@ -135,6 +156,11 @@ export default function ResourcesPage() {
   const [totalResults, setTotalResults] = useState<number | null>(null)
   const [loading, setLoading] = useState(false)
   const [loadingMore, setLoadingMore] = useState(false)
+  const [contacts, setContacts] = useState<GoogleContact[]>([])
+  const [contactsLoading, setContactsLoading] = useState(false)
+  const [contactsLoadingMore, setContactsLoadingMore] = useState(false)
+  const [contactsNextPageToken, setContactsNextPageToken] = useState<string | null>(null)
+  const [contactsTotalItems, setContactsTotalItems] = useState<number | null>(null)
   const [analysisQueue, setAnalysisQueue] = useState<AnalysisQueue>({ total: 0, analysed: 0, pending: 0 })
   const [analysisState, setAnalysisState] = useState<AnalysisState>({ status: 'idle', total: 0, completed: 0, failed: 0, remaining: 0 })
   const [analysisBusy, setAnalysisBusy] = useState(false)
@@ -280,6 +306,12 @@ export default function ResourcesPage() {
   }, [active])
 
   useEffect(() => {
+  if (active === 'contacts' && workspaceOpen) {
+    void loadContacts()
+  }
+}, [active, workspaceOpen])
+
+  useEffect(() => {
     if (active !== 'clock') return
 
     void refreshClock(clockTimezone)
@@ -322,6 +354,63 @@ export default function ResourcesPage() {
     return payload
   }
 
+  async function loadContacts(
+  pageToken: string | null = null,
+  append = false,
+) {
+  if (append) {
+    setContactsLoadingMore(true)
+  } else {
+    setContactsLoading(true)
+    setContacts([])
+    setMessage(null)
+  }
+
+  try {
+    const params = new URLSearchParams({
+      page_size: '50',
+    })
+
+    if (pageToken) {
+      params.set('page_token', pageToken)
+    }
+
+    const response = await fetch(
+      `${API_BASE}/resources/contacts?${params.toString()}`,
+    )
+
+    const payload = await response.json() as ContactsPayload
+
+    if (!response.ok) {
+      throw new Error(
+        payload.detail
+        ?? payload.message
+        ?? 'Google Contacts indisponible',
+      )
+    }
+
+    const loadedContacts = payload.contacts ?? []
+
+    setContacts((currentContacts) => (
+      append
+        ? [...currentContacts, ...loadedContacts]
+        : loadedContacts
+    ))
+
+    setContactsNextPageToken(payload.next_page_token ?? null)
+    setContactsTotalItems(payload.total_items ?? null)
+  } catch (error) {
+    setMessage(
+      error instanceof Error
+        ? error.message
+        : 'Impossible de charger Google Contacts',
+    )
+  } finally {
+    setContactsLoading(false)
+    setContactsLoadingMore(false)
+  }
+}
+
   async function handleSubmit(event: FormEvent) {
     event.preventDefault()
     const normalized = query.trim()
@@ -333,6 +422,29 @@ export default function ResourcesPage() {
     setTotalResults(null)
     setLastQuery(normalized)
     try {
+    if (active === 'contacts') {
+    setContactsLoading(true)
+    setContacts([])
+    setContactsNextPageToken(null)
+
+    const response = await fetch(
+      `${API_BASE}/resources/contacts/search?q=${encodeURIComponent(normalized)}&limit=100`,
+    )
+
+    const payload = await response.json() as ContactsPayload
+
+    if (!response.ok) {
+      throw new Error(
+        payload.detail
+        ?? payload.message
+        ?? 'Recherche Google Contacts indisponible',
+      )
+    }
+
+    setContacts(payload.contacts ?? [])
+    setContactsTotalItems(payload.count ?? 0)
+    return
+  }
     if (active === 'devdocs') {
     setLoading(true)
 
@@ -412,6 +524,7 @@ const payload = await fetchSearch(active, normalized)
       setMessage(error instanceof Error ? error.message : 'Impossible de charger la suite')
     } finally {
       setLoadingMore(false)
+      setContactsLoading(false)  
     }
   }
 
@@ -511,7 +624,16 @@ const payload = await fetchSearch(active, normalized)
             <form className="resources-search" onSubmit={handleSubmit}>
               <Search size={19} />
               <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={current.placeholder} autoFocus />
-              <button type="submit" disabled={loading}>{loading ? 'Recherche…' : active === 'maps' ? 'Itinéraire' : 'Rechercher'}</button>
+              <button
+                type="submit"
+                disabled={loading || contactsLoading}
+              >
+                {loading || contactsLoading
+                  ? 'Recherche…'
+                  : active === 'maps'
+                    ? 'Itinéraire'
+                    : 'Rechercher'}
+              </button>
             </form>
           )}
 
@@ -646,6 +768,196 @@ const payload = await fetchSearch(active, normalized)
     )}
   </section>
 )}          
+
+          {active === 'contacts' && (
+  <section
+    style={{
+      display: 'grid',
+      gap: 18,
+      marginTop: 22,
+    }}
+  >
+    <div
+      style={{
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        gap: 16,
+        flexWrap: 'wrap',
+        padding: 18,
+        border: '1px solid var(--border, #d7d1c5)',
+        borderRadius: 16,
+      }}
+    >
+      <div>
+        <p className="eyebrow">Google People API</p>
+
+        <h3 style={{ margin: 0 }}>
+          Google Contacts connecté
+        </h3>
+
+        <p
+          style={{
+            marginBottom: 0,
+            opacity: 0.72,
+          }}
+        >
+          {contactsTotalItems !== null
+            ? `${contactsTotalItems} contacts dans le carnet Google`
+            : 'Consultation du carnet d’adresses Google'}
+        </p>
+      </div>
+
+      <button
+        type="button"
+        onClick={() => void loadContacts()}
+        disabled={contactsLoading}
+        style={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: 8,
+        }}
+      >
+        <RefreshCw
+          size={15}
+          className={contactsLoading ? 'spin' : ''}
+        />
+
+        Actualiser
+      </button>
+    </div>
+
+    {contactsLoading && contacts.length === 0 && (
+      <div className="resources-message">
+        Chargement des contacts…
+      </div>
+    )}
+
+    {!contactsLoading && contacts.length === 0 && !message && (
+      <div className="resources-message">
+        Aucun contact trouvé.
+      </div>
+    )}
+
+    {contacts.length > 0 && (
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))',
+          gap: 12,
+        }}
+      >
+        {contacts.map((contact) => (
+          <article
+            key={contact.resource_name}
+            style={{
+              display: 'flex',
+              alignItems: 'flex-start',
+              gap: 14,
+              padding: 16,
+              border: '1px solid var(--border, #d7d1c5)',
+              borderRadius: 14,
+              minWidth: 0,
+            }}
+          >
+            {contact.photo_url ? (
+              <img
+                src={contact.photo_url}
+                alt=""
+                referrerPolicy="no-referrer"
+                style={{
+                  width: 48,
+                  height: 48,
+                  borderRadius: '50%',
+                  objectFit: 'cover',
+                  flexShrink: 0,
+                }}
+              />
+            ) : (
+              <div
+                aria-hidden="true"
+                style={{
+                  width: 48,
+                  height: 48,
+                  borderRadius: '50%',
+                  display: 'grid',
+                  placeItems: 'center',
+                  flexShrink: 0,
+                  border: '1px solid var(--border, #d7d1c5)',
+                  fontWeight: 700,
+                }}
+              >
+                {contact.name.slice(0, 1).toUpperCase()}
+              </div>
+            )}
+
+            <div
+              style={{
+                display: 'grid',
+                gap: 7,
+                minWidth: 0,
+              }}
+            >
+              <strong>{contact.name}</strong>
+
+              {contact.organizations.map((organization) => (
+                <small
+                  key={organization}
+                  style={{ opacity: 0.72 }}
+                >
+                  {organization}
+                </small>
+              ))}
+
+              {contact.emails.map((email) => (
+                <a
+                  key={email}
+                  href={`mailto:${email}`}
+                  style={{
+                    overflowWrap: 'anywhere',
+                  }}
+                >
+                  {email}
+                </a>
+              ))}
+
+              {contact.phones.map((phone) => (
+                <a
+                  key={phone}
+                  href={`tel:${phone.replace(/\s/g, '')}`}
+                >
+                  {phone}
+                </a>
+              ))}
+            </div>
+          </article>
+        ))}
+      </div>
+    )}
+
+    {contactsNextPageToken && (
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'center',
+        }}
+      >
+        <button
+          type="button"
+          disabled={contactsLoadingMore}
+          onClick={() => void loadContacts(
+            contactsNextPageToken,
+            true,
+          )}
+        >
+          {contactsLoadingMore
+            ? 'Chargement…'
+            : 'Charger davantage'}
+        </button>
+      </div>
+    )}
+  </section>
+)}
 
           {active === 'clock' && (
             <section
@@ -986,6 +1298,7 @@ const payload = await fetchSearch(active, normalized)
           {active !== 'chess' &&
             active !== 'clock' &&
             active !== 'devdocs' &&
+            active !== 'contacts' &&
             !message &&
             !loading &&
             results.length === 0 && (
