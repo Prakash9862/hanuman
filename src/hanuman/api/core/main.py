@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from hanuman.api.routers.orchestrations import router as orchestrations_router
+from hanuman.api.routers.settings import router as settings_router
 
 
 def create_app() -> FastAPI:
@@ -18,7 +19,7 @@ def create_app() -> FastAPI:
 
     # Routers
     app.include_router(orchestrations_router)
-
+    app.include_router(settings_router)
     return app
 
 
